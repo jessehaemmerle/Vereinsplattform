@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Dokumente - Vereinsverwaltung{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Dokumente</h1>
+
+    <a href="{{ url_for('documents_new') }}" class="btn btn-primary mb-3">+ Neues Dokument</a>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="alert alert-info">
+                {% for msg in messages %}
+                    <div>{{ msg }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Dateiname</th>
+                    <th>Beschreibung</th>
+                    <th>Hochgeladen am</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in documents %}
+                    <tr>
+                        <td>{{ doc.id }}</td>
+                        <td>{{ doc.original_filename }}</td>
+                        <td>{{ doc.description or "Keine Beschreibung" }}</td>
+                        <td>{{ doc.uploaded_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td class="d-flex justify-content-start">
+                            <a href="{{ url_for('documents_download', doc_id=doc.id) }}" 
+                               class="btn btn-success btn-sm me-2">
+                                <i class="bi bi-download"></i> Download
+                            </a>
+                            <form action="{{ url_for('documents_delete', doc_id=doc.id) }}" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i class="bi bi-trash"></i> Löschen
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if documents|length == 0 %}
+        <p class="text-center mt-4">Keine Dokumente verfügbar.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,52 +1,53 @@
 {% extends "base.html" %}
+{% block title %}{{ titel }}{% endblock %}
 {% block content %}
-<h1>{{ titel }}</h1>
-<form method="POST" action="">
-    {{ form.hidden_tag() }}
+<div class="container mt-4">
+    <h1>{{ titel }}</h1>
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
 
-    <p>
-        {{ form.typ.label }}<br>
-        {{ form.typ() }}
-        {% for error in form.typ.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="typ" class="form-label">{{ form.typ.label }}</label>
+            {{ form.typ(class_="form-select", id="typ") }}
+            {% for error in form.typ.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        {{ form.kategorie.label }}<br>
-        {{ form.kategorie(size=30) }}
-        {% for error in form.kategorie.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="kategorie" class="form-label">{{ form.kategorie.label }}</label>
+            {{ form.kategorie(class_="form-control", id="kategorie") }}
+            {% for error in form.kategorie.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        {{ form.betrag.label }}<br>
-        {{ form.betrag() }}
-        {% for error in form.betrag.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="betrag" class="form-label">{{ form.betrag.label }}</label>
+            {{ form.betrag(class_="form-control", id="betrag") }}
+            {% for error in form.betrag.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        {{ form.datum.label }}<br>
-        {{ form.datum() }}
-        {% for error in form.datum.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="datum" class="form-label">{{ form.datum.label }}</label>
+            {{ form.datum(class_="form-control", id="datum") }}
+            {% for error in form.datum.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        {{ form.beschreibung.label }}<br>
-        {{ form.beschreibung(rows=3, cols=40) }}
-        {% for error in form.beschreibung.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="beschreibung" class="form-label">{{ form.beschreibung.label }}</label>
+            {{ form.beschreibung(class_="form-control", rows="3", id="beschreibung") }}
+            {% for error in form.beschreibung.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        <button type="submit">Speichern</button>
-        <a href="{{ url_for('finanzen_liste') }}">Abbrechen</a>
-    </p>
-</form>
+        <button type="submit" class="btn btn-success">Speichern</button>
+        <a href="{{ url_for('finanzen_liste') }}" class="btn btn-secondary">Abbrechen</a>
+    </form>
+</div>
 {% endblock %}

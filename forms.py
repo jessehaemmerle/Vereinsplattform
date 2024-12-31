@@ -1,6 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, DateField, FloatField, SelectField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo
+from flask_wtf.file import FileField, FileRequired, FileAllowed
 
 class MitgliedForm(FlaskForm):
     vorname = StringField('Vorname', validators=[DataRequired()])
@@ -44,3 +45,14 @@ class LoginForm(FlaskForm):
     email = StringField('E-Mail', validators=[DataRequired(), Email()])
     password = PasswordField('Passwort', validators=[DataRequired()])
     submit = SubmitField('Einloggen')
+
+class DocumentForm(FlaskForm):
+    file = FileField(
+        'Datei',
+        validators=[
+            FileRequired(message='Bitte wähle eine Datei aus.'),
+            FileAllowed(['pdf', 'doc', 'docx', 'jpg', 'png'], 'Nur PDF, DOC, DOCX, JPG, PNG erlaubt!')
+        ]
+    )
+    description = TextAreaField('Beschreibung', validators=[DataRequired()])
+    submit = SubmitField('Hochladen')

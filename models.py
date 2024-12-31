@@ -1,5 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
+from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
@@ -65,3 +67,18 @@ class User(db.Model, UserMixin):
 
     def __repr__(self):
         return f"<User {self.username} role={self.role}>"
+    
+class Document(db.Model):
+    __tablename__ = 'documents'
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)          # z. B. auf dem Server gespeicherter Dateiname
+    original_filename = db.Column(db.String(255), nullable=False) # Ursprünglicher Dateiname
+    description = db.Column(db.Text, nullable=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow) # Zeitstempel Upload
+
+    # Optional: Verknüpfung mit dem User, der hochgeladen hat
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user = db.relationship('User', backref='documents')
+
+    def __repr__(self):
+        return f"<Document {self.id} {self.filename}>"

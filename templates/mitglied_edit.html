@@ -1,60 +1,61 @@
 {% extends "base.html" %}
 {% block title %}{{ titel }} - Vereinsverwaltung{% endblock %}
 {% block content %}
-<h1 class="mb-4">{{ titel }}</h1>
+<div class="container mt-4">
+    <h1>{{ titel }}</h1>
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
 
-<form method="POST" action="">
-    {{ form.hidden_tag() }}
+        <div class="mb-3">
+            <label for="vorname" class="form-label">{{ form.vorname.label }}</label>
+            {{ form.vorname(class_="form-control", id="vorname") }}
+            {% for error in form.vorname.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <div class="mb-3">
-        <label for="vorname" class="form-label">{{ form.vorname.label }}</label>
-        {{ form.vorname(class_="form-control", id="vorname") }}
-        {% for error in form.vorname.errors %}
-        <div class="text-danger">{{ error }}</div>
-        {% endfor %}
-    </div>
+        <div class="mb-3">
+            <label for="nachname" class="form-label">{{ form.nachname.label }}</label>
+            {{ form.nachname(class_="form-control", id="nachname") }}
+            {% for error in form.nachname.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <div class="mb-3">
-        <label for="nachname" class="form-label">{{ form.nachname.label }}</label>
-        {{ form.nachname(class_="form-control", id="nachname") }}
-        {% for error in form.nachname.errors %}
-        <div class="text-danger">{{ error }}</div>
-        {% endfor %}
-    </div>
+        <div class="mb-3">
+            <label for="email" class="form-label">{{ form.email.label }}</label>
+            {{ form.email(class_="form-control", id="email") }}
+            {% for error in form.email.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <div class="mb-3">
-        <label for="email" class="form-label">{{ form.email.label }}</label>
-        {{ form.email(class_="form-control", id="email") }}
-        {% for error in form.email.errors %}
-        <div class="text-danger">{{ error }}</div>
-        {% endfor %}
-    </div>
+        <div class="mb-3">
+            <label for="eintrittsdatum" class="form-label">{{ form.eintrittsdatum.label }}</label>
+            {{ form.eintrittsdatum(class_="form-control", id="eintrittsdatum") }}
+            {% for error in form.eintrittsdatum.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <div class="mb-3">
-        <label for="eintrittsdatum" class="form-label">{{ form.eintrittsdatum.label }}</label>
-        {{ form.eintrittsdatum(class_="form-control", id="eintrittsdatum") }}
-        {% for error in form.eintrittsdatum.errors %}
-        <div class="text-danger">{{ error }}</div>
-        {% endfor %}
-    </div>
+        <div class="mb-3">
+            <label for="status" class="form-label">{{ form.status.label }}</label>
+            {{ form.status(class_="form-select", id="status") }}
+            {% for error in form.status.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <div class="mb-3">
-        <label for="status" class="form-label">{{ form.status.label }}</label>
-        {{ form.status(class_="form-select", id="status") }}
-        {% for error in form.status.errors %}
-        <div class="text-danger">{{ error }}</div>
-        {% endfor %}
-    </div>
+        <div class="mb-3">
+            <label for="funktion" class="form-label">{{ form.funktion.label }}</label>
+            {{ form.funktion(class_="form-select", id="funktion") }}
+            {% for error in form.funktion.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <div class="mb-3">
-        <label for="funktion" class="form-label">{{ form.funktion.label }}</label>
-        {{ form.funktion(class_="form-select", id="funktion") }}
-        {% for error in form.funktion.errors %}
-        <div class="text-danger">{{ error }}</div>
-        {% endfor %}
-    </div>
-
-    <button type="submit" class="btn btn-success">Speichern</button>
-    <a href="{{ url_for('mitglieder_liste') }}" class="btn btn-secondary">Abbrechen</a>
-</form>
+        <button type="submit" class="btn btn-success">Speichern</button>
+        <a href="{{ url_for('mitglieder_liste') }}" class="btn btn-secondary">Abbrechen</a>
+    </form>
+</div>
 {% endblock %}

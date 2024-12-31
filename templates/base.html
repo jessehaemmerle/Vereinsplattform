@@ -43,6 +43,9 @@
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('notizen_liste') }}">Notizen</a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('documents_list') }}">Dokumente</a>
+        </li>
         {% if current_user.is_authenticated %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
@@ -53,7 +56,7 @@
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('register') }}">Registrieren</a>
-          </li>
+          </li>          
         {% endif %}
       </ul>
     </div>
