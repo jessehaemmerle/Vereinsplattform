@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, DateField, FloatField, SelectField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Email, EqualTo
+from wtforms.validators import DataRequired, Email, EqualTo, Optional
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 
 class MitgliedForm(FlaskForm):
@@ -56,3 +56,12 @@ class DocumentForm(FlaskForm):
     )
     description = TextAreaField('Beschreibung', validators=[DataRequired()])
     submit = SubmitField('Hochladen')
+
+    from wtforms import FloatField
+
+class EventForm(FlaskForm):
+    titel = StringField('Titel', validators=[DataRequired()])
+    beschreibung = TextAreaField('Beschreibung')
+    datum = DateField('Datum', format='%Y-%m-%d')
+    ort = StringField('Ort')
+    preis = FloatField('Preis (EUR)', validators=[Optional()])  # Neues Preisfeld

@@ -18,17 +18,6 @@ class Mitglied(db.Model):
     def __repr__(self):
         return f"<Mitglied {self.vorname} {self.nachname}>"
 
-class Event(db.Model):
-    __tablename__ = 'events'
-    id = db.Column(db.Integer, primary_key=True)
-    titel = db.Column(db.String(100))
-    beschreibung = db.Column(db.Text)
-    datum = db.Column(db.Date)
-    ort = db.Column(db.String(100))
-
-    def __repr__(self):
-        return f"<Event {self.titel}>"
-
 class Finanzbuchung(db.Model):
     __tablename__ = 'finanzen'
     id = db.Column(db.Integer, primary_key=True)
@@ -82,3 +71,15 @@ class Document(db.Model):
 
     def __repr__(self):
         return f"<Document {self.id} {self.filename}>"
+
+class Event(db.Model):
+    __tablename__ = 'events'
+    id = db.Column(db.Integer, primary_key=True)
+    titel = db.Column(db.String(100))
+    beschreibung = db.Column(db.Text)
+    datum = db.Column(db.Date)
+    ort = db.Column(db.String(100))
+    preis = db.Column(db.Float, nullable=True)  # Neues Preisfeld
+
+    def __repr__(self):
+        return f"<Event {self.titel}>"

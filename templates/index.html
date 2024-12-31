@@ -37,4 +37,94 @@
     </div>
   </div>
 </div>
+
+<div class="row g-3 mt-4">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Einnahmen vs. Ausgaben</h5>
+        <canvas id="einnahmenAusgabenChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Mitgliederstatus</h5>
+        <canvas id="mitgliederStatusChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-4">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Events pro Monat</h5>
+        <canvas id="eventsProMonatChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Einnahmen vs. Ausgaben
+  const einnahmenAusgabenCtx = document.getElementById('einnahmenAusgabenChart').getContext('2d');
+  new Chart(einnahmenAusgabenCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Einnahmen', 'Ausgaben'],
+      datasets: [{
+        label: 'Beträge in EUR',
+        data: [{{ sum_einnahmen }}, {{ sum_ausgaben }}],
+        backgroundColor: ['#4caf50', '#f44336'],
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+      }
+    }
+  });
+
+  // Mitgliederstatus
+  const mitgliederStatusCtx = document.getElementById('mitgliederStatusChart').getContext('2d');
+  new Chart(mitgliederStatusCtx, {
+    type: 'pie',
+    data: {
+      labels: ['Aktiv', 'Inaktiv'],
+      datasets: [{
+        data: [{{ mitglieder_aktiv }}, {{ mitglieder_inaktiv }}],
+        backgroundColor: ['#007bff', '#6c757d'],
+      }]
+    },
+    options: {
+      responsive: true,
+    }
+  });
+
+  // Events pro Monat
+  const eventsProMonatCtx = document.getElementById('eventsProMonatChart').getContext('2d');
+  new Chart(eventsProMonatCtx, {
+    type: 'line',
+    data: {
+      labels: {{ events_monate | safe }},
+      datasets: [{
+        label: 'Events',
+        data: {{ events_anzahl | safe }},
+        borderColor: '#4caf50',
+        tension: 0.1,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: true },
+      }
+    }
+  });
+</script>
 {% endblock %}

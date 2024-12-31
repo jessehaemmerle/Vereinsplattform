@@ -1,6 +1,6 @@
 import os
 from datetime import date
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document
 from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -9,6 +9,7 @@ from datetime import datetime
 import uuid # Für Eindeutige Dateinamen in der Struktur.
 import csv
 import io
+from fpdf import FPDF
 
 # Flask-Login konfigurieren
 login_manager = LoginManager()
@@ -103,22 +104,40 @@ def logout():
 # ----------------------------------
 @app.route('/')
 def index():
-    # Evtl. einige Kennzahlen anzeigen
+    # Berechnung für Einnahmen und Ausgaben
+    sum_einnahmen = db.session.query(db.func.sum(Finanzbuchung.betrag))\
+        .filter(Finanzbuchung.typ == 'Einnahme').scalar() or 0
+    sum_ausgaben = db.session.query(db.func.sum(Finanzbuchung.betrag))\
+        .filter(Finanzbuchung.typ == 'Ausgabe').scalar() or 0
+
+    # Mitgliederstatus
+    mitglieder_aktiv = Mitglied.query.filter_by(status='aktiv').count()
+    mitglieder_inaktiv = Mitglied.query.filter_by(status='inaktiv').count()
+
+    # Events pro Monat
+    events = Event.query.all()
+    events_monate = [0] * 12
+    for event in events:
+        if event.datum:
+            events_monate[event.datum.month - 1] += 1
+
+    # Anzahlen und Saldo
     anzahl_mitglieder = Mitglied.query.count()
     anzahl_events = Event.query.count()
     anzahl_notizen = Notiz.query.count()
-    sum_einnahmen = db.session.query(db.func.sum(Finanzbuchung.betrag))\
-        .filter(Finanzbuchung.typ=='Einnahme').scalar() or 0
-    sum_ausgaben = db.session.query(db.func.sum(Finanzbuchung.betrag))\
-        .filter(Finanzbuchung.typ=='Ausgabe').scalar() or 0
     saldo = sum_einnahmen - sum_ausgaben
 
     return render_template('index.html',
                            anzahl_mitglieder=anzahl_mitglieder,
                            anzahl_events=anzahl_events,
                            anzahl_notizen=anzahl_notizen,
-                           saldo=saldo)
-
+                           saldo=saldo,
+                           sum_einnahmen=sum_einnahmen,
+                           sum_ausgaben=sum_ausgaben,
+                           mitglieder_aktiv=mitglieder_aktiv,
+                           mitglieder_inaktiv=mitglieder_inaktiv,
+                           events_monate=[str(month) for month in range(1, 13)],
+                           events_anzahl=events_monate)
 
 # ----------------------------------
 # Mitglieder
@@ -184,16 +203,33 @@ def events_liste():
 def event_new():
     form = EventForm()
     if form.validate_on_submit():
+        # Neues Event erstellen
         neues_event = Event(
             titel=form.titel.data,
             beschreibung=form.beschreibung.data,
             datum=form.datum.data,
-            ort=form.ort.data
+            ort=form.ort.data,
+            preis=form.preis.data  # Eventpreis
         )
         db.session.add(neues_event)
         db.session.commit()
+
+        # Automatische Finanzbuchung für Eventkosten
+        if neues_event.preis and neues_event.preis > 0:
+            finanzbuchung = Finanzbuchung(
+                typ='Ausgabe',
+                kategorie='Eventkosten',
+                betrag=neues_event.preis,
+                datum=neues_event.datum or date.today(),
+                beschreibung=f"Kosten für Event: {neues_event.titel}"
+            )
+            db.session.add(finanzbuchung)
+            db.session.commit()
+
+        flash('Neues Event erfolgreich erstellt, Kosten wurden in Finanzen erfasst.', 'success')
         return redirect(url_for('events_liste'))
     return render_template('event_edit.html', form=form, titel="Neues Event")
+
 
 @app.route('/event/<int:event_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -201,13 +237,39 @@ def event_edit(event_id):
     event = Event.query.get_or_404(event_id)
     form = EventForm(obj=event)
     if form.validate_on_submit():
+        # Update des Events
         event.titel = form.titel.data
         event.beschreibung = form.beschreibung.data
         event.datum = form.datum.data
         event.ort = form.ort.data
+        event.preis = form.preis.data
         db.session.commit()
+
+        # Finanzbuchung aktualisieren
+        finanzbuchung = Finanzbuchung.query.filter_by(
+            beschreibung=f"Kosten für Event: {event.titel}"
+        ).first()
+
+        if finanzbuchung:
+            finanzbuchung.betrag = event.preis
+            finanzbuchung.datum = event.datum
+        else:
+            # Falls keine Buchung existiert, neu erstellen
+            finanzbuchung = Finanzbuchung(
+                typ='Ausgabe',
+                kategorie='Eventkosten',
+                betrag=event.preis,
+                datum=event.datum or date.today(),
+                beschreibung=f"Kosten für Event: {event.titel}"
+            )
+            db.session.add(finanzbuchung)
+
+        db.session.commit()
+        flash('Event und zugehörige Finanzbuchung erfolgreich aktualisiert.', 'success')
         return redirect(url_for('events_liste'))
     return render_template('event_edit.html', form=form, titel="Event bearbeiten")
+
+
 
 @app.route('/event/<int:event_id>/delete', methods=['POST'])
 @login_required
@@ -226,11 +288,17 @@ def event_delete(event_id):
 def finanzen_liste():
     buchungen = Finanzbuchung.query.all()
     sum_einnahmen = db.session.query(db.func.sum(Finanzbuchung.betrag))\
-        .filter(Finanzbuchung.typ=='Einnahme').scalar() or 0
+        .filter(Finanzbuchung.typ == 'Einnahme').scalar() or 0
     sum_ausgaben = db.session.query(db.func.sum(Finanzbuchung.betrag))\
-        .filter(Finanzbuchung.typ=='Ausgabe').scalar() or 0
+        .filter(Finanzbuchung.typ == 'Ausgabe').scalar() or 0
     saldo = sum_einnahmen - sum_ausgaben
-    return render_template('finanzen.html', buchungen=buchungen, saldo=saldo)
+
+    current_year = datetime.now().year  # Aktuelles Jahr
+
+    return render_template('finanzen.html',
+                           buchungen=buchungen,
+                           saldo=saldo,
+                           current_year=current_year)
 
 @app.route('/finanzen/export')
 @login_required
@@ -250,23 +318,55 @@ def finanzen_export():
     response.headers['Content-type'] = 'text/csv'
     return response
 
-@app.route('/finanzen/jahresabschluss/<int:jahr>')
+
+@app.route('/finanzen/jahresabschluss/<int:jahr>/download', methods=['GET'])
 @login_required
-def finanzen_jahresabschluss(jahr):
-    buchungen_jahr = Finanzbuchung.query.filter(
-        db.extract('year', Finanzbuchung.datum) == jahr
-    ).all()
+def jahresabschluss_pdf(jahr):
+    # Buchungen des Jahres filtern
+    buchungen = Finanzbuchung.query.filter(db.extract('year', Finanzbuchung.datum) == jahr).all()
 
-    sum_einnahmen = sum([b.betrag for b in buchungen_jahr if b.typ == 'Einnahme'])
-    sum_ausgaben = sum([b.betrag for b in buchungen_jahr if b.typ == 'Ausgabe'])
-    saldo = sum_einnahmen - sum_ausgaben
+    # Summen berechnen
+    einnahmen = sum(b.betrag for b in buchungen if b.typ == 'Einnahme')
+    ausgaben = sum(b.betrag for b in buchungen if b.typ == 'Ausgabe')
+    saldo = einnahmen - ausgaben
 
-    return render_template('jahresabschluss.html',
-                           jahr=jahr,
-                           buchungen=buchungen_jahr,
-                           einnahmen=sum_einnahmen,
-                           ausgaben=sum_ausgaben,
-                           saldo=saldo)
+    # PDF erstellen
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    # Titel
+    pdf.cell(200, 10, f"Jahresabschluss {jahr}", ln=True, align="C")
+
+    # Summen
+    pdf.cell(200, 10, f"Einnahmen: {einnahmen:.2f} EUR", ln=True)
+    pdf.cell(200, 10, f"Ausgaben: {ausgaben:.2f} EUR", ln=True)
+    pdf.cell(200, 10, f"Saldo: {saldo:.2f} EUR", ln=True)
+
+    # Tabellenüberschrift
+    pdf.ln(10)
+    pdf.cell(30, 10, "ID", border=1)
+    pdf.cell(30, 10, "Typ", border=1)
+    pdf.cell(50, 10, "Kategorie", border=1)
+    pdf.cell(40, 10, "Betrag", border=1)
+    pdf.cell(40, 10, "Datum", border=1)
+    pdf.ln(10)
+
+    # Tabelleninhalt
+    for b in buchungen:
+        pdf.cell(30, 10, str(b.id), border=1)
+        pdf.cell(30, 10, b.typ, border=1)
+        pdf.cell(50, 10, b.kategorie, border=1)
+        pdf.cell(40, 10, f"{b.betrag:.2f}", border=1)
+        pdf.cell(40, 10, b.datum.strftime('%d.%m.%Y'), border=1)
+        pdf.ln(10)
+
+    # PDF als Antwort zurückgeben
+    response = make_response(pdf.output(dest='S').encode('latin1'))
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=jahresabschluss_{jahr}.pdf'
+    return response
+
 
 @app.route('/finanzen/new', methods=['GET', 'POST'])
 @login_required
@@ -285,6 +385,36 @@ def finanzen_new():
         flash('Neue Buchung erfolgreich hinzugefügt.')
         return redirect(url_for('finanzen_liste'))
     return render_template('finanzen_edit.html', form=form, titel="Neue Buchung")
+
+@app.route('/finanzen/<int:buchung_id>/edit', methods=['GET', 'POST'])
+@login_required
+def finanzen_edit(buchung_id):
+    buchung = Finanzbuchung.query.get_or_404(buchung_id)
+    form = FinanzForm(obj=buchung)
+    if form.validate_on_submit():
+        buchung.typ = form.typ.data
+        buchung.kategorie = form.kategorie.data
+        buchung.betrag = form.betrag.data
+        buchung.datum = form.datum.data
+        buchung.beschreibung = form.beschreibung.data
+        db.session.commit()
+        flash('Buchung erfolgreich aktualisiert.', 'success')
+        return redirect(url_for('finanzen_liste'))
+    return render_template('finanzen_edit.html', form=form, titel="Buchung bearbeiten")
+
+@app.route('/finanzen/<int:buchung_id>/delete', methods=['POST'])
+@login_required
+def finanzen_delete(buchung_id):
+    # Abrufen der Buchung aus der Datenbank
+    buchung = Finanzbuchung.query.get_or_404(buchung_id)
+
+    # Die Buchung aus der Datenbank entfernen
+    db.session.delete(buchung)
+    db.session.commit()
+
+    # Erfolgsnachricht und Weiterleitung zur Finanzübersicht
+    flash('Buchung erfolgreich gelöscht.', 'success')
+    return redirect(url_for('finanzen_liste'))
 
 
 # ----------------------------------

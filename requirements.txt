@@ -5,3 +5,4 @@ WTForms
 email_validator
 Werkzeug
 flask_login
+fpdf

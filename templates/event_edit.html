@@ -1,44 +1,55 @@
 {% extends "base.html" %}
+{% block title %}{{ titel }} - Vereinsverwaltung{% endblock %}
 {% block content %}
-<h1>{{ titel }}</h1>
-<form method="POST" action="">
-    {{ form.hidden_tag() }}
+<div class="container mt-4">
+    <h1 class="mb-4">{{ titel }}</h1>
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
 
-    <p>
-        {{ form.titel.label }}<br>
-        {{ form.titel(size=40) }}
-        {% for error in form.titel.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="titel" class="form-label">{{ form.titel.label }}</label>
+            {{ form.titel(class_="form-control", id="titel") }}
+            {% for error in form.titel.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        {{ form.beschreibung.label }}<br>
-        {{ form.beschreibung(rows=4, cols=40) }}
-        {% for error in form.beschreibung.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="beschreibung" class="form-label">{{ form.beschreibung.label }}</label>
+            {{ form.beschreibung(class_="form-control", rows="4", id="beschreibung") }}
+            {% for error in form.beschreibung.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        {{ form.datum.label }}<br>
-        {{ form.datum() }}
-        {% for error in form.datum.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="datum" class="form-label">{{ form.datum.label }}</label>
+            {{ form.datum(class_="form-control", id="datum") }}
+            {% for error in form.datum.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        {{ form.ort.label }}<br>
-        {{ form.ort(size=40) }}
-        {% for error in form.ort.errors %}
-        <span class="error">{{ error }}</span>
-        {% endfor %}
-    </p>
+        <div class="mb-3">
+            <label for="ort" class="form-label">{{ form.ort.label }}</label>
+            {{ form.ort(class_="form-control", id="ort") }}
+            {% for error in form.ort.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
 
-    <p>
-        <button type="submit">Speichern</button>
-        <a href="{{ url_for('events_liste') }}">Abbrechen</a>
-    </p>
-</form>
+        <div class="mb-3">
+            <label for="preis" class="form-label">{{ form.preis.label }}</label>
+            {{ form.preis(class_="form-control", id="preis") }}
+            {% for error in form.preis.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="d-flex">
+            <button type="submit" class="btn btn-success me-2">Speichern</button>
+            <a href="{{ url_for('events_liste') }}" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
 {% endblock %}
