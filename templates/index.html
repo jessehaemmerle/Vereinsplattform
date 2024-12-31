@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Vereinsverwaltung{% endblock %}
+{% block content %}
+<h1 class="mb-4">Dashboard</h1>
+
+<div class="row g-3">
+  <div class="col-sm-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Mitglieder</h5>
+        <p class="card-text display-5">{{ anzahl_mitglieder }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Events</h5>
+        <p class="card-text display-5">{{ anzahl_events }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Notizen</h5>
+        <p class="card-text display-5">{{ anzahl_notizen }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Saldo</h5>
+        <p class="card-text display-5">{{ saldo }} €</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

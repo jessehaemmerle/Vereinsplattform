@@ -5,17 +5,25 @@
     {{ form.hidden_tag() }}
 
     <p>
-        {{ form.titel.label }}<br>
-        {{ form.titel(size=40) }}
-        {% for error in form.titel.errors %}
+        {{ form.typ.label }}<br>
+        {{ form.typ() }}
+        {% for error in form.typ.errors %}
         <span class="error">{{ error }}</span>
         {% endfor %}
     </p>
 
     <p>
-        {{ form.beschreibung.label }}<br>
-        {{ form.beschreibung(rows=4, cols=40) }}
-        {% for error in form.beschreibung.errors %}
+        {{ form.kategorie.label }}<br>
+        {{ form.kategorie(size=30) }}
+        {% for error in form.kategorie.errors %}
+        <span class="error">{{ error }}</span>
+        {% endfor %}
+    </p>
+
+    <p>
+        {{ form.betrag.label }}<br>
+        {{ form.betrag() }}
+        {% for error in form.betrag.errors %}
         <span class="error">{{ error }}</span>
         {% endfor %}
     </p>
@@ -29,16 +37,16 @@
     </p>
 
     <p>
-        {{ form.ort.label }}<br>
-        {{ form.ort(size=40) }}
-        {% for error in form.ort.errors %}
+        {{ form.beschreibung.label }}<br>
+        {{ form.beschreibung(rows=3, cols=40) }}
+        {% for error in form.beschreibung.errors %}
         <span class="error">{{ error }}</span>
         {% endfor %}
     </p>
 
     <p>
         <button type="submit">Speichern</button>
-        <a href="{{ url_for('events_liste') }}">Abbrechen</a>
+        <a href="{{ url_for('finanzen_liste') }}">Abbrechen</a>
     </p>
 </form>
 {% endblock %}

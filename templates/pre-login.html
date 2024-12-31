@@ -14,8 +14,6 @@
 <!-- Navigation -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
   <div class="container-fluid">
-    <!-- Logo / Brand -->
-    <a class="navbar-brand" href="{{ url_for('index') }}">Verein</a>
 
     <!-- Button für mobile Ansicht -->
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
@@ -28,26 +26,7 @@
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav ms-auto">
         <!-- ms-auto: schiebt die Navigation nach rechts -->
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('mitglieder_liste') }}">Mitglieder</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('events_liste') }}">Events</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('finanzen_liste') }}">Finanzen</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('notizen_liste') }}">Notizen</a>
-        </li>
-        {% if current_user.is_authenticated %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
-          </li>
-        {% else %}
+        {% if not current_user.is_authenticated %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('login') }}">Login</a>
           </li>

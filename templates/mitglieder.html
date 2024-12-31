@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Mitglieder - Vereinsverwaltung{% endblock %}
+{% block content %}
+<h1 class="mb-4">Mitglieder</h1>
+<a href="{{ url_for('mitglied_new') }}" class="btn btn-primary mb-3">+ Neues Mitglied</a>
+
+<table class="table table-bordered table-hover align-middle">
+  <thead class="table-light">
+    <tr>
+      <th>ID</th>
+      <th>Vorname</th>
+      <th>Nachname</th>
+      <th>E-Mail</th>
+      <th>Status</th>
+      <th style="width: 140px;">Aktion</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for m in mitglieder %}
+    <tr>
+      <td>{{ m.id }}</td>
+      <td>{{ m.vorname }}</td>
+      <td>{{ m.nachname }}</td>
+      <td>{{ m.email }}</td>
+      <td>{{ m.status }}</td>
+      <td>{{ m.funktion }}</td>
+      <td>
+        <a href="{{ url_for('mitglied_edit', mitglied_id=m.id) }}" class="btn btn-sm btn-warning">Bearbeiten</a>
+        <form action="{{ url_for('mitglied_delete', mitglied_id=m.id) }}" method="POST" style="display:inline;">
+          <button type="submit" class="btn btn-sm btn-danger">Löschen</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

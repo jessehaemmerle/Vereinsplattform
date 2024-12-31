@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ titel }}</h1>
+<form method="POST" action="">
+    {{ form.hidden_tag() }}
+
+    <p>
+        {{ form.titel.label }}<br>
+        {{ form.titel(size=40) }}
+        {% for error in form.titel.errors %}
+        <span class="error">{{ error }}</span>
+        {% endfor %}
+    </p>
+
+    <p>
+        {{ form.inhalt.label }}<br>
+        {{ form.inhalt(rows=6, cols=50) }}
+        {% for error in form.inhalt.errors %}
+        <span class="error">{{ error }}</span>
+        {% endfor %}
+    </p>
+
+    <p>
+        <button type="submit">Speichern</button>
+        <a href="{{ url_for('notizen_liste') }}">Abbrechen</a>
+    </p>
+</form>
+{% endblock %}
