@@ -5,7 +5,7 @@ from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document
 from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid # Für Eindeutige Dateinamen in der Struktur.
 import csv
 import io
@@ -112,6 +112,10 @@ def index():
         .filter(Finanzbuchung.typ == 'Einnahme').scalar() or 0
     sum_ausgaben = db.session.query(db.func.sum(Finanzbuchung.betrag))\
         .filter(Finanzbuchung.typ == 'Ausgabe').scalar() or 0
+    
+    # Rundung auf 2 Nachkommastellen
+    sum_einnahmen = round(sum_einnahmen, 2)
+    sum_ausgaben = round(sum_ausgaben, 2)
 
     # Mitgliederstatus
     mitglieder_aktiv = Mitglied.query.filter_by(status='aktiv').count()
@@ -129,6 +133,8 @@ def index():
     anzahl_events = Event.query.count()
     anzahl_notizen = Notiz.query.count()
     saldo = sum_einnahmen - sum_ausgaben
+
+    saldo = round(saldo, 2)
 
     return render_template('index.html',
                            anzahl_mitglieder=anzahl_mitglieder,
@@ -585,22 +591,28 @@ def documents_list():
 @app.route('/documents/new', methods=['GET', 'POST'])
 @login_required
 def documents_new():
+    # Initialisierung des Formulars
     form = DocumentForm()
+
+    # Validierung des Formulars bei POST-Request
     if form.validate_on_submit():
+        # Datei aus dem Formular holen
         file = form.file.data
         if not file:
             flash('Fehler: Keine Datei ausgewählt.', 'danger')
             return render_template('documents_new.html', form=form)
 
         try:
-            # Originalname holen (z. B. 'Rechnung.docx')
+            # Original- und einzigartigen Dateinamen erstellen
             original_filename = secure_filename(file.filename)
-            ext = os.path.splitext(original_filename)[1]
+            ext = os.path.splitext(original_filename)[1]  # Dateierweiterung
             unique_name = str(uuid.uuid4()) + ext
 
+            # Datei speichern
             save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
             file.save(save_path)
 
+            # Dokument in der Datenbank speichern
             document = Document(
                 filename=unique_name,
                 original_filename=original_filename,
@@ -610,13 +622,15 @@ def documents_new():
             db.session.add(document)
             db.session.commit()
 
+            # Erfolgsnachricht und Weiterleitung
             flash('Dokument erfolgreich hochgeladen.', 'success')
             return redirect(url_for('documents_list'))
+
         except Exception as e:
             flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
 
+    # Bei GET-Request oder ungültigem Formular
     return render_template('documents_new.html', form=form)
-
 # ----------------------------------
 # Download
 # ----------------------------------
@@ -784,7 +798,12 @@ def add_event_to_google_calendar(event, user):
 # ----------------------------------
 if __name__ == '__main__':
     import webbrowser
-    # Öffne den Standardbrowser auf dem entsprechenden Port (z. B. 5000)
+    from models import db
+
+    with app.app_context():
+        db.create_all()  # Tabellen erstellen
+
     webbrowser.open('http://127.0.0.1:5000')
-    app.run(host='127.0.0.1', port=5000, debug=False)
+    app.run(host='127.0.0.1', port=5000, debug=True)
+
 

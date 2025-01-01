@@ -59,7 +59,6 @@ class DocumentForm(FlaskForm):
     description = TextAreaField('Beschreibung', validators=[DataRequired()])
     submit = SubmitField('Hochladen')
 
-    from wtforms import FloatField
 
 class EventForm(FlaskForm):
     titel = StringField('Titel', validators=[DataRequired()])
