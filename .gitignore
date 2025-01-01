@@ -1,3 +1,6 @@
 __pycache__
 instance
 logo.png
+build
+dist
+app.spec
