@@ -24,6 +24,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///verein.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
 
+if not os.path.exists('uploads'):
+    os.makedirs('uploads')
+
 db.init_app(app)
 login_manager.init_app(app)
 
