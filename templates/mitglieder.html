@@ -3,6 +3,32 @@
 {% block content %}
 <h1 class="mb-4">Mitglieder</h1>
 <a href="{{ url_for('mitglied_new') }}" class="btn btn-primary mb-3">+ Neues Mitglied</a>
+<a href="#" class="btn btn-secondary mb-3" data-bs-toggle="modal" data-bs-target="#csvImportModal">CSV-Import</a>
+
+<!-- Modal -->
+<div class="modal fade" id="csvImportModal" tabindex="-1" aria-labelledby="csvImportModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('mitglieder_import') }}" enctype="multipart/form-data">
+        <div class="modal-header">
+          <h5 class="modal-title" id="csvImportModalLabel">Mitglieder via CSV importieren</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="csvFile" class="form-label">CSV-Datei auswählen</label>
+            <input class="form-control" type="file" id="csvFile" name="file" accept=".csv" required>
+          </div>
+          <p>Die CSV sollte folgende Spalten enthalten: <strong>Vorname, Nachname, Email, Eintrittsdatum, Status, Funktion</strong>.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Importieren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 
 <table class="table table-bordered table-hover align-middle">
   <thead class="table-light">
@@ -12,7 +38,8 @@
       <th>Nachname</th>
       <th>E-Mail</th>
       <th>Status</th>
-      <th style="width: 140px;">Aktion</th>
+      <th>Funktion</th>
+      <th style="width: 200px;">Aktion</th>
     </tr>
   </thead>
   <tbody>

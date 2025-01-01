@@ -103,6 +103,7 @@ def logout():
 # Startseite / Dashboard
 # ----------------------------------
 @app.route('/')
+@login_required
 def index():
     # Berechnung für Einnahmen und Ausgaben
     sum_einnahmen = db.session.query(db.func.sum(Finanzbuchung.betrag))\
@@ -158,7 +159,8 @@ def mitglied_new():
             nachname=form.nachname.data,
             email=form.email.data,
             eintrittsdatum=form.eintrittsdatum.data or date.today(),
-            status=form.status.data
+            status=form.status.data,
+            funktion=form.funktion.data
         )
         db.session.add(neues_mitglied)
         db.session.commit()
@@ -176,6 +178,7 @@ def mitglied_edit(mitglied_id):
         mitglied.email = form.email.data
         mitglied.eintrittsdatum = form.eintrittsdatum.data
         mitglied.status = form.status.data
+        mitglied.funktion = form.funktion.data
         db.session.commit()
         return redirect(url_for('mitglieder_liste'))
     return render_template('mitglied_edit.html', form=form, titel="Mitglied bearbeiten")
@@ -186,6 +189,37 @@ def mitglied_delete(mitglied_id):
     mitglied = Mitglied.query.get_or_404(mitglied_id)
     db.session.delete(mitglied)
     db.session.commit()
+    return redirect(url_for('mitglieder_liste'))
+
+@app.route('/mitglieder/import', methods=['GET', 'POST'])
+@login_required
+def mitglieder_import():
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if not file:
+            flash('Keine Datei ausgewählt.', 'danger')
+            return redirect(url_for('mitglieder_liste'))
+
+        try:
+            stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+            csv_reader = csv.DictReader(stream)
+
+            for row in csv_reader:
+                neues_mitglied = Mitglied(
+                    vorname=row['Vorname'],
+                    nachname=row['Nachname'],
+                    email=row['Email'],
+                    eintrittsdatum=row.get('Eintrittsdatum', date.today()),
+                    status=row.get('Status', 'aktiv'),
+                    funktion=row.get('Funktion', 'Mitglied')
+                )
+                db.session.add(neues_mitglied)
+            db.session.commit()
+
+            flash('Mitglieder erfolgreich importiert.', 'success')
+        except Exception as e:
+            flash(f'Fehler beim Importieren der CSV: {e}', 'danger')
+
     return redirect(url_for('mitglieder_liste'))
 
 
