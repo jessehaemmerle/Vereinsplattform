@@ -23,6 +23,10 @@
                 </tr>
             </thead>
             <tbody>
+                <tr>
+                    <td colspan="5">Mitgliedsbeiträge</td>
+                    <td>{{ mitgliedsbeiträge_summe }} EUR</td>
+                </tr>
                 {% for b in buchungen %}
                     <tr>
                         <td>{{ b.id }}</td>

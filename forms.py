@@ -10,6 +10,8 @@ class MitgliedForm(FlaskForm):
     eintrittsdatum = DateField('Eintrittsdatum', format='%Y-%m-%d')
     status = SelectField('Status', choices=[('aktiv', 'Aktiv'), ('inaktiv', 'Inaktiv')])
     funktion = SelectField('Funktion', choices=[('leitung', 'Leitung'), ('kassier', 'Kassier'), ('normal', 'Normales Mitglied'), ('vorstand', 'Vorstand'), ('pruefer', 'Rechnungsprüfer'), ('schrift', 'Schriftführer')])
+    mitgliedsbeitrag = FloatField('Mitgliedsbeitrag (EUR)', validators=[Optional()])
+    beitrag_bezahlt = SelectField('Beitrag bezahlt', choices=[('true', 'Ja'), ('false', 'Nein')])
 
 class EventForm(FlaskForm):
     titel = StringField('Titel', validators=[DataRequired()])

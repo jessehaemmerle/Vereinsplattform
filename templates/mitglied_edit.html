@@ -54,6 +54,16 @@
             {% endfor %}
         </div>
 
+        <div class="mb-3">
+            <label for="mitgliedsbeitrag" class="form-label">{{ form.mitgliedsbeitrag.label }}</label>
+            {{ form.mitgliedsbeitrag(class_="form-control", id="mitgliedsbeitrag") }}
+        </div>
+        
+        <div class="mb-3">
+            <label for="beitrag_bezahlt" class="form-label">{{ form.beitrag_bezahlt.label }}</label>
+            {{ form.beitrag_bezahlt(class_="form-select", id="beitrag_bezahlt") }}
+        </div>
+
         <button type="submit" class="btn btn-success">Speichern</button>
         <a href="{{ url_for('mitglieder_liste') }}" class="btn btn-secondary">Abbrechen</a>
     </form>

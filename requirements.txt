@@ -6,3 +6,6 @@ email_validator
 Werkzeug
 flask_login
 fpdf
+google-api-python-client 
+google-auth-httplib2 
+google-auth-oauthlib

@@ -29,6 +29,12 @@
   </div>
 </div>
 
+<form method="GET" action="{{ url_for('mitglieder_liste') }}" class="mb-3">
+  <div class="input-group">
+    <input type="text" class="form-control" name="search" placeholder="Mitglieder suchen..." value="{{ request.args.get('search', '') }}">
+    <button type="submit" class="btn btn-primary">Suchen</button>
+  </div>
+</form>
 
 <table class="table table-bordered table-hover align-middle">
   <thead class="table-light">
@@ -39,6 +45,7 @@
       <th>E-Mail</th>
       <th>Status</th>
       <th>Funktion</th>
+      <th>Mitgliedsbeitrag bezahlt</th>
       <th style="width: 200px;">Aktion</th>
     </tr>
   </thead>
@@ -51,6 +58,14 @@
       <td>{{ m.email }}</td>
       <td>{{ m.status }}</td>
       <td>{{ m.funktion }}</td>
+      <td>
+        <span class="badge bg-{{ 'success' if m.beitrag_bezahlt else 'danger' }}">
+          {{ 'Ja' if m.beitrag_bezahlt else 'Nein' }}
+        </span>
+        <form action="{{ url_for('mitglied_update_beitrag', mitglied_id=m.id) }}" method="POST" style="display:inline;">
+          <button type="submit" class="btn btn-sm btn-secondary">{{ 'Zurücksetzen' if m.beitrag_bezahlt else 'Bezahlen' }}</button>
+        </form>
+      </td>
       <td>
         <a href="{{ url_for('mitglied_edit', mitglied_id=m.id) }}" class="btn btn-sm btn-warning">Bearbeiten</a>
         <form action="{{ url_for('mitglied_delete', mitglied_id=m.id) }}" method="POST" style="display:inline;">

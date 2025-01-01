@@ -3,35 +3,71 @@
 {% block content %}
 <div class="container mt-4">
     <h1>{{ titel }}</h1>
-    
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="alert alert-info">
+                {% for msg in messages %}
+                    <div>{{ msg }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
     <!-- Formular für Einstellungen -->
-    <form method="POST">
-        <div class="mb-3">
-            <label for="email_notifikationen" class="form-label">E-Mail-Benachrichtigungen</label>
-            <select class="form-select" id="email_notifikationen" name="email_notifikationen">
-                <option value="an">An</option>
-                <option value="aus">Aus</option>
-            </select>
-        </div>
-        <div class="mb-3">
-            <label for="theme" class="form-label">Theme</label>
-            <select class="form-select" id="theme" name="theme">
-                <option value="light">Hell</option>
-                <option value="dark">Dunkel</option>
-            </select>
-        </div>
-        <button type="submit" class="btn btn-success">Speichern</button>
-    </form>
+    <fieldset class="mb-4">
+        <legend>Theme</legend>
+        <form method="POST">
+            <div class="mb-3">
+                <label for="theme" class="form-label">Theme</label>
+                <select class="form-select" id="theme" name="theme">
+                    <option value="light" {% if theme == 'light' %}selected{% endif %}>Hell</option>
+                    <option value="dark" {% if theme == 'dark' %}selected{% endif %}>Dunkel</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-success">Speichern</button>
+        </form>
+    </fieldset>
 
     <hr class="my-4">
 
     <!-- Formular für Logo-Upload -->
-    <form method="POST" enctype="multipart/form-data" action="{{ url_for('logo_upload') }}">
-        <div class="mb-3">
-            <label for="logo" class="form-label">Vereinslogo hochladen</label>
-            <input type="file" class="form-control" id="logo" name="logo" accept=".png, .jpg, .jpeg">
-        </div>
-        <button type="submit" class="btn btn-primary">Logo aktualisieren</button>
-    </form>
+    <fieldset class="mb-4">
+        <legend>Vereinslogo hochladen</legend>
+        {% if logo_url %}
+            <div class="mb-3">
+                <img src="{{ logo_url }}" alt="Aktuelles Vereinslogo" class="img-thumbnail" style="max-height: 150px;">
+            </div>
+        {% endif %}
+        <form method="POST" enctype="multipart/form-data" action="{{ url_for('logo_upload') }}">
+            <div class="mb-3">
+                <label for="logo" class="form-label">Vereinslogo hochladen</label>
+                <input type="file" class="form-control" id="logo" name="logo" accept=".png, .jpg, .jpeg">
+            </div>
+            <button type="submit" class="btn btn-primary">Logo aktualisieren</button>
+        </form>
+    </fieldset>
+
+    <hr class="my-4">
+
+    <!-- Formular für die Kalendersynchronisierung -->
+    <fieldset class="mb-4">
+        <legend>Kalenderintegration</legend>
+        <form method="POST" action="{{ url_for('update_calendar_settings') }}">
+            <div class="mb-3">
+                <label for="calendar_integration" class="form-label">Kalenderintegration</label>
+                <select class="form-select" id="calendar_integration" name="calendar_integration">
+                    <option value="disabled" {% if not calendar_enabled %}selected{% endif %}>Deaktiviert</option>
+                    <option value="google" {% if calendar_enabled == 'google' %}selected{% endif %}>Google Kalender</option>
+                    <option value="outlook" {% if calendar_enabled == 'outlook' %}selected{% endif %}>Outlook</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="calendar_api_key" class="form-label">API-Schlüssel</label>
+                <input type="password" class="form-control" id="calendar_api_key" name="calendar_api_key" value="{{ calendar_api_key }}" autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </form>
+    </fieldset>
 </div>
 {% endblock %}

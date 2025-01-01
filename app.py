@@ -10,6 +10,8 @@ import uuid # Für Eindeutige Dateinamen in der Struktur.
 import csv
 import io
 from fpdf import FPDF
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
 
 # Flask-Login konfigurieren
 login_manager = LoginManager()
@@ -144,10 +146,22 @@ def index():
 # Mitglieder
 # ----------------------------------
 @app.route('/mitglieder')
-@login_required  # Beispiel: Zugriff nur für eingeloggte User
+@login_required
 def mitglieder_liste():
-    mitglieder = Mitglied.query.all()
+    search_query = request.args.get('search', '').strip()
+    if search_query:
+        mitglieder = Mitglied.query.filter(
+            db.or_(
+                Mitglied.vorname.ilike(f"%{search_query}%"),
+                Mitglied.nachname.ilike(f"%{search_query}%"),
+                Mitglied.email.ilike(f"%{search_query}%")
+            )
+        ).all()
+    else:
+        mitglieder = Mitglied.query.all()
+
     return render_template('mitglieder.html', mitglieder=mitglieder)
+
 
 @app.route('/mitglied/new', methods=['GET', 'POST'])
 @login_required
@@ -160,12 +174,23 @@ def mitglied_new():
             email=form.email.data,
             eintrittsdatum=form.eintrittsdatum.data or date.today(),
             status=form.status.data,
-            funktion=form.funktion.data
+            funktion=form.funktion.data,
+            mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
+            beitrag_bezahlt=form.beitrag_bezahlt.data == 'true'
         )
         db.session.add(neues_mitglied)
+        if form.beitrag_bezahlt.data == 'true' and neues_mitglied.mitgliedsbeitrag > 0:
+            db.session.add(Finanzbuchung(
+                typ='Einnahme',
+                kategorie='Mitgliedsbeitrag',
+                betrag=neues_mitglied.mitgliedsbeitrag,
+                datum=date.today(),
+                beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}"
+            ))
         db.session.commit()
         return redirect(url_for('mitglieder_liste'))
     return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
+
 
 @app.route('/mitglied/<int:mitglied_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -222,6 +247,25 @@ def mitglieder_import():
 
     return redirect(url_for('mitglieder_liste'))
 
+@app.route('/mitglied/<int:mitglied_id>/update_beitrag', methods=['POST'])
+@login_required
+def mitglied_update_beitrag(mitglied_id):
+    mitglied = Mitglied.query.get_or_404(mitglied_id)
+    mitglied.beitrag_bezahlt = not mitglied.beitrag_bezahlt
+
+    # Bei Bezahlung eine Finanzbuchung erstellen
+    if mitglied.beitrag_bezahlt:
+        db.session.add(Finanzbuchung(
+            typ='Einnahme',
+            kategorie='Mitgliedsbeitrag',
+            betrag=mitglied.mitgliedsbeitrag,
+            datum=date.today(),
+            beschreibung=f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}"
+        ))
+    db.session.commit()
+    flash(f"Der Status des Mitgliedsbeitrags für {mitglied.vorname} {mitglied.nachname} wurde aktualisiert.", "success")
+    return redirect(url_for('mitglieder_liste'))
+
 
 # ----------------------------------
 # Events
@@ -259,6 +303,9 @@ def event_new():
             )
             db.session.add(finanzbuchung)
             db.session.commit()
+
+        # Event mit Google Kalender synchronisieren
+        add_event_to_google_calendar(neues_event, current_user)
 
         flash('Neues Event erfolgreich erstellt, Kosten wurden in Finanzen erfasst.', 'success')
         return redirect(url_for('events_liste'))
@@ -630,10 +677,36 @@ def documents_delete(doc_id):
 @login_required
 def einstellungen():
     if request.method == 'POST':
-        # Beispiel: Verarbeitung von Formulareingaben
+        # Verarbeitung von Theme- und Benachrichtigungseinstellungen
+        email_notifikationen = request.form.get('email_notifikationen', 'aus')
+        theme = request.form.get('theme', 'light')
+
+        # Benutzerdaten aktualisieren (Annahmen: entsprechende Felder im User-Modell vorhanden)
+        current_user.email_notifikationen = (email_notifikationen == 'an')
+        current_user.theme = theme
+
+        # Verarbeitung der Kalendereinstellungen
+        calendar_integration = request.form.get('calendar_integration', 'disabled')
+        calendar_api_key = request.form.get('calendar_api_key', '').strip()
+
+        current_user.calendar_integration = calendar_integration
+        current_user.calendar_api_key = calendar_api_key
+
+        # Änderungen in der Datenbank speichern
+        db.session.commit()
+
         flash("Einstellungen wurden gespeichert.", "success")
         return redirect(url_for('einstellungen'))
-    return render_template('einstellungen.html', titel="Einstellungen")
+
+    # Bestehende Einstellungen abrufen und an das Template übergeben
+    return render_template(
+        'einstellungen.html',
+        titel="Einstellungen",
+        theme=current_user.theme or 'light',
+        calendar_enabled=current_user.calendar_integration or 'disabled',
+        calendar_api_key=current_user.calendar_api_key or ''
+    )
+
 
 @app.route('/einstellungen/logo', methods=['POST'])
 @login_required
@@ -661,6 +734,49 @@ def logo_upload():
         flash(f'Fehler beim Hochladen des Logos: {e}', 'danger')
 
     return redirect(url_for('einstellungen'))
+
+@app.route('/update_calendar_settings', methods=['POST'])
+@login_required
+def update_calendar_settings():
+    # Kalenderintegration speichern
+    calendar_integration = request.form.get('calendar_integration', 'disabled')
+    calendar_api_key = request.form.get('calendar_api_key', '').strip()
+
+    # Speichern der Einstellungen in der Datenbank (oder einer Konfigurationsdatei)
+    current_user.calendar_integration = calendar_integration
+    current_user.calendar_api_key = calendar_api_key
+    db.session.commit()
+
+    flash('Kalendereinstellungen wurden aktualisiert.', 'success')
+    return redirect(url_for('einstellungen'))
+
+def add_event_to_google_calendar(event, user):
+    if user.calendar_integration != 'google' or not user.calendar_api_key:
+        return
+
+    # API-Zugriff konfigurieren
+    credentials = Credentials(token=user.calendar_api_key)
+    service = build('calendar', 'v3', credentials=credentials)
+
+    # Event-Daten vorbereiten
+    event_body = {
+        'summary': event.titel,
+        'location': event.ort,
+        'description': event.beschreibung,
+        'start': {
+            'dateTime': event.datum.isoformat(),
+            'timeZone': 'Europe/Vienna',
+        },
+        'end': {
+            'dateTime': (event.datum + timedelta(hours=1)).isoformat(),
+            'timeZone': 'Europe/Vienna',
+        },
+    }
+
+    try:
+        service.events().insert(calendarId='primary', body=event_body).execute()
+    except Exception as e:
+        print(f"Fehler bei der Kalenderintegration: {e}")
 
 
 # ----------------------------------
