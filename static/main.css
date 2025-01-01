@@ -33,3 +33,19 @@ main {
     color: red;
     font-size: 0.9em;
 }
+
+/* Dunkler Modus */
+[data-theme="dark"] body {
+    background-color: #121212;
+    color: #ffffff;
+}
+
+/* Zusätzliche Elemente anpassen */
+[data-theme="dark"] .navbar {
+    background-color: #333333;
+}
+
+[data-theme="dark"] .btn {
+    background-color: #444444;
+    color: #ffffff;
+}

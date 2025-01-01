@@ -623,6 +623,45 @@ def documents_delete(doc_id):
     flash('Dokument gelöscht.')
     return redirect(url_for('documents_list'))
 
+# ----------------------------------
+# Einstellungen-Seite
+# ----------------------------------
+@app.route('/einstellungen', methods=['GET', 'POST'])
+@login_required
+def einstellungen():
+    if request.method == 'POST':
+        # Beispiel: Verarbeitung von Formulareingaben
+        flash("Einstellungen wurden gespeichert.", "success")
+        return redirect(url_for('einstellungen'))
+    return render_template('einstellungen.html', titel="Einstellungen")
+
+@app.route('/einstellungen/logo', methods=['POST'])
+@login_required
+def logo_upload():
+    if 'logo' not in request.files:
+        flash('Keine Datei hochgeladen.', 'danger')
+        return redirect(url_for('einstellungen'))
+
+    file = request.files['logo']
+    if file.filename == '':
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('einstellungen'))
+
+    # Sicherstellen, dass nur Bilddateien hochgeladen werden
+    if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+        flash('Ungültiges Dateiformat. Bitte nur PNG- oder JPG-Dateien hochladen.', 'danger')
+        return redirect(url_for('einstellungen'))
+
+    try:
+        # Speichern der Datei im static-Ordner als "logo.png"
+        save_path = os.path.join(app.static_folder, 'logo.png')
+        file.save(save_path)
+        flash('Vereinslogo erfolgreich aktualisiert.', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Hochladen des Logos: {e}', 'danger')
+
+    return redirect(url_for('einstellungen'))
+
 
 # ----------------------------------
 # App starten

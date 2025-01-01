@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ titel }} - Vereinsverwaltung{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>{{ titel }}</h1>
+    
+    <!-- Formular für Einstellungen -->
+    <form method="POST">
+        <div class="mb-3">
+            <label for="email_notifikationen" class="form-label">E-Mail-Benachrichtigungen</label>
+            <select class="form-select" id="email_notifikationen" name="email_notifikationen">
+                <option value="an">An</option>
+                <option value="aus">Aus</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="theme" class="form-label">Theme</label>
+            <select class="form-select" id="theme" name="theme">
+                <option value="light">Hell</option>
+                <option value="dark">Dunkel</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-success">Speichern</button>
+    </form>
+
+    <hr class="my-4">
+
+    <!-- Formular für Logo-Upload -->
+    <form method="POST" enctype="multipart/form-data" action="{{ url_for('logo_upload') }}">
+        <div class="mb-3">
+            <label for="logo" class="form-label">Vereinslogo hochladen</label>
+            <input type="file" class="form-control" id="logo" name="logo" accept=".png, .jpg, .jpeg">
+        </div>
+        <button type="submit" class="btn btn-primary">Logo aktualisieren</button>
+    </form>
+</div>
+{% endblock %}
