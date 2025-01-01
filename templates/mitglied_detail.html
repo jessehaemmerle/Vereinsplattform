@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Mitglied {{ mitglied.vorname }} {{ mitglied.nachname }} - Details{% endblock %}
+{% block content %}
+<h1>Mitgliedsdetails</h1>
+<table class="table">
+    <tr><th>Vorname</th><td>{{ mitglied.vorname }}</td></tr>
+    <tr><th>Nachname</th><td>{{ mitglied.nachname }}</td></tr>
+    <tr><th>E-Mail</th><td>{{ mitglied.email }}</td></tr>
+    <tr><th>Status</th><td>{{ mitglied.status }}</td></tr>
+    <tr><th>Funktion</th><td>{{ mitglied.funktion }}</td></tr>
+    <tr><th>Adresse</th><td>{{ mitglied.adresse or 'Nicht angegeben' }}</td></tr>
+    <tr><th>Telefonnummer</th><td>{{ mitglied.telefonnummer or 'Nicht angegeben' }}</td></tr>
+    <tr><th>Geburtstag</th><td>{{ mitglied.geburtstag.strftime('%d.%m.%Y') if mitglied.geburtstag else 'Nicht angegeben' }}</td></tr>
+    <tr><th>Alter</th><td>{{ alter if alter else 'Nicht angegeben' }}</td></tr>
+
+</table>
+
+<!-- Dropdown für Zahlungen -->
+<div class="mt-4">
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#zahlungen" aria-expanded="false" aria-controls="zahlungen">
+        Zahlungen anzeigen
+    </button>
+    <div class="collapse mt-3" id="zahlungen">
+        {% if zahlungen %}
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Kategorie</th>
+                    <th>Betrag</th>
+                    <th>Beschreibung</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for zahlung in zahlungen %}
+                <tr>
+                    <td>{{ zahlung.datum.strftime('%d.%m.%Y') }}</td>
+                    <td>{{ zahlung.kategorie }}</td>
+                    <td>{{ zahlung.betrag }} €</td>
+                    <td>{{ zahlung.beschreibung }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>Keine Zahlungen verfügbar.</p>
+        {% endif %}
+    </div>
+</div>
+
+
+<a href="{{ url_for('mitglieder_liste') }}" class="btn btn-secondary mt-3">Zurück zur Liste</a>
+{% endblock %}

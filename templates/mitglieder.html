@@ -46,7 +46,7 @@
       <th>Status</th>
       <th>Funktion</th>
       <th>Mitgliedsbeitrag bezahlt</th>
-      <th style="width: 200px;">Aktion</th>
+      <th style="width: 250px;">Aktion</th>
     </tr>
   </thead>
   <tbody>
@@ -67,6 +67,7 @@
         </form>
       </td>
       <td>
+        <a href="{{ url_for('mitglied_detail', mitglied_id=m.id) }}" class="btn btn-info btn-sm">Details</a>
         <a href="{{ url_for('mitglied_edit', mitglied_id=m.id) }}" class="btn btn-sm btn-warning">Bearbeiten</a>
         <form action="{{ url_for('mitglied_delete', mitglied_id=m.id) }}" method="POST" style="display:inline;">
           <button type="submit" class="btn btn-sm btn-danger">Löschen</button>

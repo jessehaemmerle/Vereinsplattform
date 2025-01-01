@@ -39,6 +39,30 @@
         </div>
 
         <div class="mb-3">
+            <label for="telefonnummer" class="form-label">{{ form.telefonnummer.label }}</label>
+            {{ form.telefonnummer(class_="form-control", id="telefonnummer") }}
+            {% for error in form.telefonnummer.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="mb-3">
+            <label for="geburtstag" class="form-label">{{ form.geburtstag.label }}</label>
+            {{ form.geburtstag(class_="form-control", id="geburtstag") }}
+            {% for error in form.geburtstag.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="mb-3">
+            <label for="adresse" class="form-label">{{ form.adresse.label }}</label>
+            {{ form.adresse(class_="form-control", id="adresse") }}
+            {% for error in form.adresse.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>        
+
+        <div class="mb-3">
             <label for="status" class="form-label">{{ form.status.label }}</label>
             {{ form.status(class_="form-select", id="status") }}
             {% for error in form.status.errors %}

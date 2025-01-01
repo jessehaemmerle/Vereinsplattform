@@ -7,7 +7,11 @@
     <a href="{{ url_for('finanzen_export') }}" class="btn btn-secondary mb-3">Buchungsliste herunterladen</a>
     <a href="{{ url_for('jahresabschluss_pdf', jahr=current_year) }}" class="btn btn-success mb-3">
         Jahresabschluss für {{ current_year }} herunterladen
-    </a>    
+    </a>
+    <a href="{{ url_for('summenliste_pdf') }}" class="btn btn-info mb-3">
+        Summenliste als PDF herunterladen
+    </a>
+    
 
     <p><strong>Saldo:</strong> <span class="badge bg-primary">{{ saldo }} EUR</span></p>
 

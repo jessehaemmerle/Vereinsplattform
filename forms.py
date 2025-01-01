@@ -12,6 +12,9 @@ class MitgliedForm(FlaskForm):
     funktion = SelectField('Funktion', choices=[('leitung', 'Leitung'), ('kassier', 'Kassier'), ('normal', 'Normales Mitglied'), ('vorstand', 'Vorstand'), ('pruefer', 'Rechnungsprüfer'), ('schrift', 'Schriftführer')])
     mitgliedsbeitrag = FloatField('Mitgliedsbeitrag (EUR)', validators=[Optional()])
     beitrag_bezahlt = SelectField('Beitrag bezahlt', choices=[('true', 'Ja'), ('false', 'Nein')])
+    telefonnummer = StringField('Telefonnummer', validators=[Optional()])  # Neues Feld
+    geburtstag = DateField('Geburtstag', validators=[Optional()])           # Neues Feld
+    adresse = StringField('Adresse', validators=[Optional()])               # Neues Feld
 
 class EventForm(FlaskForm):
     titel = StringField('Titel', validators=[DataRequired()])

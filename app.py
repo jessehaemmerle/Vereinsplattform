@@ -12,6 +12,7 @@ import io
 from fpdf import FPDF
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
+from services import zahlung_erstellen
 
 # Flask-Login konfigurieren
 login_manager = LoginManager()
@@ -184,6 +185,9 @@ def mitglied_new():
             eintrittsdatum=form.eintrittsdatum.data or date.today(),
             status=form.status.data,
             funktion=form.funktion.data,
+            telefonnummer=form.telefonnummer.data,
+            geburtstag=form.geburtstag.data,
+            adresse=form.adresse.data,
             mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
             beitrag_bezahlt=form.beitrag_bezahlt.data == 'true'
         )
@@ -194,7 +198,8 @@ def mitglied_new():
                 kategorie='Mitgliedsbeitrag',
                 betrag=neues_mitglied.mitgliedsbeitrag,
                 datum=date.today(),
-                beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}"
+                beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
+                mitglied_id=neues_mitglied.id
             ))
         db.session.commit()
         return redirect(url_for('mitglieder_liste'))
@@ -213,6 +218,9 @@ def mitglied_edit(mitglied_id):
         mitglied.eintrittsdatum = form.eintrittsdatum.data
         mitglied.status = form.status.data
         mitglied.funktion = form.funktion.data
+        mitglied.telefonnummer = form.telefonnummer.data  # Neues Feld
+        mitglied.geburtstag = form.geburtstag.data        # Neues Feld
+        mitglied.adresse = form.adresse.data              # Neues Feld
         db.session.commit()
         return redirect(url_for('mitglieder_liste'))
     return render_template('mitglied_edit.html', form=form, titel="Mitglied bearbeiten")
@@ -269,12 +277,45 @@ def mitglied_update_beitrag(mitglied_id):
             kategorie='Mitgliedsbeitrag',
             betrag=mitglied.mitgliedsbeitrag,
             datum=date.today(),
-            beschreibung=f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}"
+            beschreibung=f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
+            mitglied_id=mitglied.id
         ))
     db.session.commit()
     flash(f"Der Status des Mitgliedsbeitrags für {mitglied.vorname} {mitglied.nachname} wurde aktualisiert.", "success")
     return redirect(url_for('mitglieder_liste'))
 
+@app.route('/mitglied/<int:mitglied_id>')
+@login_required
+def mitglied_detail(mitglied_id):
+    mitglied = Mitglied.query.get_or_404(mitglied_id)
+    alter = None
+    if mitglied.geburtstag:
+        heute = date.today()
+        alter = (
+            heute.year - mitglied.geburtstag.year -
+            ((heute.month, heute.day) < (mitglied.geburtstag.month, mitglied.geburtstag.day))
+        )
+    
+    # Zahlungen über die Beziehung abrufen
+    zahlungen = mitglied.finanzbuchungen
+    return render_template('mitglied_detail.html', mitglied=mitglied, alter=alter, zahlungen=zahlungen)
+
+
+@app.route('/mitglied/<int:mitglied_id>/zahlung_hinzufuegen', methods=['POST'])
+@login_required
+def zahlung_hinzufuegen(mitglied_id):
+    try:
+        zahlung_erstellen(
+            mitglied_id=mitglied_id,
+            typ='Einnahme',
+            kategorie='Mitgliedsbeitrag',
+            betrag=50.00,
+            beschreibung=f'Mitgliedsbeitrag von Mitglied {mitglied_id}'
+        )
+        flash('Zahlung erfolgreich hinzugefügt.', 'success')
+    except ValueError as e:
+        flash(str(e), 'danger')
+    return redirect(url_for('mitglied_detail', mitglied_id=mitglied_id))
 
 # ----------------------------------
 # Events
@@ -427,6 +468,13 @@ def jahresabschluss_pdf(jahr):
 
     # Titel
     pdf.cell(200, 10, f"Jahresabschluss {jahr}", ln=True, align="C")
+    pdf.ln(10)
+
+    # Kontonummer
+    pdf.set_font("Arial", size=10)
+    if current_user.konto_nummer:
+        pdf.cell(200, 10, f"Kontonummer: {current_user.konto_nummer}", ln=True)
+    pdf.ln(10)
 
     # Summen
     pdf.cell(200, 10, f"Einnahmen: {einnahmen:.2f} EUR", ln=True)
@@ -506,6 +554,51 @@ def finanzen_delete(buchung_id):
     flash('Buchung erfolgreich gelöscht.', 'success')
     return redirect(url_for('finanzen_liste'))
 
+@app.route('/finanzen/summenliste/pdf', methods=['GET'])
+@login_required
+def summenliste_pdf():
+    # Finanzbuchungen nach Kategorien gruppieren und Summen berechnen
+    kategorien = db.session.query(
+        Finanzbuchung.kategorie,
+        Finanzbuchung.typ,
+        db.func.sum(Finanzbuchung.betrag).label('summe')
+    ).group_by(Finanzbuchung.kategorie, Finanzbuchung.typ).all()
+
+    # PDF-Erstellung
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    # Titel
+    pdf.cell(200, 10, "Summenliste - Finanzen", ln=True, align="C")
+    pdf.ln(10)
+
+    # Kontonummer
+    pdf.set_font("Arial", size=10)
+    if current_user.konto_nummer:
+        pdf.cell(200, 10, f"Kontonummer: {current_user.konto_nummer}", ln=True)
+    pdf.ln(10)
+
+    # Tabellenüberschrift
+    pdf.set_font("Arial", size=10, style="B")
+    pdf.cell(80, 10, "Kategorie", border=1)
+    pdf.cell(40, 10, "Typ", border=1)
+    pdf.cell(40, 10, "Summe (EUR)", border=1)
+    pdf.ln(10)
+
+    # Tabelleninhalt
+    pdf.set_font("Arial", size=10)
+    for kategorie, typ, summe in kategorien:
+        pdf.cell(80, 10, kategorie, border=1)
+        pdf.cell(40, 10, typ, border=1)
+        pdf.cell(40, 10, f"{summe:.2f}", border=1)
+        pdf.ln(10)
+
+    # PDF als Antwort zurückgeben
+    response = make_response(pdf.output(dest='S').encode('latin1'))
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'attachment; filename=summenliste.pdf'
+    return response
 
 # ----------------------------------
 # Notizen
@@ -794,6 +887,15 @@ def add_event_to_google_calendar(event, user):
         service.events().insert(calendarId='primary', body=event_body).execute()
     except Exception as e:
         print(f"Fehler bei der Kalenderintegration: {e}")
+
+@app.route('/update_konto_settings', methods=['POST'])
+@login_required
+def update_konto_settings():
+    konto_nummer = request.form.get('konto_nummer', '').strip()
+    current_user.konto_nummer = konto_nummer
+    db.session.commit()
+    flash("Kontonummer wurde gespeichert.", "success")
+    return redirect(url_for('einstellungen'))
 
 
 # ----------------------------------

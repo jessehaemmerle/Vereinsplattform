@@ -16,6 +16,10 @@ class Mitglied(db.Model):
     funktion = db.Column(db.String(20))
     mitgliedsbeitrag = db.Column(db.Float, default=0.0)
     beitrag_bezahlt = db.Column(db.Boolean, default=False)
+    telefonnummer = db.Column(db.String(20))  # Neue Spalte
+    geburtstag = db.Column(db.Date)          # Neue Spalte
+    adresse = db.Column(db.String(255))      # Neue Spalte
+    finanzbuchungen = db.relationship('Finanzbuchung', backref='mitglied', lazy=True)
 
     def reset_beitrag_bezahlt(self):
         self.beitrag_bezahlt = False
@@ -26,6 +30,7 @@ class Mitglied(db.Model):
 class Finanzbuchung(db.Model):
     __tablename__ = 'finanzen'
     id = db.Column(db.Integer, primary_key=True)
+    mitglied_id = db.Column(db.Integer, db.ForeignKey('mitglieder.id'), nullable=True)  # Verknüpfung sicherstellen
     typ = db.Column(db.String(10))       # 'Einnahme' oder 'Ausgabe'
     kategorie = db.Column(db.String(50))
     betrag = db.Column(db.Float)
@@ -33,7 +38,8 @@ class Finanzbuchung(db.Model):
     beschreibung = db.Column(db.Text)
 
     def __repr__(self):
-        return f"<Finanzbuchung {self.typ} {self.betrag}>"
+        return f"<Finanzbuchung {self.id} {self.kategorie} {self.betrag}>"
+
 
 class Notiz(db.Model):
     __tablename__ = 'notizen'
@@ -56,6 +62,7 @@ class User(db.Model, UserMixin):
     calendar_api_key = db.Column(db.String(255), nullable=True)
     theme = db.Column(db.String(20), default='light')  # Standardwert 'light'
     email_notifikationen = db.Column(db.Boolean, default=False)
+    konto_nummer = db.Column(db.String(100), nullable=True)  # Feld für Kontonummer
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
