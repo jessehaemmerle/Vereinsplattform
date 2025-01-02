@@ -4,14 +4,18 @@
 <div class="container mt-4">
     <h1>Finanzen</h1>
     <a href="{{ url_for('finanzen_new') }}" class="btn btn-primary mb-3">+ Neue Buchung</a>
-    <a href="{{ url_for('finanzen_export') }}" class="btn btn-secondary mb-3">Buchungsliste herunterladen</a>
-    <a href="{{ url_for('jahresabschluss_pdf', jahr=current_year) }}" class="btn btn-success mb-3">
-        Jahresabschluss für {{ current_year }} herunterladen
-    </a>
-    <a href="{{ url_for('summenliste_pdf') }}" class="btn btn-info mb-3">
-        Summenliste als PDF herunterladen
-    </a>
-    
+    <div class="dropdown mb-3">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="finanzenMenu" data-bs-toggle="dropdown" aria-expanded="false">
+            Finanzfunktionen
+        </button>
+        <ul class="dropdown-menu" aria-labelledby="finanzenMenu">
+            <li><a class="dropdown-item" href="{{ url_for('finanzen_export') }}">Buchungsliste herunterladen</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('buchungsjournal_pdf') }}">Buchungsjournal als PDF</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('summenliste_pdf') }}">Summenliste als PDF</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('jahressaldo_pdf') }}" >Jahressaldo als PDF herunterladen</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('finanzen_kategorie_pdf') }}">Buchungsliste mit Kategorien als PDF</a></li>
+        </ul>
+    </div>  
 
     <p><strong>Saldo:</strong> <span class="badge bg-primary">{{ saldo }} EUR</span></p>
 

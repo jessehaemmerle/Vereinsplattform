@@ -33,17 +33,28 @@
 
 <!-- Formular für Kontonummer -->
 <fieldset class="mb-4">
-    <legend>Kontonummer</legend>
+    <legend>Kontoneinstellungen</legend>
     <form method="POST" action="{{ url_for('update_konto_settings') }}">
         <div class="mb-3">
             <label for="konto_nummer" class="form-label">Kontonummer</label>
             <input type="text" class="form-control" id="konto_nummer" name="konto_nummer" 
                    value="{{ current_user.konto_nummer or '' }}" placeholder="Kontonummer eingeben">
         </div>
-        <button type="submit" class="btn btn-primary">Speichern</button>
+    </form>
+        <form method="POST" action="{{ url_for('update_konto_details') }}">
+            <div class="mb-3">
+                <label for="konto_bezeichnung" class="form-label">Kontobezeichnung</label>
+                <input type="text" class="form-control" id="konto_bezeichnung" name="konto_bezeichnung"
+                       value="{{ current_user.konto_bezeichnung or '' }}" placeholder="Kontobezeichnung eingeben">
+            </div>
+            <div class="mb-3">
+                <label for="anfangsbestand" class="form-label">Anfangsbestand</label>
+                <input type="number" step="0.01" class="form-control" id="anfangsbestand" name="anfangsbestand"
+                       value="{{ current_user.anfangsbestand or 0.0 }}" placeholder="Anfangsbestand eingeben">
+            </div>
+            <button type="submit" class="btn btn-primary">Speichern</button>
     </form>
 </fieldset>
-
 
     <hr class="my-4">
 

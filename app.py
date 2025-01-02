@@ -13,6 +13,9 @@ from fpdf import FPDF
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from services import zahlung_erstellen
+import webbrowser
+from models import db
+
 
 # Flask-Login konfigurieren
 login_manager = LoginManager()
@@ -178,6 +181,7 @@ def mitglieder_liste():
 def mitglied_new():
     form = MitgliedForm()
     if form.validate_on_submit():
+        # Neues Mitglied erstellen
         neues_mitglied = Mitglied(
             vorname=form.vorname.data,
             nachname=form.nachname.data,
@@ -192,18 +196,24 @@ def mitglied_new():
             beitrag_bezahlt=form.beitrag_bezahlt.data == 'true'
         )
         db.session.add(neues_mitglied)
-        if form.beitrag_bezahlt.data == 'true' and neues_mitglied.mitgliedsbeitrag > 0:
+        db.session.commit()  # Speichern, damit `neues_mitglied.id` verfügbar ist
+
+        # Wenn Beitrag bezahlt, Finanzbuchung erstellen
+        if neues_mitglied.beitrag_bezahlt and neues_mitglied.mitgliedsbeitrag > 0:
             db.session.add(Finanzbuchung(
                 typ='Einnahme',
                 kategorie='Mitgliedsbeitrag',
                 betrag=neues_mitglied.mitgliedsbeitrag,
                 datum=date.today(),
                 beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
-                mitglied_id=neues_mitglied.id
+                mitglied_id=neues_mitglied.id  # Verknüpfung mit dem Mitglied
             ))
-        db.session.commit()
+            db.session.commit()
+
+        flash("Neues Mitglied erfolgreich erstellt.")
         return redirect(url_for('mitglieder_liste'))
     return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
+
 
 
 @app.route('/mitglied/<int:mitglied_id>/edit', methods=['GET', 'POST'])
@@ -564,6 +574,10 @@ def summenliste_pdf():
         db.func.sum(Finanzbuchung.betrag).label('summe')
     ).group_by(Finanzbuchung.kategorie, Finanzbuchung.typ).all()
 
+    # Gesamtsummen berechnen
+    sum_einnahmen = sum(k.summe for k in kategorien if k.typ == 'Einnahme')
+    sum_ausgaben = sum(k.summe for k in kategorien if k.typ == 'Ausgabe')
+
     # PDF-Erstellung
     pdf = FPDF()
     pdf.add_page()
@@ -573,11 +587,11 @@ def summenliste_pdf():
     pdf.cell(200, 10, "Summenliste - Finanzen", ln=True, align="C")
     pdf.ln(10)
 
-    # Kontonummer
-    pdf.set_font("Arial", size=10)
+    # Kontonummer hinzufügen, falls vorhanden
     if current_user.konto_nummer:
+        pdf.set_font("Arial", size=10)
         pdf.cell(200, 10, f"Kontonummer: {current_user.konto_nummer}", ln=True)
-    pdf.ln(10)
+        pdf.ln(10)
 
     # Tabellenüberschrift
     pdf.set_font("Arial", size=10, style="B")
@@ -589,16 +603,239 @@ def summenliste_pdf():
     # Tabelleninhalt
     pdf.set_font("Arial", size=10)
     for kategorie, typ, summe in kategorien:
+        if typ == 'Ausgabe':
+            pdf.set_text_color(255, 0, 0)  # Rot für Ausgaben
+        else:
+            pdf.set_text_color(0, 0, 0)    # Schwarz für Einnahmen
+
         pdf.cell(80, 10, kategorie, border=1)
         pdf.cell(40, 10, typ, border=1)
         pdf.cell(40, 10, f"{summe:.2f}", border=1)
         pdf.ln(10)
+
+    # Gesamtsummen hinzufügen
+    pdf.set_text_color(0, 0, 0)  # Zurücksetzen auf Schwarz
+    pdf.set_font("Arial", size=10, style="B")
+    pdf.cell(80, 10, "Gesamtsumme", border=1)
+    pdf.cell(40, 10, "Einnahmen", border=1)
+    pdf.cell(40, 10, f"{sum_einnahmen:.2f}", border=1)
+    pdf.ln(10)
+
+    pdf.cell(80, 10, "", border=0)
+    pdf.cell(40, 10, "Ausgaben", border=1)
+    pdf.cell(40, 10, f"{sum_ausgaben:.2f}", border=1, ln=1)
+    pdf.ln(10)
 
     # PDF als Antwort zurückgeben
     response = make_response(pdf.output(dest='S').encode('latin1'))
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = 'attachment; filename=summenliste.pdf'
     return response
+
+@app.route('/finanzen/journal/pdf', methods=['GET'])
+@login_required
+def buchungsjournal_pdf():
+    # Alle Finanzbuchungen sortiert nach Datum abrufen
+    buchungen = Finanzbuchung.query.order_by(Finanzbuchung.datum.asc()).all()
+
+    # PDF erstellen
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    # Titel
+    pdf.cell(200, 10, "Buchungsjournal", ln=True, align="C")
+    pdf.ln(10)
+
+    # Kontonummer hinzufügen, falls vorhanden
+    if current_user.konto_nummer:
+        pdf.set_font("Arial", size=10)
+        pdf.cell(200, 10, f"Kontonummer: {current_user.konto_nummer}", ln=True)
+        pdf.ln(10)
+
+    # Tabellenüberschrift
+    pdf.set_font("Arial", size=10, style="B")
+    col_widths = [10, 25, 20, 35, 20, 80]  # Spaltenbreiten
+    headers = ["ID", "Datum", "Typ", "Kategorie", "Betrag", "Beschreibung"]
+
+    # Überschriften ausgeben
+    for header, width in zip(headers, col_widths):
+        pdf.cell(width, 10, header, border=1, align="C")
+    pdf.ln(10)
+
+    # Tabelleninhalt mit angepasster Höhe
+    pdf.set_font("Arial", size=10)
+    for buchung in buchungen:
+        # Für Ausgaben rot markieren
+        if buchung.typ == 'Ausgabe':
+            pdf.set_text_color(255, 0, 0)
+        else:
+            pdf.set_text_color(0, 0, 0)
+
+        # Daten der Zeile vorbereiten
+        row_data = [
+            str(buchung.id),
+            buchung.datum.strftime('%d.%m.%Y'),
+            buchung.typ,
+            buchung.kategorie,
+            f"{buchung.betrag:.2f}",
+            buchung.beschreibung
+        ]
+
+        # Ermitteln der maximalen Zeilenhöhe
+        line_heights = []
+        for data, width in zip(row_data, col_widths):
+            # Höhe für die jeweilige Zelle berechnen
+            line_height = pdf.get_string_width(data) // width + 1
+            line_heights.append(line_height * 10)
+
+        max_height = max(line_heights)
+
+        # Daten in Zellen mit einheitlicher Höhe schreiben
+        x_start = pdf.get_x()
+        for i, (data, width) in enumerate(zip(row_data, col_widths)):
+            y_start = pdf.get_y()
+            pdf.multi_cell(width, 10, data, border=1, align="L" if i in [3, 5] else "C")
+            pdf.set_xy(x_start + width, y_start)
+            x_start += width
+
+        pdf.ln(max_height)
+
+    # PDF als Antwort zurückgeben
+    response = make_response(pdf.output(dest='S').encode('latin1'))
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'attachment; filename=buchungsjournal.pdf'
+    return response
+
+@app.route('/finanzen/jahressaldo/pdf', methods=['GET'])
+@login_required
+def jahressaldo_pdf():
+    # Gruppierung der Buchungen nach Jahr
+    salden = db.session.query(
+        db.extract('year', Finanzbuchung.datum).label('jahr'),
+        db.func.sum(db.case(
+            (Finanzbuchung.typ == 'Einnahme', Finanzbuchung.betrag),
+            else_=0
+        )).label('einnahmen'),
+        db.func.sum(db.case(
+            (Finanzbuchung.typ == 'Ausgabe', Finanzbuchung.betrag),
+            else_=0
+        )).label('ausgaben')
+    ).group_by(db.extract('year', Finanzbuchung.datum)).order_by(db.extract('year', Finanzbuchung.datum)).all()
+
+    # PDF erstellen
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    # Titel
+    pdf.cell(190, 10, "Jahressaldo", ln=True, align="C")
+    pdf.ln(10)
+
+    # Tabellenüberschrift
+    pdf.set_font("Arial", size=10, style="B")
+    headers = ["Jahr", "Kontonummer", "Kontobezeichnung", "Anfangsbestand", "Einnahmen", "Ausgaben", "Endbestand"]
+    col_widths = [20, 40, 50, 25, 20, 20, 25]  # Angepasste Spaltenbreiten
+
+    # Überschriften drucken
+    for header, width in zip(headers, col_widths):
+        pdf.cell(width, 10, header, border=1, align="C")
+    pdf.ln()
+
+    # Tabelleninhalt
+    pdf.set_font("Arial", size=10)
+    for jahr, einnahmen, ausgaben in salden:
+        anfangsbestand = current_user.anfangsbestand
+        endbestand = anfangsbestand + einnahmen - ausgaben
+
+        # Daten für die Zeile vorbereiten
+        row_data = [
+            str(int(jahr)),
+            current_user.konto_nummer or "Keine Kontonummer",
+            current_user.konto_bezeichnung or "Keine Bezeichnung",
+            f"{anfangsbestand:.2f}",
+            f"{einnahmen:.2f}",
+            f"{ausgaben:.2f}",
+            f"{endbestand:.2f}",
+        ]
+
+        # Maximale Zeilenhöhe berechnen
+        max_height = 10  # Standardhöhe
+        line_heights = [
+            pdf.get_string_width(data) // (width - 2) * 6 + 10 for data, width in zip(row_data, col_widths)
+        ]
+        max_height = max(line_heights)
+
+        # Manuelle Zellenpositionierung
+        x_start = pdf.get_x()
+        y_start = pdf.get_y()
+        for i, (data, width) in enumerate(zip(row_data, col_widths)):
+            if i == 1:  # Schriftgröße für Kontonummer anpassen
+                pdf.set_font("Arial", size=8)
+            pdf.multi_cell(width, 6, data, border=1, align="C")
+            pdf.set_xy(x_start + width, y_start)
+            x_start += width
+            pdf.set_font("Arial", size=10)  # Schriftgröße zurücksetzen
+
+        pdf.ln(max_height)
+
+    # PDF als Antwort zurückgeben
+    response = make_response(pdf.output(dest='S').encode('latin1'))
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'attachment; filename=jahressaldo.pdf'
+    return response
+
+@app.route('/finanzen/kategorie/pdf', methods=['GET'])
+@login_required
+def finanzen_kategorie_pdf():
+    # Finanzbuchungen gruppiert nach Kategorie abrufen
+    kategorien = db.session.query(Finanzbuchung.kategorie).distinct().all()
+
+    # PDF erstellen
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    for kategorie_row in kategorien:
+        kategorie = kategorie_row[0]
+        buchungen = Finanzbuchung.query.filter_by(kategorie=kategorie).all()
+
+        # Neue Seite für jede Kategorie
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+
+        # Kategorie-Titel
+        pdf.cell(190, 10, f"Kategorie: {kategorie}", ln=True, align="C")
+        pdf.ln(10)
+
+        # Tabellenüberschriften
+        pdf.set_font("Arial", size=10, style="B")
+        headers = ["Datum", "Typ", "Betrag (EUR)", "Beschreibung"]
+        col_widths = [40, 30, 40, 80]  # Angepasste Spaltenbreiten
+
+        for header, width in zip(headers, col_widths):
+            pdf.cell(width, 10, header, border=1, align="C")
+        pdf.ln()
+
+        # Tabelleninhalt
+        pdf.set_font("Arial", size=10)
+        for buchung in buchungen:
+            row_data = [
+                buchung.datum.strftime('%d.%m.%Y') if buchung.datum else "-",
+                buchung.typ,
+                f"{buchung.betrag:.2f}",
+                buchung.beschreibung
+            ]
+
+            for data, width in zip(row_data, col_widths):
+                pdf.cell(width, 10, data, border=1, align="L")
+            pdf.ln()
+
+    # PDF als Antwort zurückgeben
+    response = make_response(pdf.output(dest='S').encode('latin1'))
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'attachment; filename=finanzen_kategorien.pdf'
+    return response
+
 
 # ----------------------------------
 # Notizen
@@ -897,18 +1134,34 @@ def update_konto_settings():
     flash("Kontonummer wurde gespeichert.", "success")
     return redirect(url_for('einstellungen'))
 
+@app.route('/update_konto_details', methods=['POST'])
+@login_required
+def update_konto_details():
+    # Daten aus dem Formular abrufen
+    konto_bezeichnung = request.form.get('konto_bezeichnung', '').strip()
+    anfangsbestand = request.form.get('anfangsbestand', 0.0)
+
+    # Aktuelle Benutzerinformationen aktualisieren
+    current_user.konto_bezeichnung = konto_bezeichnung
+    current_user.anfangsbestand = float(anfangsbestand)
+    db.session.commit()  # Änderungen speichern
+
+    flash("Kontoeinstellungen wurden erfolgreich gespeichert.", "success")
+    return redirect(url_for('einstellungen'))
+
+
 
 # ----------------------------------
 # App starten
 # ----------------------------------
 if __name__ == '__main__':
-    import webbrowser
-    from models import db
-
     with app.app_context():
         db.create_all()  # Tabellen erstellen
 
-    webbrowser.open('http://127.0.0.1:5000')
+    if not app.debug:  # Nur den Browser öffnen, wenn Debug-Modus deaktiviert ist
+        webbrowser.open('http://127.0.0.1:5000')
+
     app.run(host='127.0.0.1', port=5000, debug=True)
+
 
 
