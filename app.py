@@ -4,6 +4,10 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document
 from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_mail import Mail, Message
+from flask_wtf import FlaskForm
+from wtforms import StringField, TextAreaField, EmailField, SubmitField
+from wtforms.validators import DataRequired, Email
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 import uuid # Für Eindeutige Dateinamen in der Struktur.
@@ -27,6 +31,12 @@ app.config['SECRET_KEY'] = 'SUPER_GEHEIM'  # In Produktion in Umgebungsvariablen
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///verein.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
+app.config['MAIL_SERVER'] = 'host224.checkdomain.de'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'jesse@haemmerle.at'
+app.config['MAIL_PASSWORD'] = '*home1998#'
+
 
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
@@ -1149,6 +1159,60 @@ def update_konto_details():
     flash("Kontoeinstellungen wurden erfolgreich gespeichert.", "success")
     return redirect(url_for('einstellungen'))
 
+@app.route('/about')
+def about():
+    return render_template('about.html')
+
+# ----------------------------------
+# Mailversand aus der App
+# ----------------------------------
+from flask_wtf import FlaskForm
+from wtforms import StringField, TextAreaField, EmailField, SubmitField
+from wtforms.validators import DataRequired, Email
+from flask_mail import Mail, Message
+
+# Mail-Konfiguration
+app.config['MAIL_SERVER'] = 'smtp.example.com'  # SMTP-Server
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'your-email@example.com'  # Absenderadresse
+app.config['MAIL_PASSWORD'] = 'your-email-password'
+
+mail = Mail(app)
+
+# Feedback-Formular
+class FeedbackForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    email = EmailField('E-Mail', validators=[DataRequired(), Email()])
+    message = TextAreaField('Nachricht', validators=[DataRequired()])
+    submit = SubmitField('Senden')
+
+# Feedback-Seite
+@app.route('/feedback', methods=['GET', 'POST'])
+def send_feedback():
+    form = FeedbackForm()
+    if form.validate_on_submit():
+        name = form.name.data
+        email = form.email.data
+        message = form.message.data
+        
+        # E-Mail erstellen
+        msg = Message(
+            subject=f"Feedback von {name}",
+            sender=email,
+            recipients=["jesse@haemmerle.at"],  # Zieladresse
+            body=f"Name: {name}\nE-Mail: {email}\n\nNachricht:\n{message}"
+        )
+        
+        try:
+            mail.send(msg)
+            flash("Vielen Dank für Ihr Feedback! Ihre Nachricht wurde gesendet.", "success")
+        except Exception as e:
+            flash(f"Es gab ein Problem beim Senden der Nachricht: {e}", "danger")
+        
+        return redirect(url_for('send_feedback'))
+    
+    return render_template('feedback.html', form=form)
 
 
 # ----------------------------------

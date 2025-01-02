@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Über - Vereinsverwaltung{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Über diese Anwendung</h1>
+    <p>Diese Anwendung wurde entwickelt, um die Verwaltung von Vereinen effizient und benutzerfreundlich zu gestalten.</p>
+    
+    <h3>Details</h3>
+    <ul>
+        <li><strong>Version:</strong> Beta 0.3.1</li>
+        <li><strong>Autor:</strong> Jesse Hämmerle</li>
+        <li><strong>Kontakt:</strong> jesse@haemmerle.at</li>
+    </ul>
+    
+    <h3>Nützliche Informationen</h3>
+    <p>Diese Anwendung unterstützt die Verwaltung von Mitgliedern, Finanzen, Events und Dokumenten. Alle Daten werden sicher in einer verschlüsselten Datenbank gespeichert. Benutzerfreundliche Interfaces ermöglichen eine intuitive Bedienung.</p>
+    
+    <h3>Rechtliche Hinweise</h3>
+    <ul>
+        <li>Diese Anwendung wurde ausschließlich für den internen Gebrauch von Vereinen entwickelt und ist nicht für den kommerziellen Vertrieb bestimmt.</li>
+        <li>Die Nutzung der Software erfolgt auf eigene Gefahr. Der Autor übernimmt keine Haftung für Datenverluste oder Schäden, die durch die Nutzung entstehen.</li>
+        <li>Die Anwendung entspricht der DSGVO (Datenschutz-Grundverordnung) und schützt die persönlichen Daten der Benutzer.</li>
+        <li>Die Weitergabe oder der Verkauf des Quellcodes ohne vorherige Genehmigung ist untersagt.</li>
+    </ul>
+    
+    <h3>Copyright</h3>
+    <p>© 2025 Jesse Hämmerle. Alle Rechte vorbehalten.</p>
+    <p>Die Inhalte dieser Software, einschließlich der Designs, Texte und Grafiken, unterliegen dem Urheberrecht. Eine Vervielfältigung oder Verwendung in anderen Anwendungen oder Medien ist nur mit ausdrücklicher Zustimmung des Autors gestattet.</p>
+    
+    <h3>Nutzungsbedingungen</h3>
+    <ul>
+        <li>Die Anwendung darf nur für den vorgesehenen Zweck genutzt werden.</li>
+        <li>Benutzer sind verpflichtet, ihre Zugangsdaten sicher aufzubewahren und nicht an Dritte weiterzugeben.</li>
+        <li>Missbräuchliche Nutzung der Software, insbesondere Hacking oder Manipulation der Datenbank, ist strengstens verboten und kann rechtliche Konsequenzen nach sich ziehen.</li>
+    </ul>
+
+    <h3>Kontakt</h3>
+    <p>Für Fragen oder Supportanfragen kontaktieren Sie bitte:</p>
+    <ul>
+        <li><strong>E-Mail:</strong> jesse@haemmerle.at</li>
+        <li><strong>Telefon:</strong> +43 699 171 08 431</li>
+        <li><strong>Adresse:</strong> In der Riebe 5, Götzis, Österreich</li>
+        <li><a class="btn btn-primary" href="{{ url_for('send_feedback') }}">Feedback</a></li>
+    </ul>
+</div>
+{% endblock %}

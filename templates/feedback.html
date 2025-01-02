@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Feedback - Vereinsverwaltung{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Feedback senden</h1>
+    <p>Wir freuen uns über Ihr Feedback! Bitte nutzen Sie das untenstehende Formular, um uns Ihre Anregungen, Fragen oder Probleme mitzuteilen.</p>
+    
+    <form method="POST" action="{{ url_for('send_feedback') }}">
+        {{ form.hidden_tag() }}
+        
+        <div class="mb-3">
+            <label for="name" class="form-label">Ihr Name</label>
+            {{ form.name(class_="form-control", id="name", placeholder="Ihr Name") }}
+            {% for error in form.name.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="mb-3">
+            <label for="email" class="form-label">Ihre E-Mail-Adresse</label>
+            {{ form.email(class_="form-control", id="email", placeholder="Ihre E-Mail-Adresse") }}
+            {% for error in form.email.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="mb-3">
+            <label for="message" class="form-label">Nachricht</label>
+            {{ form.message(class_="form-control", id="message", rows="5", placeholder="Ihre Nachricht") }}
+            {% for error in form.message.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Feedback senden</button>
+    </form>
+</div>
+{% endblock %}

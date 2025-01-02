@@ -50,10 +50,12 @@
             <a class="nav-link" href="{{ url_for('documents_list') }}">Dokumente</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('einstellungen') }}">
-            <i class="bi bi-gear"></i> Einstellungen
-          </a>
-        </li>        
+          <a class="nav-link" href="{{ url_for('einstellungen') }}">Einstellungen</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('about') }}">Info</a>
+        </li>
+              
         {% if current_user.is_authenticated %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>

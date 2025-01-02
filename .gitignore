@@ -5,3 +5,4 @@ build
 dist
 app.spec
 517*
+build.py
