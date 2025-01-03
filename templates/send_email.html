@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}E-Mails senden{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>E-Mails senden</h1>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="template" class="form-label">Vorlage auswählen</label>
+            <select class="form-select" id="template" name="template" onchange="loadTemplate(this)">
+                <option value="">Keine Vorlage</option>
+                {% for vorlage in vorlagen %}
+                <option value="{{ vorlage.id }}">{{ vorlage.titel }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="subject" class="form-label">Betreff</label>
+            <input type="text" class="form-control" id="subject" name="subject" required>
+        </div>
+        <div class="mb-3">
+            <label for="body" class="form-label">Nachricht</label>
+            <textarea class="form-control" id="body" name="body" rows="5" required></textarea>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Mitglieder</label>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="select_all" value="all" name="member_ids">
+                <label class="form-check-label" for="select_all">Alle Mitglieder</label>
+            </div>
+            {% for mitglied in mitglieder %}
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="member_{{ mitglied.id }}" name="member_ids" value="{{ mitglied.id }}">
+                <label class="form-check-label" for="member_{{ mitglied.id }}">{{ mitglied.vorname }} {{ mitglied.nachname }}</label>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary">Senden</button>
+    </form>
+</div>
+<script>
+    const templates = {{ vorlagen_json|safe }};
+    function loadTemplate(select) {
+        const selected = templates.find(t => t.id == select.value);
+        const subjectField = document.getElementById('subject');
+        const bodyField = document.getElementById('body');
+
+        if (selected) {
+            subjectField.value = selected.betreff || '';
+            bodyField.value = selected.inhalt || '';
+        } else {
+            subjectField.value = '';
+            bodyField.value = '';
+        }
+    }
+
+    document.getElementById('select_all').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('input[name="member_ids"]');
+        checkboxes.forEach(checkbox => checkbox.checked = this.checked);
+    });
+</script>
+
+{% endblock %}

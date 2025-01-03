@@ -11,3 +11,7 @@ google-api-python-client
 google-auth-httplib2 
 google-auth-oauthlib
 flask_migrate
+sendgrid
+sendgrid.helpers.mail
+python-dotenv
+json

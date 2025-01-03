@@ -1,8 +1,8 @@
 import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response
-from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document
-from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm
+from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage
+from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 import uuid # Für Eindeutige Dateinamen in der Struktur.
 import csv
+import json
 import io
 from fpdf import FPDF
 from googleapiclient.discovery import build
@@ -19,7 +20,11 @@ from google.oauth2.credentials import Credentials
 from services import zahlung_erstellen
 import webbrowser
 from models import db
+import requests
+from dotenv import load_dotenv
 
+# Umgebungsdatei laden
+load_dotenv()
 
 # Flask-Login konfigurieren
 login_manager = LoginManager()
@@ -31,11 +36,6 @@ app.config['SECRET_KEY'] = 'SUPER_GEHEIM'  # In Produktion in Umgebungsvariablen
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///verein.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
-app.config['MAIL_SERVER'] = 'host224.checkdomain.de'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'jesse@haemmerle.at'
-app.config['MAIL_PASSWORD'] = '*home1998#'
 
 
 if not os.path.exists('uploads'):
@@ -115,7 +115,7 @@ def login():
 def logout():
     logout_user()
     flash("Erfolgreich ausgeloggt.")
-    return redirect(url_for('index'))
+    return render_template('shutdown.html', titel="Programm beenden")
 
 
 # ----------------------------------
@@ -337,6 +337,48 @@ def zahlung_hinzufuegen(mitglied_id):
         flash(str(e), 'danger')
     return redirect(url_for('mitglied_detail', mitglied_id=mitglied_id))
 
+@app.route('/mitglied/<int:mitglied_id>/send_message', methods=['GET', 'POST'])
+@login_required
+def send_message_member(mitglied_id):
+    mitglied = Mitglied.query.get_or_404(mitglied_id)
+    vorlagen = Nachrichtenvorlage.query.all()
+    vorlagen_json = json.dumps([{'id': v.id, 'betreff': v.betreff, 'inhalt': v.inhalt} for v in vorlagen])
+
+    BREVO_API_KEY = os.getenv('BREVO_API_KEY')
+    if not BREVO_API_KEY:
+        flash("Fehler: Kein Brevo API-Schlüssel gefunden.", "danger")
+        return redirect(url_for('mitglied_detail', mitglied_id=mitglied_id))
+
+    if request.method == 'POST':
+        subject = request.form['subject']
+        body = request.form['body']
+
+        headers = {
+            "api-key": BREVO_API_KEY,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "sender": {"name": "Vereinsverwaltung", "email": "info@memberworks.at"},
+            "to": [{"email": mitglied.email}],
+            "subject": subject,
+            "htmlContent": body
+        }
+
+        try:
+            response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data)
+            if response.status_code == 201:
+                flash("Nachricht erfolgreich gesendet.", "success")
+            else:
+                flash(f"Fehler beim Senden der Nachricht: {response.status_code} - {response.text}", "danger")
+        except Exception as e:
+            flash(f"Fehler beim Senden der Nachricht: {e}", "danger")
+
+        return redirect(url_for('mitglied_detail', mitglied_id=mitglied_id))
+
+    return render_template('send_email_member.html', mitglied=mitglied, vorlagen=vorlagen, vorlagen_json=vorlagen_json)
+
+
+
 # ----------------------------------
 # Events
 # ----------------------------------
@@ -429,6 +471,58 @@ def event_delete(event_id):
     db.session.delete(event)
     db.session.commit()
     return redirect(url_for('events_liste'))
+
+@app.route('/event/<int:event_id>/send_email', methods=['GET', 'POST'])
+@login_required
+def send_email_event(event_id):
+    event = Event.query.get_or_404(event_id)  # Hole das Event aus der Datenbank
+    mitglieder = Mitglied.query.all()  # Liste aller Mitglieder
+
+    if request.method == 'POST':
+        subject = request.form['subject']
+        body = request.form['body']
+        selected_ids = request.form.getlist('member_ids')
+
+        BREVO_API_KEY = os.getenv('BREVO_API_KEY')
+        if not BREVO_API_KEY:
+            flash("Fehler: Kein Brevo API-Schlüssel gefunden.", "danger")
+            return redirect(url_for('events_liste'))
+
+        # Bestimme die Empfänger
+        if "all" in selected_ids:
+            recipient_emails = [mitglied.email for mitglied in mitglieder]
+        else:
+            recipient_emails = [mitglied.email for mitglied in mitglieder if str(mitglied.id) in selected_ids]
+
+        if not recipient_emails:
+            flash('Keine Mitglieder ausgewählt.', 'danger')
+            return redirect(url_for('send_email_event', event_id=event_id))
+
+        # Sende E-Mails über die Brevo API
+        headers = {
+            "api-key": BREVO_API_KEY,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "sender": {"name": "Vereinsverwaltung", "email": "info@memberworks.at"},
+            "to": [{"email": email} for email in recipient_emails],
+            "subject": subject,
+            "htmlContent": body
+        }
+
+        try:
+            response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data)
+            if response.status_code == 201:
+                flash("E-Mails erfolgreich gesendet.", "success")
+            else:
+                flash(f"Fehler beim Senden der E-Mails: {response.status_code} - {response.text}", "danger")
+        except Exception as e:
+            flash(f"Fehler beim Senden der E-Mails: {e}", "danger")
+
+        return redirect(url_for('events_liste'))
+
+    return render_template('send_email_event.html', event=event, mitglieder=mitglieder)
+
 
 
 # ----------------------------------
@@ -1166,53 +1260,169 @@ def about():
 # ----------------------------------
 # Mailversand aus der App
 # ----------------------------------
-from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, EmailField, SubmitField
-from wtforms.validators import DataRequired, Email
-from flask_mail import Mail, Message
-
-# Mail-Konfiguration
-app.config['MAIL_SERVER'] = 'smtp.example.com'  # SMTP-Server
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'your-email@example.com'  # Absenderadresse
-app.config['MAIL_PASSWORD'] = 'your-email-password'
-
-mail = Mail(app)
-
-# Feedback-Formular
-class FeedbackForm(FlaskForm):
-    name = StringField('Name', validators=[DataRequired()])
-    email = EmailField('E-Mail', validators=[DataRequired(), Email()])
-    message = TextAreaField('Nachricht', validators=[DataRequired()])
-    submit = SubmitField('Senden')
-
-# Feedback-Seite
 @app.route('/feedback', methods=['GET', 'POST'])
 def send_feedback():
     form = FeedbackForm()
     if form.validate_on_submit():
-        name = form.name.data
-        email = form.email.data
-        message = form.message.data
-        
-        # E-Mail erstellen
-        msg = Message(
-            subject=f"Feedback von {name}",
-            sender=email,
-            recipients=["jesse@haemmerle.at"],  # Zieladresse
-            body=f"Name: {name}\nE-Mail: {email}\n\nNachricht:\n{message}"
-        )
-        
+        # Daten aus dem Formular
+        sender_name = form.name.data
+        sender_email = form.email.data
+        message_content = form.message.data
+
+        # Anfrage-Daten für Brevo
+        BREVO_API_KEY = os.getenv('BREVO_API_KEY')
+        if not BREVO_API_KEY:
+            flash("Fehler: Kein Brevo API-Schlüssel gefunden.", "danger")
+            return redirect(url_for('send_feedback'))
+
+        headers = {
+            "api-key": BREVO_API_KEY,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "sender": {"name": "Feedback Bot", "email": "feedback@memberworks.at"},  # Muss bei Brevo verifiziert sein
+            "to": [{"email": "feedback@memberworks.at"}],  # Zieladresse
+            "subject": f"Feedback von {sender_name}",
+            "htmlContent": f"""
+            <h3>Neues Feedback erhalten</h3>
+            <p><strong>Name:</strong> {sender_name}</p>
+            <p><strong>E-Mail:</strong> {sender_email}</p>
+            <p><strong>Nachricht:</strong></p>
+            <p>{message_content}</p>
+            """
+        }
+
+        # Anfrage an die Brevo API senden
         try:
-            mail.send(msg)
-            flash("Vielen Dank für Ihr Feedback! Ihre Nachricht wurde gesendet.", "success")
+            response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data)
+            if response.status_code == 201:
+                flash("Vielen Dank für Ihr Feedback! Ihre Nachricht wurde erfolgreich gesendet.", "success")
+            else:
+                flash(f"Fehler beim Senden der Nachricht: {response.status_code} - {response.text}", "danger")
         except Exception as e:
             flash(f"Es gab ein Problem beim Senden der Nachricht: {e}", "danger")
-        
         return redirect(url_for('send_feedback'))
-    
+
     return render_template('feedback.html', form=form)
+
+
+# ----------------------------------
+# Mailversand an Mitglieder
+# ----------------------------------
+@app.route('/send_email', methods=['GET', 'POST'])
+@login_required
+def send_email():
+    mitglieder = Mitglied.query.all()
+    vorlagen = Nachrichtenvorlage.query.all()
+    vorlagen_json = json.dumps([{'id': v.id, 'betreff': v.betreff, 'inhalt': v.inhalt} for v in vorlagen])
+
+    if request.method == 'POST':
+        subject = request.form['subject']
+        body = request.form['body']
+        selected_ids = request.form.getlist('member_ids')
+
+        BREVO_API_KEY = os.getenv('BREVO_API_KEY')
+        if not BREVO_API_KEY:
+            flash("Fehler: Kein Brevo API-Schlüssel gefunden.", "danger")
+            return redirect(url_for('send_email'))
+
+        headers = {
+            "api-key": BREVO_API_KEY,
+            "Content-Type": "application/json",
+        }
+
+        # Ziel-E-Mails abrufen
+        if "all" in selected_ids:
+            recipient_emails = [mitglied.email for mitglied in mitglieder]
+        else:
+            recipient_emails = [mitglied.email for mitglied in mitglieder if str(mitglied.id) in selected_ids]
+
+        if not recipient_emails:
+            flash('Keine Mitglieder ausgewählt.', 'danger')
+            return redirect(url_for('send_email'))
+
+        data = {
+            "sender": {"name": "Vereinsverwaltung", "email": "info@memberworks.at"},  # Muss bei Brevo verifiziert sein
+            "to": [{"email": email} for email in recipient_emails],
+            "subject": subject,
+            "htmlContent": body
+        }
+
+        # Anfrage an die Brevo API senden
+        try:
+            response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data)
+            if response.status_code == 201:
+                flash('E-Mails erfolgreich gesendet.', 'success')
+            else:
+                flash(f"Fehler beim Senden der E-Mails: {response.status_code} - {response.text}", "danger")
+        except Exception as e:
+            flash(f"Fehler beim Senden der E-Mails: {e}", "danger")
+
+        return redirect(url_for('send_email'))
+
+    return render_template('send_email.html', mitglieder=mitglieder, vorlagen=vorlagen, vorlagen_json=vorlagen_json)
+
+# ----------------------------------
+# Vorlagen für Mailversand
+# ----------------------------------
+@app.route('/templates', methods=['GET', 'POST'])
+@login_required
+def templates_list():
+    templates = Nachrichtenvorlage.query.all()
+    return render_template('templates_list.html', templates=templates)
+
+@app.route('/templates/new', methods=['GET', 'POST'])
+@login_required
+def templates_new():
+    if request.method == 'POST':
+        titel = request.form['titel']
+        betreff = request.form['betreff']
+        inhalt = request.form['inhalt']
+
+        neue_vorlage = Nachrichtenvorlage(titel=titel, betreff=betreff, inhalt=inhalt)
+        db.session.add(neue_vorlage)
+        db.session.commit()
+        flash('Nachrichtenvorlage erfolgreich erstellt.', 'success')
+        return redirect(url_for('templates_list'))
+
+    return render_template('templates_edit.html', titel="Neue Vorlage")
+
+@app.route('/templates/<int:template_id>/edit', methods=['GET', 'POST'])
+@login_required
+def templates_edit(template_id):
+    vorlage = Nachrichtenvorlage.query.get_or_404(template_id)
+    if request.method == 'POST':
+        vorlage.titel = request.form['titel']
+        vorlage.betreff = request.form['betreff']
+        vorlage.inhalt = request.form['inhalt']
+        db.session.commit()
+        flash('Nachrichtenvorlage erfolgreich aktualisiert.', 'success')
+        return redirect(url_for('templates_list'))
+
+    return render_template('templates_edit.html', vorlage=vorlage, titel="Vorlage bearbeiten")
+
+@app.route('/templates/<int:template_id>/delete', methods=['POST'])
+@login_required
+def templates_delete(template_id):
+    vorlage = Nachrichtenvorlage.query.get_or_404(template_id)
+    db.session.delete(vorlage)
+    db.session.commit()
+    flash('Nachrichtenvorlage erfolgreich gelöscht.', 'success')
+    return redirect(url_for('templates_list'))
+
+# ----------------------------------
+# App stoppen
+# ----------------------------------
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    if not current_user.is_authenticated or current_user.role != 'admin':  # Nur für Admins
+        abort(403)  # Zugriff verweigern
+    shutdown_func = request.environ.get('werkzeug.server.shutdown')
+    if shutdown_func is None:
+        abort(500)
+    shutdown_func()
+    return "Server wird heruntergefahren."
 
 
 # ----------------------------------

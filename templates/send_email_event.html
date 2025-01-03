@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h1>E-Mail für Event: {{ event.titel }}</h1>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="subject" class="form-label">Betreff</label>
+            <input type="text" class="form-control" id="subject" name="subject" placeholder="Betreff eingeben" required>
+        </div>
+        <div class="mb-3">
+            <label for="body" class="form-label">Nachricht</label>
+            <textarea class="form-control" id="body" name="body" rows="5" placeholder="Nachricht eingeben" required></textarea>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Mitglieder auswählen</label>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="select_all" value="all" name="member_ids">
+                <label class="form-check-label" for="select_all">Alle Mitglieder</label>
+            </div>
+            {% for mitglied in mitglieder %}
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="member_{{ mitglied.id }}" name="member_ids" value="{{ mitglied.id }}">
+                <label class="form-check-label" for="member_{{ mitglied.id }}">{{ mitglied.vorname }} {{ mitglied.nachname }}</label>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary">E-Mails senden</button>
+    </form>
+</div>
+<script>
+    document.getElementById('select_all').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('input[name="member_ids"]');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+    });
+</script>
+{% endblock %}

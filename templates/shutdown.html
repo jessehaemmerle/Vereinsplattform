@@ -1,0 +1,28 @@
+{% extends "pre-login.html" %}
+{% block title %}Server beenden - Vereinsverwaltung{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow border-danger">
+                <div class="card-header bg-danger text-white text-center">
+                    <h4>Server beenden</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-center">
+                        Möchten Sie den Server wirklich beenden? Diese Aktion kann nicht rückgängig gemacht werden.
+                    </p>
+                    <form method="POST" action="{{ url_for('shutdown') }}" class="d-flex justify-content-center">
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="bi bi-power"></i> Programm beenden
+                        </button>
+                    </form>
+                </div>
+                <div class="card-footer text-center text-muted">
+                    Bitte führen Sie diese Aktion nur aus, wenn Sie sicher sind.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

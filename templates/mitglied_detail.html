@@ -48,6 +48,6 @@
     </div>
 </div>
 
-
+<a href="{{ url_for('send_message_member', mitglied_id=mitglied.id) }}" class="btn btn-primary mt-3">Nachricht senden</a>
 <a href="{{ url_for('mitglieder_liste') }}" class="btn btn-secondary mt-3">Zurück zur Liste</a>
 {% endblock %}

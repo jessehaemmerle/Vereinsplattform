@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}E-Mail an {{ mitglied.vorname }} {{ mitglied.nachname }} senden{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>E-Mail an {{ mitglied.vorname }} {{ mitglied.nachname }}</h1>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="template" class="form-label">Vorlage auswählen</label>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select" id="template" name="template" onchange="loadTemplate(this)">
+                    <option value="">Keine Vorlage</option>
+                    {% for vorlage in vorlagen %}
+                    <option value="{{ vorlage.id }}">{{ vorlage.titel }}</option>
+                    {% endfor %}
+                </select>
+                <a href="{{ url_for('templates_list') }}" class="btn btn-secondary">Vorlagen bearbeiten</a>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="subject" class="form-label">Betreff</label>
+            <input type="text" class="form-control" id="subject" name="subject" required>
+        </div>
+        <div class="mb-3">
+            <label for="body" class="form-label">Nachricht</label>
+            <textarea class="form-control" id="body" name="body" rows="5" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Nachricht senden</button>
+        <a href="{{ url_for('mitglied_detail', mitglied_id=mitglied.id) }}" class="btn btn-secondary">Abbrechen</a>
+    </form>
+</div>
+<script>
+    const templates = {{ vorlagen_json|safe }};
+    function loadTemplate(select) {
+        const selected = templates.find(t => t.id == select.value);
+        const subjectField = document.getElementById('subject');
+        const bodyField = document.getElementById('body');
+
+        if (selected) {
+            subjectField.value = selected.betreff || '';
+            bodyField.value = selected.inhalt || '';
+        } else {
+            subjectField.value = '';
+            bodyField.value = '';
+        }
+    }
+</script>
+{% endblock %}

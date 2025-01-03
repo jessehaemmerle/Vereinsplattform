@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ titel }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">{{ titel }}</h1>
+    </div>
+    <form method="POST" class="needs-validation" novalidate>
+        <div class="mb-3">
+            <label for="titel" class="form-label">Titel</label>
+            <input type="text" class="form-control" id="titel" name="titel" value="{{ vorlage.titel if vorlage else '' }}" required>
+            <div class="invalid-feedback">
+                Bitte geben Sie einen Titel ein.
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="betreff" class="form-label">Betreff</label>
+            <input type="text" class="form-control" id="betreff" name="betreff" value="{{ vorlage.betreff if vorlage else '' }}" required>
+            <div class="invalid-feedback">
+                Bitte geben Sie einen Betreff ein.
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="inhalt" class="form-label">Nachricht</label>
+            <textarea class="form-control" id="inhalt" name="inhalt" rows="5" required>{{ vorlage.inhalt if vorlage else '' }}</textarea>
+            <div class="invalid-feedback">
+                Bitte geben Sie eine Nachricht ein.
+            </div>
+        </div>
+        <div class="d-flex justify-content-between">
+            <button type="submit" class="btn btn-success">Speichern</button>
+            <a href="{{ url_for('templates_list') }}" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+<script>
+    // Bootstrap Validierung
+    (function () {
+        'use strict';
+        const forms = document.querySelectorAll('.needs-validation');
+        Array.from(forms).forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+</script>
+{% endblock %}

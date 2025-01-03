@@ -102,3 +102,13 @@ class Event(db.Model):
 
     def __repr__(self):
         return f"<Event {self.titel}>"
+
+class Nachrichtenvorlage(db.Model):
+    __tablename__ = 'nachrichtenvorlagen'
+    id = db.Column(db.Integer, primary_key=True)
+    titel = db.Column(db.String(100), nullable=False)
+    betreff = db.Column(db.String(200), nullable=False)
+    inhalt = db.Column(db.Text, nullable=False)
+
+    def __repr__(self):
+        return f"<Nachrichtenvorlage {self.titel}>"

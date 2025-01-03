@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, DateField, FloatField, SelectField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Email, EqualTo, Optional
+from wtforms import StringField, TextAreaField, DateField, FloatField, EmailField, SelectField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, Email, EqualTo, Optional, Length
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 
 class MitgliedForm(FlaskForm):
@@ -69,3 +69,27 @@ class EventForm(FlaskForm):
     datum = DateField('Datum', format='%Y-%m-%d')
     ort = StringField('Ort')
     preis = FloatField('Preis (EUR)', validators=[Optional()])  # Neues Preisfeld
+
+class FeedbackForm(FlaskForm):
+    name = StringField(
+        'Name',
+        validators=[
+            DataRequired(message="Bitte geben Sie Ihren Namen ein."),
+            Length(max=50, message="Der Name darf maximal 50 Zeichen lang sein.")
+        ]
+    )
+    email = EmailField(
+        'E-Mail',
+        validators=[
+            DataRequired(message="Bitte geben Sie Ihre E-Mail-Adresse ein."),
+            Email(message="Bitte geben Sie eine gültige E-Mail-Adresse ein.")
+        ]
+    )
+    message = TextAreaField(
+        'Nachricht',
+        validators=[
+            DataRequired(message="Bitte geben Sie Ihre Nachricht ein."),
+            Length(min=10, max=1000, message="Die Nachricht muss zwischen 10 und 1000 Zeichen lang sein.")
+        ]
+    )
+    submit = SubmitField('Senden')
