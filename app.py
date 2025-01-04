@@ -177,7 +177,9 @@ def mitglieder_liste():
             db.or_(
                 Mitglied.vorname.ilike(f"%{search_query}%"),
                 Mitglied.nachname.ilike(f"%{search_query}%"),
-                Mitglied.email.ilike(f"%{search_query}%")
+                Mitglied.email.ilike(f"%{search_query}%"),
+                Mitglied.plz.ilike(f"%{search_query}%"),
+                Mitglied.ort.ilike(f"%{search_query}%")
             )
         ).all()
     else:
@@ -202,11 +204,14 @@ def mitglied_new():
             telefonnummer=form.telefonnummer.data,
             geburtstag=form.geburtstag.data,
             adresse=form.adresse.data,
+            plz=form.plz.data,
+            ort=form.ort.data,
             mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
-            beitrag_bezahlt=form.beitrag_bezahlt.data == 'true'
+            beitrag_bezahlt=form.beitrag_bezahlt.data == 'true',
+            austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None
         )
         db.session.add(neues_mitglied)
-        db.session.commit()  # Speichern, damit `neues_mitglied.id` verfügbar ist
+        db.session.commit()
 
         # Wenn Beitrag bezahlt, Finanzbuchung erstellen
         if neues_mitglied.beitrag_bezahlt and neues_mitglied.mitgliedsbeitrag > 0:
@@ -216,14 +221,13 @@ def mitglied_new():
                 betrag=neues_mitglied.mitgliedsbeitrag,
                 datum=date.today(),
                 beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
-                mitglied_id=neues_mitglied.id  # Verknüpfung mit dem Mitglied
+                mitglied_id=neues_mitglied.id
             ))
             db.session.commit()
 
         flash("Neues Mitglied erfolgreich erstellt.")
         return redirect(url_for('mitglieder_liste'))
     return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
-
 
 
 @app.route('/mitglied/<int:mitglied_id>/edit', methods=['GET', 'POST'])
@@ -238,12 +242,17 @@ def mitglied_edit(mitglied_id):
         mitglied.eintrittsdatum = form.eintrittsdatum.data
         mitglied.status = form.status.data
         mitglied.funktion = form.funktion.data
-        mitglied.telefonnummer = form.telefonnummer.data  # Neues Feld
-        mitglied.geburtstag = form.geburtstag.data        # Neues Feld
-        mitglied.adresse = form.adresse.data              # Neues Feld
+        mitglied.telefonnummer = form.telefonnummer.data
+        mitglied.geburtstag = form.geburtstag.data
+        mitglied.adresse = form.adresse.data
+        mitglied.plz = form.plz.data
+        mitglied.ort = form.ort.data
+        mitglied.austritt_datum = form.austritt_datum.data if form.status.data == 'inaktiv' else None
         db.session.commit()
+        flash("Mitglied erfolgreich bearbeitet.")
         return redirect(url_for('mitglieder_liste'))
     return render_template('mitglied_edit.html', form=form, titel="Mitglied bearbeiten")
+
 
 @app.route('/mitglied/<int:mitglied_id>/delete', methods=['POST'])
 @login_required
@@ -252,6 +261,7 @@ def mitglied_delete(mitglied_id):
     db.session.delete(mitglied)
     db.session.commit()
     return redirect(url_for('mitglieder_liste'))
+
 
 @app.route('/mitglieder/import', methods=['GET', 'POST'])
 @login_required
@@ -262,27 +272,80 @@ def mitglieder_import():
             flash('Keine Datei ausgewählt.', 'danger')
             return redirect(url_for('mitglieder_liste'))
 
+        if not file.filename.endswith('.csv'):
+            flash('Bitte laden Sie eine gültige CSV-Datei hoch.', 'danger')
+            return redirect(url_for('mitglieder_liste'))
+
         try:
             stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
             csv_reader = csv.DictReader(stream)
 
+            required_fields = {'Vorname', 'Nachname', 'Email', 'Mitgliedsbeitrag', 'Beitrag_Bezahlt'}
+            if not required_fields.issubset(csv_reader.fieldnames):
+                flash(f'Die CSV-Datei muss folgende Spalten enthalten: {", ".join(required_fields)}', 'danger')
+                return redirect(url_for('mitglieder_liste'))
+
             for row in csv_reader:
+                # Konvertiere Datumfelder in datetime.date-Objekte
+                eintrittsdatum = None
+                geburtstag = None
+                try:
+                    if row.get('Eintrittsdatum'):
+                        eintrittsdatum = datetime.strptime(row['Eintrittsdatum'], '%Y-%m-%d').date()
+                except ValueError:
+                    flash(f"Ungültiges Eintrittsdatum für {row['Vorname']} {row['Nachname']}.", 'warning')
+
+                try:
+                    if row.get('Geburtstag'):
+                        geburtstag = datetime.strptime(row['Geburtstag'], '%Y-%m-%d').date()
+                except ValueError:
+                    flash(f"Ungültiges Geburtsdatum für {row['Vorname']} {row['Nachname']}.", 'warning')
+
+                # Konvertiere Beitrag_Bezahlt in ein Boolean
+                beitrag_bezahlt = row.get('Beitrag_Bezahlt', '').strip().lower() in ['true', 'ja', '1']
+
+                # Mitgliedsbeitrag als Float verarbeiten
+                mitgliedsbeitrag = float(row.get('Mitgliedsbeitrag', 0.0))
+
+                # Neues Mitglied erstellen
                 neues_mitglied = Mitglied(
-                    vorname=row['Vorname'],
-                    nachname=row['Nachname'],
-                    email=row['Email'],
-                    eintrittsdatum=row.get('Eintrittsdatum', date.today()),
-                    status=row.get('Status', 'aktiv'),
-                    funktion=row.get('Funktion', 'Mitglied')
+                    vorname=row['Vorname'].strip(),
+                    nachname=row['Nachname'].strip(),
+                    email=row['Email'].strip(),
+                    eintrittsdatum=eintrittsdatum or date.today(),
+                    status=row.get('Status', 'aktiv').strip(),
+                    funktion=row.get('Funktion', 'Mitglied').strip(),
+                    telefonnummer=row.get('Telefonnummer', '').strip(),
+                    geburtstag=geburtstag,
+                    adresse=row.get('Adresse', '').strip(),
+                    plz=row.get('PLZ', '').strip(),
+                    ort=row.get('Ort', '').strip(),
+                    mitgliedsbeitrag=mitgliedsbeitrag,
+                    beitrag_bezahlt=beitrag_bezahlt
                 )
                 db.session.add(neues_mitglied)
-            db.session.commit()
+                db.session.flush()  # Mitglied-ID direkt verfügbar machen
 
+                # Finanzbuchung erstellen, falls Beitrag bereits bezahlt ist
+                if beitrag_bezahlt and mitgliedsbeitrag > 0:
+                    finanzbuchung = Finanzbuchung(
+                        typ='Einnahme',
+                        kategorie='Mitgliedsbeitrag',
+                        betrag=mitgliedsbeitrag,
+                        datum=date.today(),
+                        beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
+                        mitglied_id=neues_mitglied.id
+                    )
+                    db.session.add(finanzbuchung)
+
+            db.session.commit()
             flash('Mitglieder erfolgreich importiert.', 'success')
         except Exception as e:
             flash(f'Fehler beim Importieren der CSV: {e}', 'danger')
 
     return redirect(url_for('mitglieder_liste'))
+
+
 
 @app.route('/mitglied/<int:mitglied_id>/update_beitrag', methods=['POST'])
 @login_required

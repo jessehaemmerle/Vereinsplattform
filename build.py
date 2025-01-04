@@ -17,7 +17,7 @@ options = [
     main_script,                # Hauptprogramm
     '--onefile',                # Eine einzige ausführbare Datei erstellen
     '--noconfirm',              # Kein Bestätigungsdialog
-    '--name=MemberWorks_Beta', # Name der ausführbaren Datei
+    '--name=MemberWorks_Beta_0_4_0', # Name der ausführbaren Datei
     f'--add-data={templates_dir}{os.pathsep}templates', # Vorlagen
     f'--add-data={static_dir}{os.pathsep}static',       # Statische Dateien
     f'--add-data={models_path}{os.pathsep}.',           # models.py

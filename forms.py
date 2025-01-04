@@ -8,6 +8,7 @@ class MitgliedForm(FlaskForm):
     nachname = StringField('Nachname', validators=[DataRequired()])
     email = StringField('E-Mail', validators=[DataRequired(), Email()])
     eintrittsdatum = DateField('Eintrittsdatum', format='%Y-%m-%d')
+    austritt_datum = DateField('Austrittsdatum', format='%Y-%m-%d')
     status = SelectField('Status', choices=[('aktiv', 'Aktiv'), ('inaktiv', 'Inaktiv')])
     funktion = SelectField('Funktion', choices=[('leitung', 'Leitung'), ('kassier', 'Kassier'), ('normal', 'Normales Mitglied'), ('vorstand', 'Vorstand'), ('pruefer', 'Rechnungsprüfer'), ('schrift', 'Schriftführer')])
     mitgliedsbeitrag = FloatField('Mitgliedsbeitrag (EUR)', validators=[Optional()])
@@ -15,6 +16,8 @@ class MitgliedForm(FlaskForm):
     telefonnummer = StringField('Telefonnummer', validators=[Optional()])  # Neues Feld
     geburtstag = DateField('Geburtstag', validators=[Optional()])           # Neues Feld
     adresse = StringField('Adresse', validators=[Optional()])               # Neues Feld
+    plz = FloatField('Postleitzahl', validators=[Optional()])
+    ort = StringField('Ort', validators=[Optional()])
 
 class EventForm(FlaskForm):
     titel = StringField('Titel', validators=[DataRequired()])

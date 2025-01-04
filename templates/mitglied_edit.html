@@ -60,13 +60,38 @@
             {% for error in form.adresse.errors %}
             <div class="text-danger">{{ error }}</div>
             {% endfor %}
-        </div>        
+        </div>   
+        
+        <div class="mb-3">
+            <label for="Postleitzahl" class="form-label">{{ form.plz.label }}</label>
+            {{ form.plz(class_="form-control", id="plz") }}
+            {% for error in form.plz.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>  
+
+        <div class="mb-3">
+            <label for="Ort" class="form-label">{{ form.ort.label }}</label>
+            {{ form.ort(class_="form-control", id="ort") }}
+            {% for error in form.ort.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>  
 
         <div class="mb-3">
             <label for="status" class="form-label">{{ form.status.label }}</label>
             {{ form.status(class_="form-select", id="status") }}
             {% for error in form.status.errors %}
             <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3" id="austritt_datum_field" style="display: none;">
+            <label for="Austrittsdatum" class="form-label">{{ form.austritt_datum.label }}</label>
+            {{ form.austritt_datum(class_="form-control", id="austritt_datum") }}
+            {% for error in form.austritt_datum.errors %}
+            <div class="text-danger">{{ error }}
+            </div>
             {% endfor %}
         </div>
 
@@ -92,4 +117,17 @@
         <a href="{{ url_for('mitglieder_liste') }}" class="btn btn-secondary">Abbrechen</a>
     </form>
 </div>
+<script>
+    document.getElementById('status').addEventListener('change', function() {
+        const austrittField = document.getElementById('austritt_datum_field');
+        if (this.value === 'inaktiv') {
+            austrittField.style.display = 'block';
+        } else {
+            austrittField.style.display = 'none';
+        }
+    });
+
+    // Trigger beim Laden
+    document.getElementById('status').dispatchEvent(new Event('change'));
+</script>
 {% endblock %}

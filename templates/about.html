@@ -4,44 +4,62 @@
 {% block content %}
 <div class="container mt-4">
     <h1>Über diese Anwendung</h1>
-    <p>Diese Anwendung wurde entwickelt, um die Verwaltung von Vereinen effizient und benutzerfreundlich zu gestalten.</p>
-    
+    <p>Willkommen bei der Vereinsverwaltung - Ihrer umfassenden Lösung für die effiziente und intuitive Verwaltung Ihres Vereins. Diese Software wurde speziell entwickelt, um administrative Aufgaben zu vereinfachen und den Fokus auf das Wesentliche zu legen: Ihre Vereinsarbeit.</p>
+
     <h3>Details</h3>
     <ul>
-        <li><strong>Version:</strong> Beta 0.3.5</li>
+        <li><strong>Version:</strong> Beta 0.4.0</li>
         <li><strong>Autor:</strong> Jesse Hämmerle</li>
-        <li><strong>Kontakt:</strong> jesse@haemmerle.at</li>
+        <li><strong>Kontakt:</strong> <a href="mailto:jesse@haemmerle.at">jesse@haemmerle.at</a></li>
     </ul>
-    
-    <h3>Nützliche Informationen</h3>
-    <p>Diese Anwendung unterstützt die Verwaltung von Mitgliedern, Finanzen, Events und Dokumenten. Alle Daten werden sicher in einer verschlüsselten Datenbank gespeichert. Benutzerfreundliche Interfaces ermöglichen eine intuitive Bedienung.</p>
-    
+
+    <h3>Funktionen</h3>
+    <p>Diese Anwendung bietet umfangreiche Funktionen zur Vereinsverwaltung:</p>
+    <ul>
+        <li>Mitgliederverwaltung mit detaillierten Profilen und Kontaktinformationen</li>
+        <li>Finanzübersicht mit Einnahmen, Ausgaben und Budgetplanung</li>
+        <li>Planung und Organisation von Veranstaltungen</li>
+        <li>Dokumentenmanagement für Verträge, Protokolle und mehr</li>
+        <li>DSGVO-konforme Speicherung und Verarbeitung von Daten</li>
+    </ul>
+
+    <h3>Sicherheits- und Datenschutzrichtlinien</h3>
+    <p>Die Sicherheit Ihrer Daten hat höchste Priorität:</p>
+    <ul>
+        <li>Alle Daten werden in einer verschlüsselten Datenbank gespeichert.</li>
+        <li>Regelmäßige Backups schützen vor Datenverlust.</li>
+        <li>Zugriffsrechte sind individuell konfigurierbar, um unbefugte Zugriffe zu verhindern.</li>
+        <li>Die Anwendung erfüllt die Anforderungen der DSGVO, um Ihre personenbezogenen Daten zu schützen.</li>
+    </ul>
+
     <h3>Rechtliche Hinweise</h3>
     <ul>
-        <li>Diese Anwendung wurde ausschließlich für den internen Gebrauch von Vereinen entwickelt und ist nicht für den kommerziellen Vertrieb bestimmt.</li>
-        <li>Die Nutzung der Software erfolgt auf eigene Gefahr. Der Autor übernimmt keine Haftung für Datenverluste oder Schäden, die durch die Nutzung entstehen.</li>
-        <li>Die Anwendung entspricht der DSGVO (Datenschutz-Grundverordnung) und schützt die persönlichen Daten der Benutzer.</li>
-        <li>Die Weitergabe oder der Verkauf des Quellcodes ohne vorherige Genehmigung ist untersagt.</li>
+        <li>Die Anwendung ist ausschließlich für den internen Gebrauch von Vereinen bestimmt und darf nicht für kommerzielle Zwecke verwendet werden.</li>
+        <li>Der Autor übernimmt keine Haftung für direkte oder indirekte Schäden, die durch die Nutzung der Software entstehen können.</li>
+        <li>Benutzer sind verpflichtet, die Anwendung gemäß den Nutzungsbedingungen zu verwenden. Eine missbräuchliche Nutzung kann rechtliche Konsequenzen nach sich ziehen.</li>
+        <li>Die Weitergabe, der Verkauf oder die Dekompilierung des Quellcodes ist ohne ausdrückliche Genehmigung untersagt.</li>
     </ul>
-    
+
     <h3>Copyright</h3>
     <p>© 2025 Jesse Hämmerle. Alle Rechte vorbehalten.</p>
-    <p>Die Inhalte dieser Software, einschließlich der Designs, Texte und Grafiken, unterliegen dem Urheberrecht. Eine Vervielfältigung oder Verwendung in anderen Anwendungen oder Medien ist nur mit ausdrücklicher Zustimmung des Autors gestattet.</p>
-    
+    <p>Der Inhalt dieser Anwendung, einschließlich Quellcode, Designs, Texte und Grafiken, ist urheberrechtlich geschützt. Eine Vervielfältigung oder Verbreitung ist nur mit ausdrücklicher Zustimmung des Autors erlaubt.</p>
+
     <h3>Nutzungsbedingungen</h3>
     <ul>
         <li>Die Anwendung darf nur für den vorgesehenen Zweck genutzt werden.</li>
-        <li>Benutzer sind verpflichtet, ihre Zugangsdaten sicher aufzubewahren und nicht an Dritte weiterzugeben.</li>
-        <li>Missbräuchliche Nutzung der Software, insbesondere Hacking oder Manipulation der Datenbank, ist strengstens verboten und kann rechtliche Konsequenzen nach sich ziehen.</li>
+        <li>Benutzer müssen ihre Zugangsdaten sicher aufbewahren und sind für alle Aktivitäten, die mit ihrem Konto durchgeführt werden, verantwortlich.</li>
+        <li>Jegliche Form von Manipulation, Hacking oder unbefugtem Zugriff ist strengstens untersagt und wird strafrechtlich verfolgt.</li>
+        <li>Die Anwendung kann regelmäßigen Updates unterzogen werden. Benutzer sind verpflichtet, diese zu installieren, um die Sicherheit und Funktionalität der Anwendung zu gewährleisten.</li>
     </ul>
 
     <h3>Kontakt</h3>
-    <p>Für Fragen oder Supportanfragen kontaktieren Sie bitte:</p>
+    <p>Für Anfragen, Support oder Feedback kontaktieren Sie uns bitte über die folgenden Kanäle:</p>
     <ul>
-        <li><strong>E-Mail:</strong> jesse@haemmerle.at</li>
+        <li><strong>E-Mail:</strong> <a href="mailto:jesse@haemmerle.at">jesse@haemmerle.at</a></li>
         <li><strong>Telefon:</strong> +43 699 171 08 431</li>
-        <li><strong>Adresse:</strong> In der Riebe 5, Götzis, Österreich</li>
-        <li><a class="btn btn-primary" href="{{ url_for('send_feedback') }}">Feedback</a></li>
+        <li><strong>Adresse:</strong> In der Riebe 5, 6840 Götzis, Österreich</li>
     </ul>
+    <p>Wir schätzen Ihr Feedback, um die Anwendung kontinuierlich zu verbessern:</p>
+    <a class="btn btn-primary" href="{{ url_for('send_feedback') }}">Feedback senden</a>
 </div>
 {% endblock %}

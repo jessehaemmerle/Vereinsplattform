@@ -12,6 +12,7 @@ class Mitglied(db.Model):
     nachname = db.Column(db.String(50))
     email = db.Column(db.String(120), unique=True)
     eintrittsdatum = db.Column(db.Date)
+    austritt_datum = db.Column(db.Date)
     status = db.Column(db.String(20))  # z.B. 'aktiv', 'inaktiv'
     funktion = db.Column(db.String(20))
     mitgliedsbeitrag = db.Column(db.Float, default=0.0)
@@ -19,6 +20,8 @@ class Mitglied(db.Model):
     telefonnummer = db.Column(db.String(20))  # Neue Spalte
     geburtstag = db.Column(db.Date)          # Neue Spalte
     adresse = db.Column(db.String(255))      # Neue Spalte
+    plz = db.Column(db.Integer)
+    ort = db.Column(db.String(255))
     finanzbuchungen = db.relationship('Finanzbuchung', backref='mitglied', lazy=True)
 
     def reset_beitrag_bezahlt(self):

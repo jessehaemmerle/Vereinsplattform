@@ -1,0 +1,4 @@
+Vorname,Nachname,Email,Eintrittsdatum,Austritt_Datum,Status,Funktion,Mitgliedsbeitrag,Beitrag_Bezahlt,Telefonnummer,Geburtstag,Adresse,PLZ,Ort
+Max,Muster,max.muster@example.com,2023-01-01,,aktiv,Mitglied,50.0,True,+436601234567,1990-05-15,Hauptstraße 1,1010,Wien
+Anna,Beispiel,anna.beispiel@example.com,2023-02-01,,aktiv,Kassierer,100.0,True,+436605678912,1988-11-22,Nebenstraße 2,1020,Wien
+John,Doe,john.doe@example.com,2023-03-01,2024-01-01,aktiv,Mitglied,0.0,False,+436607891234,1992-07-08,Bahnhofstraße 3,1030,Wien

@@ -7,8 +7,19 @@
     <tr><th>Nachname</th><td>{{ mitglied.nachname }}</td></tr>
     <tr><th>E-Mail</th><td>{{ mitglied.email }}</td></tr>
     <tr><th>Status</th><td>{{ mitglied.status }}</td></tr>
+    <tr><th>Austritt</th>
+        <td>
+            {% if mitglied.status == 'inaktiv' %}
+                {{ mitglied.austritt_datum.strftime('%d.%m.%Y') if mitglied.austritt_datum else 'Nicht angegeben' }}
+            {% else %}
+                -
+            {% endif %}
+        </td>
+    </tr>    
     <tr><th>Funktion</th><td>{{ mitglied.funktion }}</td></tr>
     <tr><th>Adresse</th><td>{{ mitglied.adresse or 'Nicht angegeben' }}</td></tr>
+    <tr><th>PLZ</th><td>{{ mitglied.plz or 'Nicht angegeben' }}</td></tr>
+    <tr><th>Ort</th><td>{{ mitglied.ort or 'Nicht angegeben' }}</mitglied></td></tr>
     <tr><th>Telefonnummer</th><td>{{ mitglied.telefonnummer or 'Nicht angegeben' }}</td></tr>
     <tr><th>Geburtstag</th><td>{{ mitglied.geburtstag.strftime('%d.%m.%Y') if mitglied.geburtstag else 'Nicht angegeben' }}</td></tr>
     <tr><th>Alter</th><td>{{ alter if alter else 'Nicht angegeben' }}</td></tr>
