@@ -1413,16 +1413,14 @@ def templates_delete(template_id):
 # ----------------------------------
 # App stoppen
 # ----------------------------------
-
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
-    if not current_user.is_authenticated or current_user.role != 'admin':  # Nur für Admins
-        abort(403)  # Zugriff verweigern
     shutdown_func = request.environ.get('werkzeug.server.shutdown')
     if shutdown_func is None:
-        abort(500)
+        return "Fehler: Shutdown nicht verfügbar.", 500
     shutdown_func()
-    return "Server wird heruntergefahren."
+    return "Server wurde heruntergefahren."
+
 
 
 # ----------------------------------
@@ -1435,7 +1433,7 @@ if __name__ == '__main__':
     if not app.debug:  # Nur den Browser öffnen, wenn Debug-Modus deaktiviert ist
         webbrowser.open('http://127.0.0.1:5000')
 
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=False)
 
 
 
