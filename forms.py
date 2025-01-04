@@ -8,7 +8,7 @@ class MitgliedForm(FlaskForm):
     nachname = StringField('Nachname', validators=[DataRequired()])
     email = StringField('E-Mail', validators=[DataRequired(), Email()])
     eintrittsdatum = DateField('Eintrittsdatum', format='%Y-%m-%d')
-    austritt_datum = DateField('Austrittsdatum', format='%Y-%m-%d')
+    austritt_datum = DateField('Austrittsdatum', format='%Y-%m-%d', validators=[Optional()])
     status = SelectField('Status', choices=[('aktiv', 'Aktiv'), ('inaktiv', 'Inaktiv')])
     funktion = SelectField('Funktion', choices=[('leitung', 'Leitung'), ('kassier', 'Kassier'), ('normal', 'Normales Mitglied'), ('vorstand', 'Vorstand'), ('pruefer', 'Rechnungsprüfer'), ('schrift', 'Schriftführer')])
     mitgliedsbeitrag = FloatField('Mitgliedsbeitrag (EUR)', validators=[Optional()])

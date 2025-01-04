@@ -193,41 +193,36 @@ def mitglieder_liste():
 def mitglied_new():
     form = MitgliedForm()
     if form.validate_on_submit():
-        # Neues Mitglied erstellen
-        neues_mitglied = Mitglied(
-            vorname=form.vorname.data,
-            nachname=form.nachname.data,
-            email=form.email.data,
-            eintrittsdatum=form.eintrittsdatum.data or date.today(),
-            status=form.status.data,
-            funktion=form.funktion.data,
-            telefonnummer=form.telefonnummer.data,
-            geburtstag=form.geburtstag.data,
-            adresse=form.adresse.data,
-            plz=form.plz.data,
-            ort=form.ort.data,
-            mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
-            beitrag_bezahlt=form.beitrag_bezahlt.data == 'true',
-            austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None
-        )
-        db.session.add(neues_mitglied)
-        db.session.commit()
-
-        # Wenn Beitrag bezahlt, Finanzbuchung erstellen
-        if neues_mitglied.beitrag_bezahlt and neues_mitglied.mitgliedsbeitrag > 0:
-            db.session.add(Finanzbuchung(
-                typ='Einnahme',
-                kategorie='Mitgliedsbeitrag',
-                betrag=neues_mitglied.mitgliedsbeitrag,
-                datum=date.today(),
-                beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
-                mitglied_id=neues_mitglied.id
-            ))
+        try:
+            neues_mitglied = Mitglied(
+                vorname=form.vorname.data,
+                nachname=form.nachname.data,
+                email=form.email.data,
+                eintrittsdatum=form.eintrittsdatum.data or date.today(),
+                status=form.status.data,
+                funktion=form.funktion.data,
+                telefonnummer=form.telefonnummer.data,
+                geburtstag=form.geburtstag.data,
+                adresse=form.adresse.data,
+                plz=form.plz.data,
+                ort=form.ort.data,
+                mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
+                beitrag_bezahlt=form.beitrag_bezahlt.data == 'true',
+                austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None
+            )
+            db.session.add(neues_mitglied)
             db.session.commit()
+            flash("Neues Mitglied erfolgreich erstellt.", "success")
+            return redirect(url_for('mitglieder_liste'))
+        except Exception as e:
+            db.session.rollback()
+            print(f"Fehler: {e}")
+            flash("Fehler beim Erstellen des Mitglieds.", "danger")
+    else:
+        print(form.errors)  # Debugging für fehlerhafte Initialisierung
 
-        flash("Neues Mitglied erfolgreich erstellt.")
-        return redirect(url_for('mitglieder_liste'))
     return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
+
 
 
 @app.route('/mitglied/<int:mitglied_id>/edit', methods=['GET', 'POST'])
@@ -1496,4 +1491,4 @@ if __name__ == '__main__':
     if not app.debug:  # Nur den Browser öffnen, wenn Debug-Modus deaktiviert ist
         webbrowser.open('http://127.0.0.1:5000')
 
-    app.run(host='127.0.0.1', port=5000, debug=False)
+    app.run(host='127.0.0.1', port=5000, debug=True)
