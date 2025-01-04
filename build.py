@@ -28,7 +28,7 @@ options = [
     '--hidden-import=pysqlite2',                        # Hidden Import: pysqlite2
     '--hidden-import=MySQLdb',                          # Hidden Import: MySQLdb
     '--hidden-import=psycopg2',                         # Hidden Import: psycopg2
-    '--name=MemberWorks_Beta_0_4_2', # Name der ausführbaren Datei
+    '--name=MemberWorks_Beta_0_4_5', # Name der ausführbaren Datei
     '--log-level=DEBUG'
 ]
 
