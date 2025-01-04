@@ -539,7 +539,7 @@ def event_delete(event_id):
 @login_required
 def send_email_event(event_id):
     event = Event.query.get_or_404(event_id)  # Hole das Event aus der Datenbank
-    mitglieder = Mitglied.query.all()  # Liste aller Mitglieder
+    mitglieder = Mitglied.query.filter_by(status='aktiv').all()  # Nur aktive Mitglieder
 
     if request.method == 'POST':
         subject = request.form['subject']
@@ -1497,6 +1497,3 @@ if __name__ == '__main__':
         webbrowser.open('http://127.0.0.1:5000')
 
     app.run(host='127.0.0.1', port=5000, debug=False)
-
-
-
