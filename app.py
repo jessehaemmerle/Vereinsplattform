@@ -1,7 +1,7 @@
 import os
 from datetime import date
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response
-from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g
+from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
 from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
@@ -22,6 +22,17 @@ import webbrowser
 from models import db
 import requests
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from flask_wtf.csrf import CSRFProtect
+
+if not os.path.exists('uploads'):
+    os.makedirs('uploads')
+
+# Ordner für die Datenbank sicherstellen
+DATABASE_FOLDER = os.path.join(os.getcwd(), 'databases')
+if not os.path.exists(DATABASE_FOLDER):
+    os.makedirs(DATABASE_FOLDER)
+
 
 # Umgebungsdatei laden
 load_dotenv()
@@ -36,14 +47,152 @@ app.config['SECRET_KEY'] = 'SUPER_GEHEIM'  # In Produktion in Umgebungsvariablen
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///verein.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
+csrf = CSRFProtect(app)
 
-
-if not os.path.exists('uploads'):
-    os.makedirs('uploads')
 
 db.init_app(app)
 login_manager.init_app(app)
 
+# Auswahl der Datenbank
+@app.before_request
+def set_db_connection():
+    if current_user.is_authenticated:
+        if not current_user.verein_id:
+            # Kein Verein verknüpft, leite zur Registrierung weiter
+            flash("Bitte registriere dich, um einen Verein zu erstellen.", "warning")
+            return redirect(url_for('register_user'))
+
+        verein = Verein.query.get(current_user.verein_id)
+        if verein:
+            db.session.bind = create_engine(f'sqlite:///{verein.db_path}')
+        else:
+            abort(403, description="Ungültiger Zugriff. Kein Verein verknüpft.")
+
+
+def init_verein_db(db_path):
+    """
+    Initialisiert die SQLite-Datenbank für einen neuen Verein.
+    """
+    full_db_path = os.path.join(DATABASE_FOLDER, db_path)
+    engine = create_engine(f'sqlite:///{full_db_path}')
+    db.metadata.create_all(engine)  # Nutzt db.metadata für Tabellen
+
+# ----------------------------------
+# Nutzersetup für Web-App
+# ----------------------------------
+# Setup-Route erweitern
+@app.route('/setup', methods=['GET', 'POST'])
+@login_required
+def setup():
+    if not current_user.verein_id:
+        flash("Kein Verein verknüpft! Bitte registriere dich erneut.", "danger")
+        return redirect(url_for('register_user'))
+
+    verein = Verein.query.get(current_user.verein_id)
+    if not verein:
+        flash("Kein gültiger Verein gefunden.", "danger")
+        return redirect(url_for('register_user'))
+
+    if request.method == 'POST':
+        verein.name = request.form.get('verein_name', verein.name)
+        logo_file = request.files.get('logo')
+
+        # Logo speichern
+        if logo_file and logo_file.filename != '':
+            if logo_file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                logo_filename = f"logo_{verein.id}.png"
+                logo_path = os.path.join('uploads', logo_filename)
+                logo_file.save(logo_path)
+                verein.logo_path = f'uploads/{logo_filename}'
+            else:
+                flash("Nur PNG- oder JPG-Dateien sind erlaubt.", "danger")
+
+        # Features speichern
+        selected_features = request.form.getlist('features')
+        VereinFeature.query.filter_by(verein_id=verein.id).delete()
+        for feature in selected_features:
+            db.session.add(VereinFeature(verein_id=verein.id, feature=feature))
+        db.session.commit()
+
+        flash("Setup abgeschlossen!", "success")
+        return redirect(url_for('index'))
+
+    # Standardfeatures
+    features = [
+        {'name': 'Mitgliederverwaltung', 'checked': 'checked'},
+        {'name': 'Finanzen', 'checked': 'checked'},
+        {'name': 'Events', 'checked': ''},
+        {'name': 'Notizen', 'checked': ''}
+    ]
+
+    return render_template('setup.html', verein=verein, features=features)
+
+
+@app.before_request
+def load_active_features():
+    if current_user.is_authenticated and current_user.verein_id:
+        g.active_features = [
+            feature.feature for feature in VereinFeature.query.filter_by(verein_id=current_user.verein_id).all()
+        ]
+    else:
+        g.active_features = []
+
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register_user():
+    form = RegisterForm()
+    if form.validate_on_submit():
+        # Verein erstellen
+        new_verein = Verein(name=f"Verein von {form.username.data}", db_path=f"{form.username.data.lower()}_db.sqlite")
+        db.session.add(new_verein)
+        db.session.commit()
+
+        # Benutzer erstellen und mit Verein verknüpfen
+        new_user = User(
+            username=form.username.data,
+            email=form.email.data,
+            verein_id=new_verein.id
+        )
+        new_user.set_password(form.password.data)
+        db.session.add(new_user)
+        db.session.commit()
+
+        # Datenbank für den Verein initialisieren
+        init_verein_db(new_verein.db_path)
+
+        # Automatisch einloggen und zum Setup weiterleiten
+        login_user(new_user)
+        flash("Registrierung erfolgreich! Richte deinen Verein ein.", "success")
+        return redirect(url_for('setup'))
+
+    return render_template('register.html', form=form)
+
+
+
+@app.route('/register_verein', methods=['GET', 'POST'])
+def register_verein():  # Neue Route für Vereinsregistrierung
+    form = RegisterForm()
+    if form.validate_on_submit():
+        new_verein = Verein(name=form.verein_name.data, db_path=f"{form.verein_name.data}.db")
+        db.session.add(new_verein)
+        db.session.commit()
+
+        new_user = User(
+            username=form.username.data,
+            email=form.email.data,
+            verein_id=new_verein.id
+        )
+        new_user.set_password(form.password.data)
+        db.session.add(new_user)
+        db.session.commit()
+
+        init_verein_db(new_verein.db_path)
+
+        flash("Verein erfolgreich registriert!")
+        return redirect(url_for('setup'))
+
+    return render_template('register.html', form=form)
 
 # ----------------------------------
 # User Loader für Flask-Login
@@ -51,38 +200,6 @@ login_manager.init_app(app)
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-
-# ----------------------------------
-# Registrierung
-# ----------------------------------
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))  # Nutzer ist schon eingeloggt
-
-    form = RegisterForm()
-    if form.validate_on_submit():
-        # Prüfen, ob E-Mail bereits existiert
-        existing_user = User.query.filter_by(email=form.email.data).first()
-        if existing_user:
-            flash("E-Mail bereits registriert.")
-            return redirect(url_for('register'))
-
-        # Neuen Benutzer anlegen
-        new_user = User(
-            username=form.username.data,
-            email=form.email.data,
-            role='mitglied'  # Default-Rolle
-        )
-        new_user.set_password(form.password.data)
-        db.session.add(new_user)
-        db.session.commit()
-
-        flash("Registrierung erfolgreich. Bitte melde dich jetzt an.")
-        return redirect(url_for('login'))
-
-    return render_template('register.html', form=form)
 
 
 # ----------------------------------
@@ -124,6 +241,10 @@ def logout():
 @app.route('/')
 @login_required
 def index():
+    if not current_user.verein_id:
+        flash("Bitte richte deinen Verein ein.", "info")
+        return redirect(url_for('setup'))
+
     # Berechnung für Einnahmen und Ausgaben
     sum_einnahmen = db.session.query(db.func.sum(Finanzbuchung.betrag))\
         .filter(Finanzbuchung.typ == 'Einnahme').scalar() or 0
@@ -1491,4 +1612,4 @@ if __name__ == '__main__':
     if not app.debug:  # Nur den Browser öffnen, wenn Debug-Modus deaktiviert ist
         webbrowser.open('http://127.0.0.1:5000')
 
-    app.run(host='127.0.0.1', port=5000, debug=False)
+    app.run(host='127.0.0.1', port=5000, debug=True)

@@ -17,10 +17,19 @@
 <!-- Navigation -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
   <div class="container-fluid">
-    <!-- Logo / Brand -->
     <a class="navbar-brand" href="{{ url_for('index') }}">
-      <img src="{{ url_for('static', filename='logo.png') }}" alt="Vereinslogo" id="vereinslogo" style="height: 40px;">
-      <span class="ms-2">MemberWorks</span>
+      <!-- Logo anzeigen -->
+      <!-- Logo anzeigen -->
+      {% if current_user.is_authenticated and current_user.verein.logo_path %}
+      <img src="{{ url_for('static', filename='../uploads/' + current_user.verein.logo_path) }}" 
+           alt="Vereinslogo" 
+           id="vereinslogo" 
+           style="height: 40px;">
+      {% endif %}
+      <!-- Vereinsname anzeigen -->
+      <span class="ms-2">
+        {{ current_user.verein.name if current_user.is_authenticated and current_user.verein.name else "Vereinsverwaltung" }}
+      </span>
     </a>
     <!-- Weitere Navigation -->
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
@@ -31,32 +40,47 @@
     
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav ms-auto">
-        <!-- ms-auto: schiebt die Navigation nach rechts -->
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
         </li>
+      
+        {% if 'Mitgliederverwaltung' in g.active_features %}
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('mitglieder_liste') }}">Mitglieder</a>
         </li>
+        {% endif %}
+      
+        {% if 'Events' in g.active_features %}
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('events_liste') }}">Events</a>
         </li>
+        {% endif %}
+      
+        {% if 'Finanzen' in g.active_features %}
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('finanzen_liste') }}">Finanzen</a>
         </li>
+        {% endif %}
+      
+        {% if 'Notizen' in g.active_features %}
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('notizen_liste') }}">Notizen</a>
         </li>
+        {% endif %}
+      
+        {% if 'Dokumente' in g.active_features %}
         <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('documents_list') }}">Dokumente</a>
+          <a class="nav-link" href="{{ url_for('documents_list') }}">Dokumente</a>
         </li>
+        {% endif %}
+      
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('einstellungen') }}">Einstellungen</a>
         </li>
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('about') }}">Info</a>
         </li>
-              
+      
         {% if current_user.is_authenticated %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
@@ -69,7 +93,7 @@
             <a class="nav-link" href="{{ url_for('register') }}">Registrieren</a>
           </li>          
         {% endif %}
-      </ul>
+      </ul>      
     </div>
   </div>
 </nav>

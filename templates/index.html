@@ -4,12 +4,28 @@
 <h1 class="mb-4">Dashboard</h1>
 
 <div class="mt-4 d-flex justify-content-between">
-  <h2>Aktuell funktioniert auf dem Dashboard das entfernen von Widgets temporär, bis die Seite neu geladen wird, dann tauchen diese wieder auf. Neue Widgets erstellen ist da noch eine Sache für sich. Ich arbeite daran</h2>
-  <button class="btn btn-primary" id="add-widget">Widget Hinzufügen (aktuell kaputt)</button>
-  <button class="btn btn-danger" id="toggle-remove-mode">Widget Entfernen</button>
+  <button id="addWidgetButton" class="btn btn-primary">Widget hinzufügen</button>
+
+  <div id="widgetDropdown" class="dropdown" style="display: none;">
+    <select id="widgetSelect" class="form-select">
+      <option value="" disabled selected>Wählen Sie ein Widget</option>
+      <option value="mitglieder">Mitglieder</option>
+      <option value="events">Events</option>
+      <option value="notizen">Notizen</option>
+      <option value="saldo">Saldo</option>
+      <option value="einnahmen-ausgaben">Einnahmen vs. Ausgaben</option>
+      <option value="mitgliederstatus">Mitgliederstatus</option>
+      <option value="bevorstehende-events">Bevorstehende Events</option>
+      <option value="neueste-mitglieder">Neueste Mitglieder</option>
+      <option value="events-pro-monat">Events pro Monat</option>
+    </select>
+    <button id="confirmWidgetButton" class="btn btn-success mt-2">Hinzufügen</button>
+  </div>
+
+  <button class="btn btn-danger" id="toggleRemoveMode">Widget Entfernen</button>
 </div>
 
-<div class="row g-3 mt-4" id="dashboard-widgets">
+<div class="row g-3 mt-4" id="dashboardWidgets">
   <div class="col-sm-6 col-md-3 widget" data-widget="mitglieder">
     <div class="card text-center">
       <div class="card-body">
@@ -123,9 +139,10 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
 <script>
-  const addButton = document.getElementById('add-widget');
-  const removeButton = document.getElementById('toggle-remove-mode');
-  const widgetsContainer = document.getElementById('dashboard-widgets');
+  const widgetsContainer = document.getElementById('dashboardWidgets');
+  const addWidgetButton = document.getElementById('addWidgetButton');
+  const confirmWidgetButton = document.getElementById('confirmWidgetButton');
+  const toggleRemoveModeButton = document.getElementById('toggleRemoveMode');
   let removeMode = false;
 
   function saveWidgetState() {
@@ -138,35 +155,42 @@
 
   function loadWidgetState() {
     const savedStates = JSON.parse(localStorage.getItem('widgetStates')) || [];
-    const widgets = Array.from(widgetsContainer.children);
-    widgets.forEach(widget => {
+    Array.from(widgetsContainer.children).forEach(widget => {
       const state = savedStates.find(s => s.type === widget.dataset.widget);
-      if (state) {
-        widget.style.display = state.visible ? 'block' : 'none';
-      }
+      widget.style.display = state && state.visible ? 'block' : 'none';
     });
   }
 
-  addButton.addEventListener('click', function() {
-    const widgetType = prompt('Welches Widget möchten Sie hinzufügen? (mitglieder, events, notizen, saldo, einnahmen-ausgaben, mitgliederstatus, bevorstehende-events, neueste-mitglieder, events-pro-monat)');
-    const widget = document.querySelector(`[data-widget="${widgetType}"]`);
-    if (widget) {
-      widget.style.display = 'block';
-      saveWidgetState();
+  addWidgetButton.addEventListener('click', () => {
+    const dropdown = document.getElementById('widgetDropdown');
+    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+  });
+
+  confirmWidgetButton.addEventListener('click', () => {
+    const selectedWidget = document.getElementById('widgetSelect').value;
+    if (selectedWidget) {
+      const widget = document.querySelector(`[data-widget="${selectedWidget}"]`);
+      if (widget) {
+        widget.style.display = 'block';
+        saveWidgetState();
+      } else {
+        alert('Ungültiges Widget!');
+      }
     } else {
-      alert('Ungültiges Widget!');
+      alert('Bitte wählen Sie ein Widget aus.');
     }
   });
 
-  removeButton.addEventListener('click', function() {
+  toggleRemoveModeButton.addEventListener('click', () => {
     removeMode = !removeMode;
-    const removeButtons = document.querySelectorAll('.widget-remove-btn');
-    removeButtons.forEach(btn => btn.style.display = removeMode ? 'block' : 'none');
-    removeButton.textContent = removeMode ? 'Modus beenden' : 'Widget Entfernen';
+    document.querySelectorAll('.widget-remove-btn').forEach(btn => {
+      btn.style.display = removeMode ? 'block' : 'none';
+    });
+    toggleRemoveModeButton.textContent = removeMode ? 'Modus beenden' : 'Widget Entfernen';
   });
 
   document.querySelectorAll('.widget-remove-btn').forEach(button => {
-    button.addEventListener('click', function() {
+    button.addEventListener('click', function () {
       const widget = this.closest('.widget');
       if (widget) {
         widget.style.display = 'none';
@@ -175,21 +199,15 @@
     });
   });
 
-  // Widgets verschiebbar machen
-  const sortable = new Sortable(widgetsContainer, {
+  new Sortable(widgetsContainer, {
     animation: 150,
     ghostClass: 'sortable-ghost',
-    onEnd: function (evt) {
-      const item = evt.item;
-      item.classList.add('moved');
-      setTimeout(() => item.classList.remove('moved'), 500);
-      saveWidgetState();
-    },
+    onEnd: saveWidgetState,
   });
 
   loadWidgetState();
 
-  // Einnahmen vs. Ausgaben
+  // Einnahmen vs. Ausgaben Chart
   const einnahmenAusgabenCtx = document.getElementById('einnahmenAusgabenChart').getContext('2d');
   new Chart(einnahmenAusgabenCtx, {
     type: 'bar',
@@ -209,7 +227,7 @@
     }
   });
 
-  // Mitgliederstatus
+  // Mitgliederstatus Chart
   const mitgliederStatusCtx = document.getElementById('mitgliederStatusChart').getContext('2d');
   new Chart(mitgliederStatusCtx, {
     type: 'pie',
@@ -225,7 +243,7 @@
     }
   });
 
-  // Events pro Monat
+  // Events pro Monat Chart
   const eventsProMonatCtx = document.getElementById('eventsProMonatChart').getContext('2d');
   new Chart(eventsProMonatCtx, {
     type: 'line',

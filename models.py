@@ -2,8 +2,44 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import create_engine
 
 db = SQLAlchemy()
+
+def init_verein_db(db_path):
+    """
+    Initialisiert die SQLite-Datenbank für einen neuen Verein.
+    
+    Args:
+        db_path (str): Pfad zur neuen SQLite-Datenbank.
+    """
+    engine = create_engine(f'sqlite:///{db_path}')
+    db.metadata.create_all(engine)  # Erstellt Tabellen basierend auf den Modellen
+
+
+class Verein(db.Model):
+    __tablename__ = 'verein'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    db_path = db.Column(db.String(255), nullable=False)
+    logo_path = db.Column(db.String(255), nullable=True)  # Neues Feld für das Logo
+
+    # Beziehung zu User
+    users = db.relationship('User', backref='verein', lazy=True)
+
+    # Beziehung zu Features
+    features = db.relationship('VereinFeature', backref='verein', lazy=True)
+
+class VereinFeature(db.Model):
+    __tablename__ = 'verein_features'
+    id = db.Column(db.Integer, primary_key=True)
+    verein_id = db.Column(db.Integer, db.ForeignKey('verein.id'), nullable=False)
+    feature = db.Column(db.String(50), nullable=False)
+
+    def __repr__(self):
+        return f'<Feature {self.feature} für Verein {self.verein_id}>'
+
+
 
 class Mitglied(db.Model):
     __tablename__ = 'mitglieder'
@@ -68,6 +104,7 @@ class User(db.Model, UserMixin):
     konto_nummer = db.Column(db.String(100), nullable=True)  # Feld für Kontonummer
     konto_bezeichnung = db.Column(db.String(255), nullable=True)  # Bezeichnung für das Konto
     anfangsbestand = db.Column(db.Float, default=0.0)             # Anfangsbestand
+    verein_id = db.Column(db.Integer, db.ForeignKey('verein.id'), nullable=True)  # Fremdschlüssel zu Verein
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
