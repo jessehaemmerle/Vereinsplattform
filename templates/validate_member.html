@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mitglied validieren</title>
+</head>
+<body>
+    <h1>Mitglied validieren</h1>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        <label for="email">E-Mail-Adresse:</label>
+        <input type="email" id="email" name="email" required>
+
+        <label for="verein">Verein:</label>
+        <input type="text" id="verein" name="verein" required>
+
+        <button type="submit">Überprüfen</button>
+    </form>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul>
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+</body>
+</html>

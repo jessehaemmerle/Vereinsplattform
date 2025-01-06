@@ -19,6 +19,11 @@ class MitgliedForm(FlaskForm):
     plz = FloatField('Postleitzahl', validators=[Optional()])
     ort = StringField('Ort', validators=[Optional()])
 
+class ValidateMemberForm(FlaskForm):
+    email = StringField('E-Mail-Adresse', validators=[DataRequired(), Email()])
+    verein = StringField('Verein', validators=[DataRequired()])
+    submit = SubmitField('Überprüfen')
+
 class EventForm(FlaskForm):
     titel = StringField('Titel', validators=[DataRequired()])
     beschreibung = TextAreaField('Beschreibung')

@@ -2,7 +2,7 @@ import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm
+from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
@@ -24,6 +24,11 @@ import requests
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from flask_wtf.csrf import CSRFProtect
+# Erweiterung des Mitglieder-Portals
+from flask import Flask, render_template, request, redirect, url_for, flash
+from werkzeug.security import generate_password_hash
+from models import db, Mitglied, User
+from flask_login import login_user
 
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
@@ -76,6 +81,75 @@ def init_verein_db(db_path):
     full_db_path = os.path.join(DATABASE_FOLDER, db_path)
     engine = create_engine(f'sqlite:///{full_db_path}')
     db.metadata.create_all(engine)  # Nutzt db.metadata für Tabellen
+
+# ----------------------------------
+# Setup für Mitglieder-Selfservice
+# ----------------------------------
+
+# Neue Route: E-Mail-Validierung und Vereinssuche
+@app.route('/validate_member', methods=['GET', 'POST'])
+def validate_member():
+    form = ValidateMemberForm()  # Instanziere das Formular
+    if form.validate_on_submit():
+        email = form.email.data
+        verein = form.verein.data
+
+        # Prüfen, ob E-Mail existiert
+        mitglied = Mitglied.query.filter_by(email=email).first()
+        if not mitglied:
+            flash('Mitglied nicht gefunden.', 'danger')
+            return render_template('validate_member.html', form=form)
+
+        # Prüfen, ob der Verein mit dem Mitglied übereinstimmt
+        # Annahme: Die Zuordnung erfolgt über ein Feld wie `mitglied.verein_id`
+        zugeordnet_verein = Verein.query.filter_by(id=mitglied.verein_id, name=verein).first()
+        if not zugeordnet_verein:
+            flash('E-Mail oder Verein stimmt nicht überein.', 'danger')
+            return render_template('validate_member.html', form=form)
+
+        # Mitglied ist validiert
+        flash('Mitglied gefunden! Bitte ein Passwort setzen.', 'success')
+        return redirect(url_for('set_password.html', email=email))
+
+    return render_template('validate_member.html', form=form)
+
+
+
+# Neue Route: Passwort setzen
+@app.route('/set_password/<email>', methods=['GET', 'POST'])
+def set_password(email):
+    mitglied = Mitglied.query.filter_by(email=email).first()
+    if not mitglied:
+        flash('Ungültiger Zugriff.', 'danger')
+        return redirect(url_for('validate_member'))
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+
+        # Benutzer in der User-Tabelle erstellen
+        new_user = User(
+            email=mitglied.email,
+            role='mitglied'  # Standardrolle
+        )
+        new_user.password = generate_password_hash(password)
+        db.session.add(new_user)
+        db.session.commit()
+
+        flash('Passwort erfolgreich gesetzt! Bitte einloggen.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('set_password.html', email=email)
+
+# Erweiterung des Dashboards
+@app.route('/dashboard')
+def dashboard():
+    user = User.query.filter_by(id=current_user.id).first()
+    mitglied = Mitglied.query.filter_by(email=user.email).first()
+    if not mitglied:
+        flash('Keine Mitgliedsdaten gefunden.', 'danger')
+        return redirect(url_for('login'))
+
+    return render_template('dashboard.html', mitglied=mitglied)
 
 # ----------------------------------
 # Nutzersetup für Web-App
@@ -152,6 +226,7 @@ def register_user():
         new_user = User(
             username=form.username.data,
             email=form.email.data,
+            role='admin',
             verein_id=new_verein.id
         )
         new_user.set_password(form.password.data)
@@ -208,7 +283,11 @@ def load_user(user_id):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        # Überprüfen, ob der Nutzer ein Admin ist
+        if current_user.role == 'admin':
+            return redirect(url_for('index'))
+        else:
+            return redirect(url_for('dashboard'))  # Nutzer-Dashboard
 
     form = LoginForm()
     if form.validate_on_submit():
@@ -216,12 +295,17 @@ def login():
         if user and user.check_password(form.password.data):
             login_user(user)
             flash("Erfolgreich eingeloggt.")
-            return redirect(url_for('index'))
+            # Weiterleitung basierend auf der Rolle
+            if user.role == 'admin':
+                return redirect(url_for('index'))  # Admin-Dashboard
+            else:
+                return redirect(url_for('dashboard'))  # Nutzer-Dashboard
         else:
             flash("Falsche E-Mail oder falsches Passwort.")
             return redirect(url_for('login'))
 
     return render_template('login.html', form=form)
+
 
 
 # ----------------------------------
@@ -315,6 +399,11 @@ def mitglied_new():
     form = MitgliedForm()
     if form.validate_on_submit():
         try:
+            # Use the verein_id from the currently logged-in user
+            if not current_user.verein_id:
+                flash("Es ist kein Verein mit Ihrem Benutzerkonto verknüpft.", "danger")
+                return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
+
             neues_mitglied = Mitglied(
                 vorname=form.vorname.data,
                 nachname=form.nachname.data,
@@ -329,7 +418,8 @@ def mitglied_new():
                 ort=form.ort.data,
                 mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
                 beitrag_bezahlt=form.beitrag_bezahlt.data == 'true',
-                austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None
+                austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None,
+                verein_id=current_user.verein_id  # Associate with the user's Verein
             )
             db.session.add(neues_mitglied)
             db.session.commit()
@@ -340,9 +430,10 @@ def mitglied_new():
             print(f"Fehler: {e}")
             flash("Fehler beim Erstellen des Mitglieds.", "danger")
     else:
-        print(form.errors)  # Debugging für fehlerhafte Initialisierung
+        print(form.errors)  # Debugging for form validation issues
 
     return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
+
 
 
 
@@ -1588,19 +1679,6 @@ def templates_delete(template_id):
     db.session.commit()
     flash('Nachrichtenvorlage erfolgreich gelöscht.', 'success')
     return redirect(url_for('templates_list'))
-
-# ----------------------------------
-# App stoppen
-# ----------------------------------
-@app.route('/shutdown', methods=['POST'])
-def shutdown():
-    shutdown_func = request.environ.get('werkzeug.server.shutdown')
-    if shutdown_func is None:
-        return "Fehler: Shutdown nicht verfügbar.", 500
-    shutdown_func()
-    return "Server wurde heruntergefahren."
-
-
 
 # ----------------------------------
 # App starten
