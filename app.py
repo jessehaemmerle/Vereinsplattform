@@ -1685,9 +1685,14 @@ def templates_delete(template_id):
 # ----------------------------------
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()  # Tabellen erstellen
-
-    if not app.debug:  # Nur den Browser öffnen, wenn Debug-Modus deaktiviert ist
-        webbrowser.open('http://127.0.0.1:5000')
-
-    app.run(host='127.0.0.1', port=5000, debug=True)
+        # Sicherstellen, dass das Datenbankverzeichnis existiert
+        db_path = os.path.join(os.getcwd(), 'databases')
+        if not os.path.exists(db_path):
+            os.makedirs(db_path)
+        
+        # Datenbank initialisieren
+        if not os.path.exists(os.path.join(db_path, 'verein.db')):
+            db.create_all()  # Erstellt alle Tabellen
+            print("Datenbank wurde erfolgreich erstellt.")
+        else:
+            print("Datenbank existiert bereits.")
