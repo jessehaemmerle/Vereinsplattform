@@ -230,8 +230,13 @@ def register_user():
             verein_id=new_verein.id
         )
         new_user.set_password(form.password.data)
-        db.session.add(new_user)
-        db.session.commit()
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Fehler bei der Registrierung: {str(e)}", "danger")
+            return redirect(url_for('register_user'))
 
         # Datenbank für den Verein initialisieren
         init_verein_db(new_verein.db_path)
@@ -315,9 +320,8 @@ def login():
 @login_required
 def logout():
     logout_user()
-    flash("Erfolgreich ausgeloggt.")
-    return render_template('shutdown.html', titel="Programm beenden")
-
+    flash("Erfolgreich ausgeloggt.", "success")
+    return redirect(url_for('login'))
 
 # ----------------------------------
 # Startseite / Dashboard

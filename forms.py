@@ -101,3 +101,8 @@ class FeedbackForm(FlaskForm):
         ]
     )
     submit = SubmitField('Senden')
+
+class SendMessageForm(FlaskForm):
+    subject = StringField('Betreff', validators=[DataRequired()])
+    body = TextAreaField('Nachricht', validators=[DataRequired()])
+    submit = SubmitField('Senden')
