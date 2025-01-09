@@ -29,11 +29,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.security import generate_password_hash
 from models import db, Mitglied, User
 from flask_login import login_user
-from werkzeug.middleware.proxy_fix import ProxyFix
 
-app.wsgi_app = ProxyFix(
-    app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
-)
 
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
