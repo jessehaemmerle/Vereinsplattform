@@ -8,12 +8,22 @@ ENV PYTHONUNBUFFERED=1
 # Arbeitsverzeichnis setzen
 WORKDIR /app
 
-# Abhängigkeiten installieren
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+# Anforderungen hinzufügen und installieren
+COPY ./requirements.txt ./requirements.txt
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
-# App-Code kopieren
-COPY . /app/
+# Notwendige Dateien und Verzeichnisse hinzufügen
+COPY ./databases ./databases
+COPY ./static ./static
+COPY ./templates ./templates
+COPY ./.env ./.env
+COPY ./build.py ./build.py
+COPY ./forms.py ./forms.py
+COPY ./models.py ./models.py
+COPY ./services.py ./services.py
+
+# Hauptdatei hinzufügen
+COPY ./app.py ./app.py
 
 # Port freigeben
 EXPOSE 5000
