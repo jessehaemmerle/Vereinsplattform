@@ -1,5 +1,5 @@
 # Basis-Image mit Python 3.9
-FROM python:3.9-slim
+FROM python:3.13.1-slim-bookworm
 
 # Umgebungsvariablen setzen
 ENV PYTHONDONTWRITEBYTECODE=1

@@ -2,7 +2,7 @@ import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm
+from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
@@ -381,6 +381,10 @@ def index():
 @app.route('/mitglieder')
 @login_required
 def mitglieder_liste():
+
+    # Unser neues Formular instanzieren
+    form = ToggleBeitragForm()
+
     search_query = request.args.get('search', '').strip()
     if search_query:
         mitglieder = Mitglied.query.filter(
@@ -395,7 +399,7 @@ def mitglieder_liste():
     else:
         mitglieder = Mitglied.query.all()
 
-    return render_template('mitglieder.html', mitglieder=mitglieder)
+    return render_template('mitglieder.html', mitglieder=mitglieder, form=form)
 
 
 @app.route('/mitglied/new', methods=['GET', 'POST'])
@@ -460,6 +464,9 @@ def mitglied_edit(mitglied_id):
         mitglied.plz = form.plz.data
         mitglied.ort = form.ort.data
         mitglied.austritt_datum = form.austritt_datum.data if form.status.data == 'inaktiv' else None
+        # Wichtig: mitgliedsbeitrag und ggf. beitrag_bezahlt ergänzen
+        mitglied.mitgliedsbeitrag = form.mitgliedsbeitrag.data or 0.0
+        mitglied.beitrag_bezahlt  = (form.beitrag_bezahlt.data == 'true')
         db.session.commit()
         flash("Mitglied erfolgreich bearbeitet.")
         return redirect(url_for('mitglieder_liste'))
@@ -1702,4 +1709,4 @@ if __name__ == '__main__':
         else:
             print("Datenbank existiert bereits.")
 
-        app.run(host='0.0.0.0', port='5000', debug=True)
+        app.run(host='127.0.0.1', port='5000', debug=True) # Für Testzwecke auf 127.0.0.1 umstellen, Live immer 0.0.0.0, dass auch Docker funktioniert. 

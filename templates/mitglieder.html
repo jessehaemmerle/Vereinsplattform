@@ -63,6 +63,7 @@
           {{ 'Ja' if m.beitrag_bezahlt else 'Nein' }}
         </span>
         <form action="{{ url_for('mitglied_update_beitrag', mitglied_id=m.id) }}" method="POST" style="display:inline;">
+          {{ form.hidden_tag() }}
           <button type="submit" class="btn btn-sm btn-secondary">{{ 'Zurücksetzen' if m.beitrag_bezahlt else 'Bezahlen' }}</button>
         </form>
       </td>

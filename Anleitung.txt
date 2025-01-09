@@ -1,0 +1,10 @@
+Anleitung, um im Docker-Container die App zum Laufen zu bringen:
+Mittels Befehl "git clone https://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@github.com/jessehaemmerle/Vereinsplattform.git" das Repo klonen. 
+Anschließend in den "Vereinsplattform" Ordner wechseln
+Danach mittels Befehl "sudo docker buildx build -t vereinsplanung_neu_v2 ." den Docker-Container erstellen
+
+Wenn der Container erstellt ist kann mit dem Befehl "sudo docker run -d -p 5000:5000 --name Vereinsplanung vereinsplanung_neu_v2" der Container gestartet werden.
+
+Aktuell bekannte Fehler: 
+- Es muss noch über den Port 5000 Zugegriffen werden. Lösung mitels -p 80:5000 in Docker????
+- Reverse Proxy aktuell auch noch kaputt

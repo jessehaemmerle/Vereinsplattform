@@ -106,3 +106,8 @@ class SendMessageForm(FlaskForm):
     subject = StringField('Betreff', validators=[DataRequired()])
     body = TextAreaField('Nachricht', validators=[DataRequired()])
     submit = SubmitField('Senden')
+
+class ToggleBeitragForm(FlaskForm):
+    """Leeres Formular für das Umschalten von 'beitrag_bezahlt',
+    damit wir form.hidden_tag() verwenden können."""
+    pass
