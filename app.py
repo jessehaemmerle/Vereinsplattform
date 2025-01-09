@@ -431,6 +431,19 @@ def mitglied_new():
                 verein_id=current_user.verein_id  # Associate with the user's Verein
             )
             db.session.add(neues_mitglied)
+            db.session.flush()  # damit neues_mitglied.id schon bekannt ist
+        
+            # Falls bereits bezahlt, Finanzbuchung anlegen
+            if neues_mitglied.beitrag_bezahlt and neues_mitglied.mitgliedsbeitrag > 0:
+                finanzbuchung = Finanzbuchung(
+                    typ='Einnahme',
+                    kategorie='Mitgliedsbeitrag',
+                    betrag=neues_mitglied.mitgliedsbeitrag,
+                    datum=date.today(),
+                    beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
+                    mitglied_id=neues_mitglied.id  # jetzt verfügbar nach flush
+                )
+                db.session.add(finanzbuchung)
             db.session.commit()
             flash("Neues Mitglied erfolgreich erstellt.", "success")
             return redirect(url_for('mitglieder_liste'))
