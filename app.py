@@ -29,6 +29,11 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.security import generate_password_hash
 from models import db, Mitglied, User
 from flask_login import login_user
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+app.wsgi_app = ProxyFix(
+    app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+)
 
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
@@ -230,8 +235,13 @@ def register_user():
             verein_id=new_verein.id
         )
         new_user.set_password(form.password.data)
-        db.session.add(new_user)
-        db.session.commit()
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Fehler bei der Registrierung: {str(e)}", "danger")
+            return redirect(url_for('register_user'))
 
         # Datenbank für den Verein initialisieren
         init_verein_db(new_verein.db_path)
@@ -315,9 +325,8 @@ def login():
 @login_required
 def logout():
     logout_user()
-    flash("Erfolgreich ausgeloggt.")
-    return render_template('shutdown.html', titel="Programm beenden")
-
+    flash("Erfolgreich ausgeloggt.", "success")
+    return redirect(url_for('login'))
 
 # ----------------------------------
 # Startseite / Dashboard
@@ -1685,9 +1694,14 @@ def templates_delete(template_id):
 # ----------------------------------
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()  # Tabellen erstellen
-
-    if not app.debug:  # Nur den Browser öffnen, wenn Debug-Modus deaktiviert ist
-        webbrowser.open('http://127.0.0.1:5000')
-
-    app.run(host='127.0.0.1', port=5000, debug=True)
+        # Sicherstellen, dass das Datenbankverzeichnis existiert
+        db_path = os.path.join(os.getcwd(), 'databases')
+        if not os.path.exists(db_path):
+            os.makedirs(db_path)
+        
+        # Datenbank initialisieren
+        if not os.path.exists(os.path.join(db_path, 'verein.db')):
+            db.create_all()  # Erstellt alle Tabellen
+            print("Datenbank wurde erfolgreich erstellt.")
+        else:
+            print("Datenbank existiert bereits.")

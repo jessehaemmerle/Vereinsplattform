@@ -4,6 +4,9 @@
 <div class="container mt-4">
     <h1>E-Mails senden</h1>
     <form method="POST">
+        <!-- Hidden Tag für CSRF -->
+        {{ form.hidden_tag() }}
+
         <div class="mb-3">
             <label for="template" class="form-label">Vorlage auswählen</label>
             <select class="form-select" id="template" name="template" onchange="loadTemplate(this)">
