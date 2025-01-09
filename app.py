@@ -2,7 +2,7 @@ import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm
+from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
@@ -489,10 +489,12 @@ def mitglied_edit(mitglied_id):
 @app.route('/mitglied/<int:mitglied_id>/delete', methods=['POST'])
 @login_required
 def mitglied_delete(mitglied_id):
+    form = DeleteMitgliedForm()
     mitglied = Mitglied.query.get_or_404(mitglied_id)
     db.session.delete(mitglied)
     db.session.commit()
     return redirect(url_for('mitglieder_liste'))
+
 
 
 @app.route('/mitglieder/import', methods=['GET', 'POST'])

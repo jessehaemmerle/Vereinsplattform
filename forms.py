@@ -111,3 +111,8 @@ class ToggleBeitragForm(FlaskForm):
     """Leeres Formular für das Umschalten von 'beitrag_bezahlt',
     damit wir form.hidden_tag() verwenden können."""
     pass
+
+class DeleteMitgliedForm(FlaskForm):
+    """Leeres Formular für das Umschalten von 'beitrag_bezahlt',
+    damit wir form.hidden_tag() verwenden können."""
+    pass
