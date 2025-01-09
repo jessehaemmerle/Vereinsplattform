@@ -1709,4 +1709,4 @@ if __name__ == '__main__':
         else:
             print("Datenbank existiert bereits.")
 
-        app.run(host='127.0.0.1', port='5000', debug=True) # Für Testzwecke auf 127.0.0.1 umstellen, Live immer 0.0.0.0, dass auch Docker funktioniert. 
+        app.run(host='0.0.0.0', port='5000', debug=True) # Für Testzwecke auf 127.0.0.1 umstellen, Live immer 0.0.0.0, dass auch Docker funktioniert. 
