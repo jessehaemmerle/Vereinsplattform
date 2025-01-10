@@ -31,10 +31,10 @@ git clone https://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@github.com/jessehaemm
 cd Vereinsplanung
 
 # Datenbanken wieder in das Verzeichnis kopieren
-cp /home/Backup/databases /home/jesse/Vereinsplanung
+cp -r /home/Backup/databases /home/jesse/Vereinsplanung
 
 # Uploads wieder in das Verzeichnis kopieren
-cp /home/Backup/uploads /home/jesse/Vereinsplanung
+cp -r /home/Backup/uploads /home/jesse/Vereinsplanung
 
 # Docker-Container aus dem Dockerfile bauen
 sudo docker buildx build -t vereinsplanung .

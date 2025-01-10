@@ -17,7 +17,6 @@ COPY ./databases ./databases
 COPY ./static ./static
 COPY ./templates ./templates
 COPY ./.env ./.env
-COPY ./build.py ./build.py
 COPY ./forms.py ./forms.py
 COPY ./models.py ./models.py
 COPY ./services.py ./services.py
