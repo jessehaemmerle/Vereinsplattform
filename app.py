@@ -110,7 +110,7 @@ def validate_member():
 
         # Mitglied ist validiert
         flash('Mitglied gefunden! Bitte ein Passwort setzen.', 'success')
-        return redirect(url_for('set_password.html', email=email))
+        return redirect(url_for('set_password', email=email))
 
     return render_template('validate_member.html', form=form)
 
