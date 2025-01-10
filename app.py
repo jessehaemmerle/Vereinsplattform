@@ -359,7 +359,8 @@ def index():
     anzahl_mitglieder = Mitglied.query.count()
     anzahl_events = Event.query.count()
     anzahl_notizen = Notiz.query.count()
-    saldo = sum_einnahmen - sum_ausgaben
+    anfangsbestand = current_user.anfangsbestand
+    saldo = anfangsbestand + sum_einnahmen - sum_ausgaben
 
     saldo = round(saldo, 2)
 
@@ -1296,13 +1297,14 @@ def jahresabschluss(jahr):
 
     sum_einnahmen = 0
     sum_ausgaben = 0
+    anfangsbestand = current_user.anfangsbestand
     for b in buchungen_jahr:
         if b.typ == 'Einnahme':
             sum_einnahmen += b.betrag
         else:
             sum_ausgaben += b.betrag
 
-    saldo = sum_einnahmen - sum_ausgaben
+    saldo = anfangsbestand + sum_einnahmen - sum_ausgaben
 
     return render_template('jahresabschluss.html',
                            jahr=jahr,
