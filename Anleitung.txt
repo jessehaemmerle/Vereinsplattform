@@ -9,3 +9,5 @@ Wenn der Container erstellt ist kann mit dem Befehl "sudo docker run -d -p 80:50
 Aktuell bekannte Fehler: 
 - Es muss noch über den Port 5000 Zugegriffen werden. Lösung mitels -p 80:5000 in Docker????
 - Reverse Proxy aktuell auch noch kaputt
+
+Wichtig: Server-Port für SSH auf 666 umgestellt.
