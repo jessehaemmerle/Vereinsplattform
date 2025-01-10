@@ -40,6 +40,7 @@
 <fieldset class="mb-4">
     <legend>Kontoneinstellungen</legend>
     <form method="POST" action="{{ url_for('update_konto_settings') }}">
+        {{ form.hidden_tag() }}
         <div class="mb-3">
             <label for="konto_nummer" class="form-label">Kontonummer</label>
             <input type="text" class="form-control" id="konto_nummer" name="konto_nummer" 
@@ -47,6 +48,7 @@
         </div>
     </form>
         <form method="POST" action="{{ url_for('update_konto_details') }}">
+            {{ form.hidden_tag() }}
             <div class="mb-3">
                 <label for="konto_bezeichnung" class="form-label">Kontobezeichnung</label>
                 <input type="text" class="form-control" id="konto_bezeichnung" name="konto_bezeichnung"

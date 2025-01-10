@@ -2,7 +2,7 @@ import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm
+from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
@@ -501,6 +501,7 @@ def mitglied_delete(mitglied_id):
 @app.route('/mitglieder/import', methods=['GET', 'POST'])
 @login_required
 def mitglieder_import():
+    form = ImportMitgliedForm()
     if request.method == 'POST':
         file = request.files.get('file')
         if not file:
@@ -1427,6 +1428,7 @@ def documents_delete(doc_id):
 @app.route('/einstellungen', methods=['GET', 'POST'])
 @login_required
 def einstellungen():
+    form = UpdateKontoForm()
     if request.method == 'POST':
         # Verarbeitung von Theme- und Benachrichtigungseinstellungen
         email_notifikationen = request.form.get('email_notifikationen', 'aus')
@@ -1455,7 +1457,8 @@ def einstellungen():
         titel="Einstellungen",
         theme=current_user.theme or 'light',
         calendar_enabled=current_user.calendar_integration or 'disabled',
-        calendar_api_key=current_user.calendar_api_key or ''
+        calendar_api_key=current_user.calendar_api_key or '',
+        form=form
     )
 
 
@@ -1532,6 +1535,7 @@ def add_event_to_google_calendar(event, user):
 @app.route('/update_konto_settings', methods=['POST'])
 @login_required
 def update_konto_settings():
+    form = UpdateKontoForm()
     konto_nummer = request.form.get('konto_nummer', '').strip()
     current_user.konto_nummer = konto_nummer
     db.session.commit()
@@ -1541,6 +1545,7 @@ def update_konto_settings():
 @app.route('/update_konto_details', methods=['POST'])
 @login_required
 def update_konto_details():
+    form = UpdateKontoForm()
     # Daten aus dem Formular abrufen
     konto_bezeichnung = request.form.get('konto_bezeichnung', '').strip()
     anfangsbestand = request.form.get('anfangsbestand', 0.0)
@@ -1727,4 +1732,4 @@ if __name__ == '__main__':
         else:
             print("Datenbank existiert bereits.")
 
-        app.run(host='0.0.0.0', port='5000', debug=True) # Für Testzwecke auf 127.0.0.1 umstellen, Live immer 0.0.0.0, dass auch Docker funktioniert. 
+        app.run(host='127.0.0.1', port='5000', debug=True) # Für Testzwecke auf 127.0.0.1 umstellen, Live immer 0.0.0.0, dass auch Docker funktioniert. 
