@@ -833,7 +833,7 @@ def finanzen_liste():
         .filter(Finanzbuchung.typ == 'Einnahme').scalar() or 0
     sum_ausgaben = db.session.query(db.func.sum(Finanzbuchung.betrag))\
         .filter(Finanzbuchung.typ == 'Ausgabe').scalar() or 0
-    saldo = sum_einnahmen - sum_ausgaben
+    saldo = current_user.anfangsbestand + sum_einnahmen - sum_ausgaben
 
     current_year = datetime.now().year  # Aktuelles Jahr
 
@@ -870,7 +870,8 @@ def jahresabschluss_pdf(jahr):
     # Summen berechnen
     einnahmen = sum(b.betrag for b in buchungen if b.typ == 'Einnahme')
     ausgaben = sum(b.betrag for b in buchungen if b.typ == 'Ausgabe')
-    saldo = einnahmen - ausgaben
+    anfangsbestand = current_user.anfangsbestand
+    saldo = anfangsbestand + einnahmen - ausgaben
 
     # PDF erstellen
     pdf = FPDF()
