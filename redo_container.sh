@@ -12,11 +12,11 @@
 # In den aktuellen Vereinsplanung-Ordner wechseln
 cd /home/jesse/Vereinsplanung
 
-# Datenbanken in das Backup-Verzeichnis kopieren
-cp databases /home/Backup
+# Datenbanken vom Container in das Backup-Verzeichnis kopieren
+sudo docker cp Vereinsplanung:/app/databases /home/Backup/
 
-# Uploads in das Backup-Verzeichnis kopieren
-cp uploads /home/Backup
+# Uploads vom Container in das Backup-Verzeichnis kopieren
+sudo docker cp Vereinsplanung:/app/uploads /home/Backup/
 
 # Wechseln in den Nutzer-Ordner
 cd /home/jesse
