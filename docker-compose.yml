@@ -1,10 +1,9 @@
-version: "3.8"
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: my-python-app
+    container_name: verein_docker
     ports:
       - "5000:5000"
     volumes:
