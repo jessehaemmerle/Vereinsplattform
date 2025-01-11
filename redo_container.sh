@@ -42,7 +42,7 @@ docker compose build || {
 
 # 4. Container mit persistenten Volumes neu starten
 log "Starting containers with persistent volumes..."
-docker compose up -d || {
+docker compose up -d --build || {
   error "Failed to start containers. Aborting update."
   exit 1
 }
