@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Name des Skripts: update.sh
-# Ziel: Automatisiertes Pullen, Bauen und Neustarten von Docker-Containern mit docker-compose
+# Ziel: Automatisiertes Pullen, Bauen und Neustarten von Docker-Containern mit docker compose
 
 set -e  # Beendet das Skript bei einem Fehler
 
@@ -28,21 +28,21 @@ git pull origin main || {
 
 # 2. Container stoppen und alte Images entfernen
 log "Stopping and removing current containers..."
-docker-compose down || {
+docker compose down || {
   error "Failed to stop containers. Aborting update."
   exit 1
 }
 
 # 3. Neues Docker-Image bauen
 log "Building new Docker image..."
-docker-compose build || {
+docker compose build || {
   error "Failed to build Docker image. Aborting update."
   exit 1
 }
 
 # 4. Container mit persistenten Volumes neu starten
 log "Starting containers with persistent volumes..."
-docker-compose up -d || {
+docker compose up -d || {
   error "Failed to start containers. Aborting update."
   exit 1
 }
