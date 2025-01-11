@@ -1,49 +1,56 @@
 #!/bin/bash
 
-# Skript-Version: 1.0
-# Author: Jesse Hämmerle
-# Purpose: Sicherung der Datenbank und Neuerstellung von Docker-Container aus aktuellen Github-Daten
+# Name des Skripts: update.sh
+# Ziel: Automatisiertes Pullen, Bauen und Neustarten von Docker-Containern mit docker-compose
 
-# Aktuelles Problem:
-# Wenn ich vom aktuellen Verzeichnis etwas kopiere, dann werden immer die leeren Dateien kopiert.
-# Es muss einen Weg geben, die Datenbanken aus dem Docker-Container zu exportieren.
-# TODO: Docker-Datenbanken exportieren.
+set -e  # Beendet das Skript bei einem Fehler
 
-# In den aktuellen Vereinsplanung-Ordner wechseln
-cd /home/jesse/Vereinsplanung
+# Farben für die Ausgabe
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # Kein Farbcode
 
-# Datenbanken vom Container in das Backup-Verzeichnis kopieren
-sudo docker cp Vereinsplanung:/app/databases /home/Backup/
+# Funktionen
+log() {
+  echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1${NC}"
+}
 
-# Uploads vom Container in das Backup-Verzeichnis kopieren
-sudo docker cp Vereinsplanung:/app/uploads /home/Backup/
+error() {
+  echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] $1${NC}"
+}
 
-# Wechseln in den Nutzer-Ordner
-cd /home/jesse
+# 1. Pull: Neueste Version von GitHub holen
+log "Pulling latest changes from GitHub..."
+git pull origin main || {
+  error "Git pull failed. Aborting update."
+  exit 1
+}
 
-# Löschen des Vereinsplanung-Ordners
-rm -r -y Vereinsplanung
+# 2. Container stoppen und alte Images entfernen
+log "Stopping and removing current containers..."
+docker-compose down || {
+  error "Failed to stop containers. Aborting update."
+  exit 1
+}
 
-# Klonen der aktuellen Daten auf Github
-git clone https://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@github.com/jessehaemmerle/Vereinsplattform.git
+# 3. Neues Docker-Image bauen
+log "Building new Docker image..."
+docker-compose build || {
+  error "Failed to build Docker image. Aborting update."
+  exit 1
+}
 
-# Wechseln in den Vereinsplanung-Ordner
-cd Vereinsplanung
+# 4. Container mit persistenten Volumes neu starten
+log "Starting containers with persistent volumes..."
+docker-compose up -d || {
+  error "Failed to start containers. Aborting update."
+  exit 1
+}
 
-# Datenbanken wieder in das Verzeichnis kopieren
-cp -r /home/Backup/databases /home/jesse/Vereinsplanung
+# 5. Alte, ungenutzte Docker-Images bereinigen
+log "Cleaning up unused Docker images..."
+docker image prune -f || {
+  error "Failed to clean up images."
+}
 
-# Uploads wieder in das Verzeichnis kopieren
-cp -r /home/Backup/uploads /home/jesse/Vereinsplanung
-
-# Docker-Container aus dem Dockerfile bauen
-sudo docker buildx build -t vereinsplanung .
-
-# Den aktuellen Container stoppen
-sudo docker stop Vereinsplanung
-
-# Den aktuellen Container löschen
-sudo docker rm Vereinsplanung
-
-# Den neuen Container starten und den Port 5000 mitgeben für den Reverse Proxy
-sudo docker run -d -p 5000:5000 --name Vereinsplanung vereinsplanung
+log "Update process completed successfully!"
