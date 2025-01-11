@@ -35,7 +35,7 @@ if not os.path.exists('uploads'):
     os.makedirs('uploads')
 
 # Ordner für die Datenbank sicherstellen
-DATABASE_FOLDER = os.path.join(os.getcwd(), 'databases')
+DATABASE_FOLDER = '/app/databases'
 if not os.path.exists(DATABASE_FOLDER):
     os.makedirs(DATABASE_FOLDER)
 
@@ -49,10 +49,10 @@ login_manager.login_view = 'login'  # Ziel-View, falls der User nicht eingeloggt
 login_manager.login_message = "Bitte logge dich ein, um fortzufahren."
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'SUPER_GEHEIM'  # In Produktion in Umgebungsvariablen auslagern
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # In Produktion in Umgebungsvariablen auslagern
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///verein.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
+app.config['UPLOAD_FOLDER'] = '/app/uploads'
 csrf = CSRFProtect(app)
 
 
