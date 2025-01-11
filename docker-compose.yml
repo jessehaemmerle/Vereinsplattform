@@ -1,0 +1,16 @@
+version: "3.8"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: my-python-app
+    ports:
+      - "5000:5000"
+    volumes:
+      - databases_volume:/app/databases
+      - uploads_volume:/app/uploads
+
+volumes:
+  databases_volume:
+  uploads_volume:

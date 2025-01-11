@@ -13,7 +13,6 @@ COPY ./requirements.txt ./requirements.txt
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 # Notwendige Dateien und Verzeichnisse hinzufügen
-COPY ./databases ./databases
 COPY ./static ./static
 COPY ./templates ./templates
 COPY ./.env ./.env
