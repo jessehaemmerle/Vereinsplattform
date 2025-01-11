@@ -50,7 +50,7 @@ login_manager.login_message = "Bitte logge dich ein, um fortzufahren."
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # In Produktion in Umgebungsvariablen auslagern
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///verein.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/databases/verein.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = '/app/uploads'
 csrf = CSRFProtect(app)
@@ -1729,14 +1729,12 @@ def templates_delete(template_id):
 # ----------------------------------
 if __name__ == '__main__':
     with app.app_context():
-        # Sicherstellen, dass das Datenbankverzeichnis existiert
-        db_path = os.path.join(os.getcwd(), 'databases')
+        DATABASE_FOLDER = '/app/databases'  # Sicherstellen, dass das Verzeichnis korrekt gesetzt ist
+        db_path = os.path.join(DATABASE_FOLDER, 'verein.db')
         if not os.path.exists(db_path):
-            os.makedirs(db_path)
-        
-        # Datenbank initialisieren
-        if not os.path.exists(os.path.join(db_path, 'verein.db')):
-            db.create_all()  # Erstellt alle Tabellen
+            if not os.path.exists(DATABASE_FOLDER):
+                os.makedirs(DATABASE_FOLDER)
+            db.create_all()  # Erstellt die Tabellen nur, wenn die Datenbank nicht existiert
             print("Datenbank wurde erfolgreich erstellt.")
         else:
             print("Datenbank existiert bereits.")
