@@ -403,19 +403,27 @@ def mitglieder_liste():
     return render_template('mitglieder.html', mitglieder=mitglieder, form=form)
 
 
+import logging
+
+# Logging konfigurieren
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 @app.route('/mitglied/new', methods=['GET', 'POST'])
 @login_required
 def mitglied_new():
     form = MitgliedForm()
     if form.validate_on_submit():
         try:
-            # Use the verein_id from the currently logged-in user
+            # Verwenden Sie die verein_id des aktuell angemeldeten Benutzers
             if not current_user.verein_id:
                 flash("Es ist kein Verein mit Ihrem Benutzerkonto verknüpft.", "danger")
-                return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
+                return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied", mitglied=None)
             
+            # Verarbeitung von beitrag_bezahlt
             beitrag_bezahlt = form.beitrag_bezahlt.data.lower() == 'ja'
 
+            # Neues Mitglied erstellen
             neues_mitglied = Mitglied(
                 vorname=form.vorname.data,
                 nachname=form.nachname.data,
@@ -431,11 +439,11 @@ def mitglied_new():
                 mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
                 beitrag_bezahlt=beitrag_bezahlt,
                 austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None,
-                verein_id=current_user.verein_id  # Associate with the user's Verein
+                verein_id=current_user.verein_id  # Verknüpfung mit dem Verein des Benutzers
             )
             db.session.add(neues_mitglied)
-            db.session.flush()  # damit neues_mitglied.id schon bekannt ist
-        
+            db.session.flush()  # Damit neues_mitglied.id bereits bekannt ist
+
             # Falls bereits bezahlt, Finanzbuchung anlegen
             if neues_mitglied.beitrag_bezahlt and neues_mitglied.mitgliedsbeitrag > 0:
                 finanzbuchung = Finanzbuchung(
@@ -444,27 +452,23 @@ def mitglied_new():
                     betrag=neues_mitglied.mitgliedsbeitrag,
                     datum=date.today(),
                     beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
-                    mitglied_id=neues_mitglied.id  # jetzt verfügbar nach flush
+                    mitglied_id=neues_mitglied.id  # Jetzt verfügbar nach flush
                 )
                 db.session.add(finanzbuchung)
+                logger.info(f"Finanzbuchung für Mitglied ID {neues_mitglied.id} erstellt.")
+            
             db.session.commit()
             flash("Neues Mitglied erfolgreich erstellt.", "success")
             return redirect(url_for('mitglieder_liste'))
         except Exception as e:
             db.session.rollback()
-            print(f"Fehler: {e}")
+            logger.error(f"Fehler beim Erstellen des Mitglieds: {e}")
             flash("Fehler beim Erstellen des Mitglieds.", "danger")
     else:
-        print(form.errors)  # Debugging for form validation issues
-
-    return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
-
-
-import logging
-
-# Logging konfigurieren
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+        if form.errors:
+            logger.warning(f"Formularfehler beim Erstellen eines neuen Mitglieds: {form.errors}")
+    
+    return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied", mitglied=None)
 
 @app.route('/mitglied/<int:mitglied_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -495,7 +499,7 @@ def mitglied_edit(mitglied_id):
             mitglied.beitrag_bezahlt = beitrag_bezahlt
 
             db.session.commit()
-            logger.info(f"Mitglied ID {mitglied_id} erfolgreich aktualisiert.")
+            logger.info(f"Mitglied ID {mitglied.id} erfolgreich aktualisiert.")
 
             # Finanzbuchung hinzufügen, wenn beitrag_bezahlt von False auf True geändert wurde
             if beitrag_bezahlt and not vorheriger_status and mitglied.mitgliedsbeitrag > 0:
@@ -516,15 +520,13 @@ def mitglied_edit(mitglied_id):
         
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Fehler beim Bearbeiten des Mitglieds ID {mitglied_id}: {e}")
+            logger.error(f"Fehler beim Bearbeiten des Mitglieds ID {mitglied.id}: {e}")
             flash("Fehler beim Bearbeiten des Mitglieds.", "danger")
     else:
         if form.errors:
-            logger.warning(f"Formularvalidierungsfehler beim Bearbeiten von Mitglied ID {mitglied_id}: {form.errors}")
-            # Optional: Entfernen oder durch Logging ersetzen
-            print(form.errors)
+            logger.warning(f"Formularfehler beim Bearbeiten von Mitglied ID {mitglied.id}: {form.errors}")
     
-    return render_template('mitglied_edit.html', form=form, titel="Mitglied bearbeiten")
+    return render_template('mitglied_edit.html', form=form, titel="Mitglied bearbeiten", mitglied=mitglied)
 
 
 @app.route('/mitglied/<int:mitglied_id>/delete', methods=['POST'])

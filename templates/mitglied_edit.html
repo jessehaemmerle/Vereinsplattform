@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container mt-4">
     <h1>{{ titel }}</h1>
-    <form method="POST" action="{{ url_for('mitglied_edit', mitglied_id=mitglied.id) }}">
+    <form method="POST" action="{% if mitglied %}{{ url_for('mitglied_edit', mitglied_id=mitglied.id) }}{% else %}{{ url_for('mitglied_new') }}{% endif %}">
         {{ form.hidden_tag() }}
 
         <!-- Vorname -->
