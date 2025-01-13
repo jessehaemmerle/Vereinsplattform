@@ -460,8 +460,6 @@ def mitglied_new():
     return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
 
 
-
-
 import logging
 
 # Logging konfigurieren
@@ -497,6 +495,7 @@ def mitglied_edit(mitglied_id):
             mitglied.beitrag_bezahlt = beitrag_bezahlt
 
             db.session.commit()
+            logger.info(f"Mitglied ID {mitglied_id} erfolgreich aktualisiert.")
 
             # Finanzbuchung hinzufügen, wenn beitrag_bezahlt von False auf True geändert wurde
             if beitrag_bezahlt and not vorheriger_status and mitglied.mitgliedsbeitrag > 0:
@@ -522,10 +521,10 @@ def mitglied_edit(mitglied_id):
     else:
         if form.errors:
             logger.warning(f"Formularvalidierungsfehler beim Bearbeiten von Mitglied ID {mitglied_id}: {form.errors}")
-            print(form.errors)  # Optional: Entfernen oder durch Logging ersetzen
+            # Optional: Entfernen oder durch Logging ersetzen
+            print(form.errors)
     
     return render_template('mitglied_edit.html', form=form, titel="Mitglied bearbeiten")
-
 
 
 @app.route('/mitglied/<int:mitglied_id>/delete', methods=['POST'])
