@@ -427,7 +427,7 @@ def mitglied_new():
                 plz=form.plz.data,
                 ort=form.ort.data,
                 mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
-                beitrag_bezahlt=form.beitrag_bezahlt.data == 'true',
+                beitrag_bezahlt=form.beitrag_bezahlt.data.lower() == 'ja',
                 austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None,
                 verein_id=current_user.verein_id  # Associate with the user's Verein
             )
