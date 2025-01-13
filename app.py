@@ -462,31 +462,70 @@ def mitglied_new():
 
 
 
+import logging
+
+# Logging konfigurieren
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 @app.route('/mitglied/<int:mitglied_id>/edit', methods=['GET', 'POST'])
 @login_required
 def mitglied_edit(mitglied_id):
     mitglied = Mitglied.query.get_or_404(mitglied_id)
     form = MitgliedForm(obj=mitglied)
+    
     if form.validate_on_submit():
-        mitglied.vorname = form.vorname.data
-        mitglied.nachname = form.nachname.data
-        mitglied.email = form.email.data
-        mitglied.eintrittsdatum = form.eintrittsdatum.data
-        mitglied.status = form.status.data
-        mitglied.funktion = form.funktion.data
-        mitglied.telefonnummer = form.telefonnummer.data
-        mitglied.geburtstag = form.geburtstag.data
-        mitglied.adresse = form.adresse.data
-        mitglied.plz = form.plz.data
-        mitglied.ort = form.ort.data
-        mitglied.austritt_datum = form.austritt_datum.data if form.status.data == 'inaktiv' else None
-        # Wichtig: mitgliedsbeitrag und ggf. beitrag_bezahlt ergänzen
-        mitglied.mitgliedsbeitrag = form.mitgliedsbeitrag.data or 0.0
-        mitglied.beitrag_bezahlt  = (form.beitrag_bezahlt.data == 'true')
-        db.session.commit()
-        flash("Mitglied erfolgreich bearbeitet.")
-        return redirect(url_for('mitglieder_liste'))
+        try:
+            # Aktualisierung der Mitgliedsdaten
+            mitglied.vorname = form.vorname.data
+            mitglied.nachname = form.nachname.data
+            mitglied.email = form.email.data
+            mitglied.eintrittsdatum = form.eintrittsdatum.data
+            mitglied.status = form.status.data
+            mitglied.funktion = form.funktion.data
+            mitglied.telefonnummer = form.telefonnummer.data
+            mitglied.geburtstag = form.geburtstag.data
+            mitglied.adresse = form.adresse.data
+            mitglied.plz = form.plz.data
+            mitglied.ort = form.ort.data
+            mitglied.austritt_datum = form.austritt_datum.data if form.status.data == 'inaktiv' else None
+            mitglied.mitgliedsbeitrag = form.mitgliedsbeitrag.data or 0.0
+
+            # Korrekte Zuweisung von beitrag_bezahlt
+            beitrag_bezahlt = form.beitrag_bezahlt.data.lower() == 'ja'
+            vorheriger_status = mitglied.beitrag_bezahlt
+            mitglied.beitrag_bezahlt = beitrag_bezahlt
+
+            db.session.commit()
+
+            # Finanzbuchung hinzufügen, wenn beitrag_bezahlt von False auf True geändert wurde
+            if beitrag_bezahlt and not vorheriger_status and mitglied.mitgliedsbeitrag > 0:
+                finanzbuchung = Finanzbuchung(
+                    typ='Einnahme',
+                    kategorie='Mitgliedsbeitrag',
+                    betrag=mitglied.mitgliedsbeitrag,
+                    datum=date.today(),
+                    beschreibung=f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
+                    mitglied_id=mitglied.id
+                )
+                db.session.add(finanzbuchung)
+                db.session.commit()
+                logger.info(f"Finanzbuchung für Mitglied ID {mitglied.id} erstellt.")
+
+            flash("Mitglied erfolgreich bearbeitet.", "success")
+            return redirect(url_for('mitglieder_liste'))
+        
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Fehler beim Bearbeiten des Mitglieds ID {mitglied_id}: {e}")
+            flash("Fehler beim Bearbeiten des Mitglieds.", "danger")
+    else:
+        if form.errors:
+            logger.warning(f"Formularvalidierungsfehler beim Bearbeiten von Mitglied ID {mitglied_id}: {form.errors}")
+            print(form.errors)  # Optional: Entfernen oder durch Logging ersetzen
+    
     return render_template('mitglied_edit.html', form=form, titel="Mitglied bearbeiten")
+
 
 
 @app.route('/mitglied/<int:mitglied_id>/delete', methods=['POST'])
