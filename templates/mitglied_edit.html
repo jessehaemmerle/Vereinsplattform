@@ -6,127 +6,144 @@
     <form method="POST" action="{{ url_for('mitglied_new') }}">
         {{ form.hidden_tag() }}
 
+        <!-- Vorname -->
         <div class="mb-3">
             <label for="vorname" class="form-label">{{ form.vorname.label }}</label>
             {{ form.vorname(class_="form-control", id="vorname") }}
             {% for error in form.vorname.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
 
+        <!-- Nachname -->
         <div class="mb-3">
             <label for="nachname" class="form-label">{{ form.nachname.label }}</label>
             {{ form.nachname(class_="form-control", id="nachname") }}
             {% for error in form.nachname.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
 
+        <!-- E-Mail -->
         <div class="mb-3">
             <label for="email" class="form-label">{{ form.email.label }}</label>
             {{ form.email(class_="form-control", id="email") }}
             {% for error in form.email.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
 
+        <!-- Eintrittsdatum -->
         <div class="mb-3">
             <label for="eintrittsdatum" class="form-label">{{ form.eintrittsdatum.label }}</label>
             {{ form.eintrittsdatum(class_="form-control", id="eintrittsdatum") }}
             {% for error in form.eintrittsdatum.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
 
+        <!-- Telefonnummer -->
         <div class="mb-3">
             <label for="telefonnummer" class="form-label">{{ form.telefonnummer.label }}</label>
             {{ form.telefonnummer(class_="form-control", id="telefonnummer") }}
             {% for error in form.telefonnummer.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
-        
+
+        <!-- Geburtstag -->
         <div class="mb-3">
             <label for="geburtstag" class="form-label">{{ form.geburtstag.label }}</label>
             {{ form.geburtstag(class_="form-control", id="geburtstag") }}
             {% for error in form.geburtstag.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
-        
+
+        <!-- Adresse -->
         <div class="mb-3">
             <label for="adresse" class="form-label">{{ form.adresse.label }}</label>
             {{ form.adresse(class_="form-control", id="adresse") }}
             {% for error in form.adresse.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>   
-        
+
+        <!-- Postleitzahl (PLZ) -->
         <div class="mb-3">
-            <label for="Postleitzahl" class="form-label">{{ form.plz.label }}</label>
+            <label for="plz" class="form-label">{{ form.plz.label }}</label>
             {{ form.plz(class_="form-control", id="plz") }}
             {% for error in form.plz.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>  
 
+        <!-- Ort -->
         <div class="mb-3">
-            <label for="Ort" class="form-label">{{ form.ort.label }}</label>
+            <label for="ort" class="form-label">{{ form.ort.label }}</label>
             {{ form.ort(class_="form-control", id="ort") }}
             {% for error in form.ort.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>  
 
+        <!-- Status -->
         <div class="mb-3">
             <label for="status" class="form-label">{{ form.status.label }}</label>
             {{ form.status(class_="form-select", id="status") }}
             {% for error in form.status.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
 
+        <!-- Austrittsdatum (nur sichtbar bei 'inaktiv') -->
         <div class="mb-3" id="austritt_datum_field" style="display: none;">
             <label for="Austrittsdatum" class="form-label">{{ form.austritt_datum.label }}</label>
             {{ form.austritt_datum(class_="form-control", id="austritt_datum") }}
             {% for error in form.austritt_datum.errors %}
-            <div class="text-danger">{{ error }}
-            </div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
 
+        <!-- Funktion -->
         <div class="mb-3">
             <label for="funktion" class="form-label">{{ form.funktion.label }}</label>
             {{ form.funktion(class_="form-select", id="funktion") }}
             {% for error in form.funktion.errors %}
-            <div class="text-danger">{{ error }}</div>
+                <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>
 
+        <!-- Mitgliedsbeitrag -->
         <div class="mb-3">
             <label for="mitgliedsbeitrag" class="form-label">{{ form.mitgliedsbeitrag.label }}</label>
             {{ form.mitgliedsbeitrag(class_="form-control", id="mitgliedsbeitrag") }}
+            {% for error in form.mitgliedsbeitrag.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
         </div>
         
+        <!-- Beitrag bezahlt -->
         <div class="mb-3">
             <label class="form-label">{{ form.beitrag_bezahlt.label }}</label><br>
-            <div class="form-check form-check-inline">
-                {{ form.beitrag_bezahlt(class_="form-check-input", id="beitrag_bezahlt_ja", value="ja") }}
-                <label class="form-check-label" for="beitrag_bezahlt_ja">Ja</label>
-            </div>
-            <div class="form-check form-check-inline">
-                {{ form.beitrag_bezahlt(class_="form-check-input", id="beitrag_bezahlt_nein", value="nein") }}
-                <label class="form-check-label" for="beitrag_bezahlt_nein">Nein</label>
-            </div>
+            {% for subfield in form.beitrag_bezahlt %}
+                <div class="form-check form-check-inline">
+                    {{ subfield(class_="form-check-input") }}
+                    <label class="form-check-label" for="{{ subfield.id }}">{{ subfield.label.text }}</label>
+                </div>
+            {% endfor %}
             {% for error in form.beitrag_bezahlt.errors %}
                 <div class="text-danger">{{ error }}</div>
             {% endfor %}
         </div>        
 
+        <!-- Buttons -->
         <button type="submit" class="btn btn-success">Speichern</button>
         <a href="{{ url_for('mitglieder_liste') }}" class="btn btn-secondary">Abbrechen</a>
     </form>
 </div>
+
+<!-- JavaScript für die Anzeige des Austrittsdatums -->
 <script>
     document.getElementById('status').addEventListener('change', function() {
         const austrittField = document.getElementById('austritt_datum_field');
