@@ -1,5 +1,5 @@
-
-Vorname,Nachname,Email,Eintrittsdatum,Austritt_Datum,Status,Funktion,Mitgliedsbeitrag,Beitrag_Bezahlt,Telefonnummer,Geburtstag,Adresse,PLZ,Ort
-Max,Muster,max.muster@example.com,2023-01-01,,aktiv,Mitglied,50.0,True,+436601234567,1990-05-15,Hauptstraße 1,1010,Wien
-Anna,Beispiel,anna.beispiel@example.com,2023-02-01,,aktiv,Kassierer,100.0,True,+436605678912,1988-11-22,Nebenstraße 2,1020,Wien
-John,Doe,john.doe@example.com,2023-03-01,2024-01-01,aktiv,Mitglied,0.0,False,+436607891234,1992-07-08,Bahnhofstraße 3,1030,Wien
+Vorname,Nachname,Email,Mitgliedsbeitrag,Beitrag_Bezahlt,Eintrittsdatum,Geburtstag,Status,Funktion,Telefonnummer,Adresse,PLZ,Ort
+Max,Mustermann,max.mustermann@example.com,50.00,ja,2023-01-01,1990-05-15,aktiv,Mitglied,0123456789,Musterstraße 1,12345,Musterstadt
+Anna,Schmidt,anna.schmidt@example.com,75.50,nein,2022-06-15,1985-07-22,aktiv,Kassierer,0987654321,Schmidtweg 3,54321,Schmidtstadt
+Peter,Parker,peter.parker@example.com,0.00,nein,2021-03-10,2000-08-10,aktiv,Mitglied,0135792468,Spidermanstraße 5,10115,Berlin
+Clara,Meier,clara.meier@example.com,100.00,ja,2023-08-20,,aktiv,Vorsitzender,0154321876,Hauptstraße 12,20234,Hauptstadt
