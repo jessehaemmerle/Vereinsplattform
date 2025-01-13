@@ -109,9 +109,19 @@
         </div>
         
         <div class="mb-3">
-            <label for="beitrag_bezahlt" class="form-label">{{ form.beitrag_bezahlt.label }}</label>
-            {{ form.beitrag_bezahlt(class_="form-select", id="beitrag_bezahlt") }}
-        </div>
+            <label class="form-label">{{ form.beitrag_bezahlt.label }}</label><br>
+            <div class="form-check form-check-inline">
+                {{ form.beitrag_bezahlt(class_="form-check-input", id="beitrag_bezahlt_ja", value="ja") }}
+                <label class="form-check-label" for="beitrag_bezahlt_ja">Ja</label>
+            </div>
+            <div class="form-check form-check-inline">
+                {{ form.beitrag_bezahlt(class_="form-check-input", id="beitrag_bezahlt_nein", value="nein") }}
+                <label class="form-check-label" for="beitrag_bezahlt_nein">Nein</label>
+            </div>
+            {% for error in form.beitrag_bezahlt.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>        
 
         <button type="submit" class="btn btn-success">Speichern</button>
         <a href="{{ url_for('mitglieder_liste') }}" class="btn btn-secondary">Abbrechen</a>

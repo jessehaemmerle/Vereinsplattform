@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, DateField, FloatField, EmailField, SelectField, PasswordField, SubmitField
+from wtforms import StringField, TextAreaField, DateField, FloatField, EmailField, SelectField, RadioField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo, Optional, Length
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 
@@ -12,12 +12,16 @@ class MitgliedForm(FlaskForm):
     status = SelectField('Status', choices=[('aktiv', 'Aktiv'), ('inaktiv', 'Inaktiv')])
     funktion = SelectField('Funktion', choices=[('leitung', 'Leitung'), ('kassier', 'Kassier'), ('normal', 'Normales Mitglied'), ('vorstand', 'Vorstand'), ('pruefer', 'Rechnungsprüfer'), ('schrift', 'Schriftführer')])
     mitgliedsbeitrag = FloatField('Mitgliedsbeitrag (EUR)', validators=[Optional()])
-    beitrag_bezahlt = SelectField('Beitrag bezahlt', choices=[('true', 'Ja'), ('false', 'Nein')])
+    beitrag_bezahlt = RadioField(
+        choices=[('ja', 'Ja'), ('nein', 'Nein')],
+        validators=[DataRequired()]
+    )
     telefonnummer = StringField('Telefonnummer', validators=[Optional()])  # Neues Feld
     geburtstag = DateField('Geburtstag', validators=[Optional()])           # Neues Feld
     adresse = StringField('Adresse', validators=[Optional()])               # Neues Feld
     plz = FloatField('Postleitzahl', validators=[Optional()])
     ort = StringField('Ort', validators=[Optional()])
+    submit = SubmitField('Speichern')
 
 class ValidateMemberForm(FlaskForm):
     email = StringField('E-Mail-Adresse', validators=[DataRequired(), Email()])

@@ -413,6 +413,8 @@ def mitglied_new():
             if not current_user.verein_id:
                 flash("Es ist kein Verein mit Ihrem Benutzerkonto verknüpft.", "danger")
                 return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied")
+            
+            beitrag_bezahlt = form.beitrag_bezahlt.data.lower() == 'ja'
 
             neues_mitglied = Mitglied(
                 vorname=form.vorname.data,
@@ -427,7 +429,7 @@ def mitglied_new():
                 plz=form.plz.data,
                 ort=form.ort.data,
                 mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
-                beitrag_bezahlt=form.beitrag_bezahlt.data.lower() == 'ja',
+                beitrag_bezahlt=beitrag_bezahlt,
                 austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None,
                 verein_id=current_user.verein_id  # Associate with the user's Verein
             )
