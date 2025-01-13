@@ -548,11 +548,11 @@ def mitglieder_import():
         file = request.files.get('file')
         if not file or file.filename == '':
             flash('Keine Datei ausgewählt.', 'danger')
-            return redirect(url_for('mitglieder_liste'))
+            return redirect(url_for('mitglieder_import'))
 
         if not file.filename.lower().endswith('.csv'):
             flash('Bitte laden Sie eine gültige CSV-Datei hoch.', 'danger')
-            return redirect(url_for('mitglieder_liste'))
+            return redirect(url_for('mitglieder_import'))
 
         try:
             # Verarbeite Dateiinhalt als CSV
@@ -563,74 +563,74 @@ def mitglieder_import():
             required_fields = {'Vorname', 'Nachname', 'Email', 'Mitgliedsbeitrag', 'Beitrag_Bezahlt'}
             if not required_fields.issubset(csv_reader.fieldnames or []):
                 flash(f'Die CSV-Datei muss folgende Spalten enthalten: {", ".join(required_fields)}', 'danger')
-                return redirect(url_for('mitglieder_liste'))
+                return redirect(url_for('mitglieder_import'))
 
-            for row in csv_reader:
-                # Validierung und Konvertierung der Felder
-                try:
-                    eintrittsdatum = (
-                        datetime.strptime(row.get('Eintrittsdatum', ''), '%Y-%m-%d').date()
-                        if row.get('Eintrittsdatum') else None
+            # Beginne Datenbanktransaktion
+            with db.session.begin_nested():
+                for row in csv_reader:
+                    # Validierung und Konvertierung der Felder
+                    try:
+                        eintrittsdatum = datetime.strptime(row.get('Eintrittsdatum', ''), '%Y-%m-%d').date() \
+                            if row.get('Eintrittsdatum') else None
+                    except ValueError:
+                        flash(f"Ungültiges Eintrittsdatum: {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
+                        eintrittsdatum = None
+
+                    try:
+                        geburtstag = datetime.strptime(row.get('Geburtstag', ''), '%Y-%m-%d').date() \
+                            if row.get('Geburtstag') else None
+                    except ValueError:
+                        flash(f"Ungültiges Geburtsdatum: {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
+                        geburtstag = None
+
+                    beitrag_bezahlt = row.get('Beitrag_Bezahlt', '').strip().lower() in ['true', 'ja', '1']
+                    try:
+                        mitgliedsbeitrag = float(row.get('Mitgliedsbeitrag', 0.0))
+                    except ValueError:
+                        flash(f"Ungültiger Mitgliedsbeitrag: {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
+                        mitgliedsbeitrag = 0.0
+
+                    # Neues Mitglied erstellen
+                    neues_mitglied = Mitglied(
+                        vorname=row.get('Vorname', '').strip(),
+                        nachname=row.get('Nachname', '').strip(),
+                        email=row.get('Email', '').strip(),
+                        eintrittsdatum=eintrittsdatum or date.today(),
+                        status=row.get('Status', 'aktiv').strip(),
+                        funktion=row.get('Funktion', 'Mitglied').strip(),
+                        telefonnummer=row.get('Telefonnummer', '').strip(),
+                        geburtstag=geburtstag,
+                        adresse=row.get('Adresse', '').strip(),
+                        plz=row.get('PLZ', '').strip(),
+                        ort=row.get('Ort', '').strip(),
+                        mitgliedsbeitrag=mitgliedsbeitrag,
+                        beitrag_bezahlt=beitrag_bezahlt
                     )
-                except ValueError:
-                    flash(f"Ungültiges Eintrittsdatum für {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
-                    eintrittsdatum = None
+                    db.session.add(neues_mitglied)
 
-                try:
-                    geburtstag = (
-                        datetime.strptime(row.get('Geburtstag', ''), '%Y-%m-%d').date()
-                        if row.get('Geburtstag') else None
-                    )
-                except ValueError:
-                    flash(f"Ungültiges Geburtsdatum für {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
-                    geburtstag = None
+                    # Finanzbuchung erstellen, falls erforderlich
+                    if beitrag_bezahlt and mitgliedsbeitrag > 0:
+                        finanzbuchung = Finanzbuchung(
+                            typ='Einnahme',
+                            kategorie='Mitgliedsbeitrag',
+                            betrag=mitgliedsbeitrag,
+                            datum=date.today(),
+                            beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
+                            mitglied_id=neues_mitglied.id
+                        )
+                        db.session.add(finanzbuchung)
 
-                beitrag_bezahlt = row.get('Beitrag_Bezahlt', '').strip().lower() in ['true', 'ja', '1']
-                try:
-                    mitgliedsbeitrag = float(row.get('Mitgliedsbeitrag', 0.0))
-                except ValueError:
-                    flash(f"Ungültiger Mitgliedsbeitrag für {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
-                    mitgliedsbeitrag = 0.0
-
-                # Neues Mitglied erstellen
-                neues_mitglied = Mitglied(
-                    vorname=row.get('Vorname', '').strip(),
-                    nachname=row.get('Nachname', '').strip(),
-                    email=row.get('Email', '').strip(),
-                    eintrittsdatum=eintrittsdatum or date.today(),
-                    status=row.get('Status', 'aktiv').strip(),
-                    funktion=row.get('Funktion', 'Mitglied').strip(),
-                    telefonnummer=row.get('Telefonnummer', '').strip(),
-                    geburtstag=geburtstag,
-                    adresse=row.get('Adresse', '').strip(),
-                    plz=row.get('PLZ', '').strip(),
-                    ort=row.get('Ort', '').strip(),
-                    mitgliedsbeitrag=mitgliedsbeitrag,
-                    beitrag_bezahlt=beitrag_bezahlt
-                )
-                db.session.add(neues_mitglied)
-                db.session.flush()  # Mitglied-ID verfügbar machen
-
-                # Finanzbuchung erstellen, falls erforderlich
-                if beitrag_bezahlt and mitgliedsbeitrag > 0:
-                    finanzbuchung = Finanzbuchung(
-                        typ='Einnahme',
-                        kategorie='Mitgliedsbeitrag',
-                        betrag=mitgliedsbeitrag,
-                        datum=date.today(),
-                        beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
-                        mitglied_id=neues_mitglied.id
-                    )
-                    db.session.add(finanzbuchung)
-
+            # Änderungen bestätigen
             db.session.commit()
             flash('Mitglieder erfolgreich importiert.', 'success')
+        except UnicodeDecodeError:
+            flash('Fehler beim Lesen der CSV-Datei. Überprüfen Sie die Kodierung (UTF-8 erforderlich).', 'danger')
         except Exception as e:
-            # Fehlerhandling mit spezifischen Details
             app.logger.error(f"Fehler beim Importieren der CSV: {e}")
-            flash(f'Fehler beim Importieren der CSV: {e}', 'danger')
+            flash('Fehler beim Importieren der CSV.', 'danger')
 
     return redirect(url_for('mitglieder_liste'))
+
 
 
 
