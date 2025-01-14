@@ -643,21 +643,45 @@ def mitglieder_import():
 @login_required
 def mitglied_update_beitrag(mitglied_id):
     mitglied = Mitglied.query.get_or_404(mitglied_id)
-    mitglied.beitrag_bezahlt = not mitglied.beitrag_bezahlt
 
-    # Bei Bezahlung eine Finanzbuchung erstellen
+    # Prüfe, ob der Beitrag bereits bezahlt war
     if mitglied.beitrag_bezahlt:
-        db.session.add(Finanzbuchung(
-            typ='Einnahme',
-            kategorie='Mitgliedsbeitrag',
-            betrag=mitglied.mitgliedsbeitrag,
-            datum=date.today(),
-            beschreibung=f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
-            mitglied_id=mitglied.id
-        ))
+        # Beitrag zurücksetzen: Von bezahlt → nicht bezahlt
+        mitglied.beitrag_bezahlt = False
+
+        # Finanzbuchung anlegen: Ausgabe (Rückerstattung/Storno)
+        db.session.add(
+            Finanzbuchung(
+                typ='Ausgabe',  # Hier auf Ausgabe setzen
+                kategorie='Mitgliedsbeitrag Storno',  # Oder eine andere passende Kategorie
+                betrag=mitglied.mitgliedsbeitrag,
+                datum=date.today(),
+                beschreibung=f"Rückerstattung Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
+                mitglied_id=mitglied.id
+            )
+        )
+        flash(f"Der Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname} wurde zurückgesetzt.", "warning")
+
+    else:
+        # Beitrag wird bezahlt: Von nicht bezahlt → bezahlt
+        mitglied.beitrag_bezahlt = True
+
+        # Finanzbuchung anlegen: Einnahme
+        db.session.add(
+            Finanzbuchung(
+                typ='Einnahme',
+                kategorie='Mitgliedsbeitrag',
+                betrag=mitglied.mitgliedsbeitrag,
+                datum=date.today(),
+                beschreibung=f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
+                mitglied_id=mitglied.id
+            )
+        )
+        flash(f"Der Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname} wurde als bezahlt markiert.", "success")
+
     db.session.commit()
-    flash(f"Der Status des Mitgliedsbeitrags für {mitglied.vorname} {mitglied.nachname} wurde aktualisiert.", "success")
     return redirect(url_for('mitglieder_liste'))
+
 
 @app.route('/mitglied/<int:mitglied_id>')
 @login_required
