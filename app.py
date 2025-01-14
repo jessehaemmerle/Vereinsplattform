@@ -1488,6 +1488,11 @@ def documents_delete(doc_id):
 @login_required
 def einstellungen():
     form = UpdateKontoForm()
+
+    if request.method == 'GET':
+        # Die in current_user gespeicherte Kontonummer
+        form.konto_nummer.data = current_user.konto_nummer
+        
     if request.method == 'POST':
         # Verarbeitung von Theme- und Benachrichtigungseinstellungen
         email_notifikationen = request.form.get('email_notifikationen', 'aus')
