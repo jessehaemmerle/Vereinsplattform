@@ -2,7 +2,7 @@ import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, DeleteFinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
+from forms import MitgliedForm, EventForm, FinanzForm, DeleteEventForm, DeleteFinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
@@ -822,6 +822,7 @@ def event_edit(event_id):
 @app.route('/event/<int:event_id>/delete', methods=['POST'])
 @login_required
 def event_delete(event_id):
+    delete_form = DeleteEventForm()
     event = Event.query.get_or_404(event_id)
     db.session.delete(event)
     db.session.commit()
@@ -1492,7 +1493,7 @@ def einstellungen():
     if request.method == 'GET':
         # Die in current_user gespeicherte Kontonummer
         form.konto_nummer.data = current_user.konto_nummer
-        
+
     if request.method == 'POST':
         # Verarbeitung von Theme- und Benachrichtigungseinstellungen
         email_notifikationen = request.form.get('email_notifikationen', 'aus')

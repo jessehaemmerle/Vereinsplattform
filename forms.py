@@ -132,3 +132,6 @@ class ImportMitgliedForm(FlaskForm):
 
 class DeleteFinanzForm(FlaskForm):
     pass
+
+class DeleteEventForm(FlaskForm):
+    pass
