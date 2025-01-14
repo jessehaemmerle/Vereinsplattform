@@ -44,6 +44,7 @@
                         <td class="d-flex">
                             <a href="{{ url_for('finanzen_edit', buchung_id=b.id) }}" class="btn btn-warning btn-sm me-2">Bearbeiten</a>
                             <form action="{{ url_for('finanzen_delete', buchung_id=b.id) }}" method="POST" style="display:inline;">
+                                {{ form.hidden_tag() }}
                                 <button type="submit" class="btn btn-danger btn-sm">Löschen</button>
                             </form>
                         </td>

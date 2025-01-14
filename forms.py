@@ -122,9 +122,8 @@ class DeleteMitgliedForm(FlaskForm):
     pass
 
 class UpdateKontoForm(FlaskForm):
-    """Leeres Formular für das Umschalten von 'beitrag_bezahlt',
-    damit wir form.hidden_tag() verwenden können."""
-    pass
+    konto_nummer = StringField('Kontonummer')
+    submit = SubmitField('Speichern')
 
 class ImportMitgliedForm(FlaskForm):
     """Leeres Formular für das Umschalten von 'beitrag_bezahlt',

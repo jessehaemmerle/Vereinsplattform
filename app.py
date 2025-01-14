@@ -1588,15 +1588,21 @@ def add_event_to_google_calendar(event, user):
     except Exception as e:
         print(f"Fehler bei der Kalenderintegration: {e}")
 
-@app.route('/update_konto_settings', methods=['POST'])
+@app.route('/update_konto_settings', methods=['GET', 'POST'])
 @login_required
 def update_konto_settings():
     form = UpdateKontoForm()
-    konto_nummer = request.form.get('konto_nummer', '').strip()
-    current_user.konto_nummer = konto_nummer
-    db.session.commit()
-    flash("Kontonummer wurde gespeichert.", "success")
-    return redirect(url_for('einstellungen'))
+    if form.validate_on_submit():
+        current_user.konto_nummer = form.konto_nummer.data.strip()
+        db.session.commit()
+        flash("Kontonummer wurde gespeichert.", "success")
+        return redirect(url_for('einstellungen'))
+
+    # GET-Request oder ungültiges Formular
+    # => Template erneut rendern (z.B. mit bereits vorhandenem Konto-Wert)
+    # form.konto_nummer.data = current_user.konto_nummer
+    return render_template('einstellungen.html', form=form)
+
 
 @app.route('/update_konto_details', methods=['POST'])
 @login_required
