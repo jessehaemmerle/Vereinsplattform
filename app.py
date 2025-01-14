@@ -741,7 +741,8 @@ def send_message_member(mitglied_id):
 @login_required
 def events_liste():
     events = Event.query.all()
-    return render_template('events.html', events=events)
+    delete_form = DeleteEventForm()
+    return render_template('events.html', events=events, form=delete_form)
 
 @app.route('/event/new', methods=['GET', 'POST'])
 @login_required
