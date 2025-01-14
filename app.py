@@ -2,7 +2,7 @@ import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
+from forms import MitgliedForm, EventForm, FinanzForm, DeleteFinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
@@ -895,10 +895,13 @@ def finanzen_liste():
 
     current_year = datetime.now().year  # Aktuelles Jahr
 
+    delete_form = DeleteFinanzForm()
+
     return render_template('finanzen.html',
                            buchungen=buchungen,
                            saldo=saldo,
-                           current_year=current_year)
+                           current_year=current_year,
+                           form=delete_form)
 
 @app.route('/finanzen/export')
 @login_required
