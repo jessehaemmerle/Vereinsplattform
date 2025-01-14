@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - Vereinsverwaltung{% endblock %}
 {% block content %}
+
 <h1 class="mb-4">Dashboard</h1>
 
+<!-- Button-Leiste zum Hinzufügen/Entfernen -->
 <div class="mt-4 d-flex justify-content-between">
   <button id="addWidgetButton" class="btn btn-primary">Widget hinzufügen</button>
 
@@ -25,187 +27,134 @@
   <button class="btn btn-danger" id="toggleRemoveMode">Widget Entfernen</button>
 </div>
 
-<div class="row g-3 mt-4" id="dashboardWidgets">
-  <div class="col-sm-6 col-md-3 widget" data-widget="mitglieder">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Mitglieder</h5>
-        <p class="card-text display-5">{{ anzahl_mitglieder }}</p>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
+<!-- Dashboard-Container: Enthält alle Widgets -->
+<div id="dashboardContainer" style="position: relative; width: 100%; height: 100vh;">
+  <!-- Beispielhafte Widgets (initial sichtbar oder versteckt); Positionierung erst einmal statisch, 
+       wird aber durch loadWidgetState() nach dem Laden überschrieben -->
+  
+  <!-- Widget: Mitglieder -->
+  <div class="widget card text-center" data-widget="mitglieder"
+       style="position: absolute; top: 50px; left: 20px; width: 300px;">
+    <div class="card-body">
+      <h5 class="card-title">Mitglieder</h5>
+      <p class="card-text display-5">{{ anzahl_mitglieder }}</p>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
     </div>
   </div>
-  <div class="col-sm-6 col-md-3 widget" data-widget="events">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Events</h5>
-        <p class="card-text display-5">{{ anzahl_events }}</p>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-md-3 widget" data-widget="notizen">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Notizen</h5>
-        <p class="card-text display-5">{{ anzahl_notizen }}</p>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-md-3 widget" data-widget="saldo">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Saldo</h5>
-        <p class="card-text display-5">{{ saldo }} €</p>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="row g-3 mt-4">
-  <div class="col-lg-6 widget" data-widget="einnahmen-ausgaben">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Einnahmen vs. Ausgaben</h5>
-        <canvas id="einnahmenAusgabenChart"></canvas>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
+  <!-- Widget: Events -->
+  <div class="widget card text-center" data-widget="events"
+       style="position: absolute; top: 50px; left: 350px; width: 300px;">
+    <div class="card-body">
+      <h5 class="card-title">Events</h5>
+      <p class="card-text display-5">{{ anzahl_events }}</p>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
     </div>
   </div>
-  <div class="col-lg-6 widget" data-widget="mitgliederstatus">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Mitgliederstatus</h5>
-        <canvas id="mitgliederStatusChart"></canvas>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="row g-3 mt-4">
-  <div class="col-lg-6 widget" data-widget="bevorstehende-events">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Bevorstehende Events</h5>
-        <ul class="list-group">
-          {% for event in upcoming_events %}
-          <li class="list-group-item">
-            {{ event.titel }} - {{ event.datum.strftime('%d.%m.%Y') }}
-          </li>
-          {% endfor %}
-          {% if not upcoming_events %}
-          <li class="list-group-item">Keine bevorstehenden Events</li>
-          {% endif %}
-        </ul>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
+  <!-- Widget: Notizen -->
+  <div class="widget card text-center" data-widget="notizen"
+       style="position: absolute; top: 50px; left: 680px; width: 300px;">
+    <div class="card-body">
+      <h5 class="card-title">Notizen</h5>
+      <p class="card-text display-5">{{ anzahl_notizen }}</p>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
     </div>
   </div>
-  <div class="col-lg-6 widget" data-widget="neueste-mitglieder">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Neueste Mitglieder</h5>
-        <ul class="list-group">
-          {% for mitglied in recent_members %}
-          <li class="list-group-item">
-            {{ mitglied.vorname }} {{ mitglied.nachname }} - Beigetreten am {{ mitglied.eintrittsdatum.strftime('%d.%m.%Y') }}
-          </li>
-          {% endfor %}
-          {% if not recent_members %}
-          <li class="list-group-item">Keine neuen Mitglieder</li>
-          {% endif %}
-        </ul>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="row g-3 mt-4">
-  <div class="col-lg-12 widget" data-widget="events-pro-monat">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Events pro Monat</h5>
-        <canvas id="eventsProMonatChart"></canvas>
-        <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
-      </div>
+  <!-- Widget: Saldo -->
+  <div class="widget card text-center" data-widget="saldo"
+       style="position: absolute; top: 50px; left: 1010px; width: 300px;">
+    <div class="card-body">
+      <h5 class="card-title">Saldo</h5>
+      <p class="card-text display-5">{{ saldo }} €</p>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
     </div>
   </div>
-</div>
 
+  <!-- Widget: Einnahmen vs. Ausgaben -->
+  <div class="widget card" data-widget="einnahmen-ausgaben"
+       style="position: absolute; top: 400px; left: 20px; width: 500px;">
+    <div class="card-body">
+      <h5 class="card-title">Einnahmen vs. Ausgaben</h5>
+      <canvas id="einnahmenAusgabenChart"></canvas>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
+    </div>
+  </div>
+
+  <!-- Widget: Mitgliederstatus -->
+  <div class="widget card" data-widget="mitgliederstatus"
+       style="position: absolute; top: 400px; left: 550px; width: 400px;">
+    <div class="card-body">
+      <h5 class="card-title">Mitgliederstatus</h5>
+      <canvas id="mitgliederStatusChart"></canvas>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
+    </div>
+  </div>
+
+  <!-- Widget: Bevorstehende Events -->
+  <div class="widget card" data-widget="bevorstehende-events"
+       style="position: absolute; top: 400px; left: 980px; width: 400px;">
+    <div class="card-body">
+      <h5 class="card-title">Bevorstehende Events</h5>
+      <ul class="list-group">
+        {% for event in upcoming_events %}
+        <li class="list-group-item">
+          {{ event.titel }} - {{ event.datum.strftime('%d.%m.%Y') }}
+        </li>
+        {% endfor %}
+        {% if not upcoming_events %}
+        <li class="list-group-item">Keine bevorstehenden Events</li>
+        {% endif %}
+      </ul>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
+    </div>
+  </div>
+
+  <!-- Widget: Neueste Mitglieder -->
+  <div class="widget card" data-widget="neueste-mitglieder"
+       style="position: absolute; top: 850px; left: 20px; width: 400px;">
+    <div class="card-body">
+      <h5 class="card-title">Neueste Mitglieder</h5>
+      <ul class="list-group">
+        {% for mitglied in recent_members %}
+        <li class="list-group-item">
+          {{ mitglied.vorname }} {{ mitglied.nachname }} - Beigetreten am {{ mitglied.eintrittsdatum.strftime('%d.%m.%Y') }}
+        </li>
+        {% endfor %}
+        {% if not recent_members %}
+        <li class="list-group-item">Keine neuen Mitglieder</li>
+        {% endif %}
+      </ul>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
+    </div>
+  </div>
+
+  <!-- Widget: Events pro Monat -->
+  <div class="widget card" data-widget="events-pro-monat"
+       style="position: absolute; top: 850px; left: 450px; width: 600px;">
+    <div class="card-body">
+      <h5 class="card-title">Events pro Monat</h5>
+      <canvas id="eventsProMonatChart"></canvas>
+      <button class="btn btn-sm btn-danger widget-remove-btn" style="display: none;">X</button>
+    </div>
+  </div>
+</div> <!-- Ende DashboardContainer -->
+
+<!-- SCRIPTS -->
+<!-- Jquery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- jQuery UI für Draggable / Resizable -->
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"
+        integrity="sha256-lQJyNTuZkJ+a5myy9kME6gXLf0toZ5kPhsVVqTtvYQ0="
+        crossorigin="anonymous"></script>
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
+
 <script>
-  const widgetsContainer = document.getElementById('dashboardWidgets');
-  const addWidgetButton = document.getElementById('addWidgetButton');
-  const confirmWidgetButton = document.getElementById('confirmWidgetButton');
-  const toggleRemoveModeButton = document.getElementById('toggleRemoveMode');
-  let removeMode = false;
-
-  function saveWidgetState() {
-    const widgetStates = Array.from(widgetsContainer.children).map(widget => ({
-      type: widget.dataset.widget,
-      visible: widget.style.display !== 'none',
-    }));
-    localStorage.setItem('widgetStates', JSON.stringify(widgetStates));
-  }
-
-  function loadWidgetState() {
-    const savedStates = JSON.parse(localStorage.getItem('widgetStates')) || [];
-    Array.from(widgetsContainer.children).forEach(widget => {
-      const state = savedStates.find(s => s.type === widget.dataset.widget);
-      widget.style.display = state && state.visible ? 'block' : 'none';
-    });
-  }
-
-  addWidgetButton.addEventListener('click', () => {
-    const dropdown = document.getElementById('widgetDropdown');
-    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-  });
-
-  confirmWidgetButton.addEventListener('click', () => {
-    const selectedWidget = document.getElementById('widgetSelect').value;
-    if (selectedWidget) {
-      const widget = document.querySelector(`[data-widget="${selectedWidget}"]`);
-      if (widget) {
-        widget.style.display = 'block';
-        saveWidgetState();
-      } else {
-        alert('Ungültiges Widget!');
-      }
-    } else {
-      alert('Bitte wählen Sie ein Widget aus.');
-    }
-  });
-
-  toggleRemoveModeButton.addEventListener('click', () => {
-    removeMode = !removeMode;
-    document.querySelectorAll('.widget-remove-btn').forEach(btn => {
-      btn.style.display = removeMode ? 'block' : 'none';
-    });
-    toggleRemoveModeButton.textContent = removeMode ? 'Modus beenden' : 'Widget Entfernen';
-  });
-
-  document.querySelectorAll('.widget-remove-btn').forEach(button => {
-    button.addEventListener('click', function () {
-      const widget = this.closest('.widget');
-      if (widget) {
-        widget.style.display = 'none';
-        saveWidgetState();
-      }
-    });
-  });
-
-  new Sortable(widgetsContainer, {
-    animation: 150,
-    ghostClass: 'sortable-ghost',
-    onEnd: saveWidgetState,
-  });
-
-  loadWidgetState();
+  // -----------------------------
+  //  CHARTS
+  // -----------------------------
 
   // Einnahmen vs. Ausgaben Chart
   const einnahmenAusgabenCtx = document.getElementById('einnahmenAusgabenChart').getContext('2d');
@@ -263,5 +212,142 @@
       }
     }
   });
+
+  // -----------------------------
+  //  WIDGETS: DRAG / RESIZE / LOCAL STORAGE
+  // -----------------------------
+
+  const dashboardContainer = document.getElementById('dashboardContainer');
+  const addWidgetButton = document.getElementById('addWidgetButton');
+  const confirmWidgetButton = document.getElementById('confirmWidgetButton');
+  const toggleRemoveModeButton = document.getElementById('toggleRemoveMode');
+  let removeMode = false;
+
+  /**
+   * Initialisiert alle vorhandenen Widgets:
+   * - draggable
+   * - resizable
+   * - klick auf Remove-Button
+   */
+  function initWidgets() {
+    $('.widget').each(function(){
+      const $widget = $(this);
+      // jQuery UI draggable
+      $widget.draggable({
+        containment: '#dashboardContainer',
+        stop: function() {
+          saveWidgetState();
+        }
+      });
+      // jQuery UI resizable
+      $widget.resizable({
+        stop: function() {
+          saveWidgetState();
+        },
+        // Optional: min-Width/Height
+        minWidth: 200,
+        minHeight: 100
+      });
+    });
+
+    // Entfernen-Buttons
+    document.querySelectorAll('.widget-remove-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        const widget = this.closest('.widget');
+        if (widget) {
+          widget.style.display = 'none';
+          saveWidgetState();
+        }
+      });
+    });
+  }
+
+  /**
+   * Speichert den Zustand aller Widgets im Local Storage:
+   * - data-widget (Typ)
+   * - CSS: top, left, width, height
+   * - display (block oder none)
+   */
+  function saveWidgetState() {
+    const widgetStates = [];
+    $('.widget').each(function(){
+      const $widget = $(this);
+      const widgetType = $widget.data('widget');
+      widgetStates.push({
+        type: widgetType,
+        top: $widget.css('top'),
+        left: $widget.css('left'),
+        width: $widget.css('width'),
+        height: $widget.css('height'),
+        display: $widget.css('display')
+      });
+    });
+    localStorage.setItem('widgetStates', JSON.stringify(widgetStates));
+  }
+
+  /**
+   * Lädt aus dem Local Storage die Position & Größe & Display-Status
+   * und setzt sie auf die jeweiligen Widgets.
+   */
+  function loadWidgetState() {
+    const savedStates = JSON.parse(localStorage.getItem('widgetStates')) || [];
+    savedStates.forEach(state => {
+      const $widget = $(`[data-widget="${state.type}"]`);
+      if ($widget.length > 0) {
+        // wende CSS an
+        $widget.css({
+          'top': state.top,
+          'left': state.left,
+          'width': state.width,
+          'height': state.height,
+          'display': state.display
+        });
+      }
+    });
+  }
+
+  // Widgets zur Laufzeit hinzufügen
+  confirmWidgetButton.addEventListener('click', () => {
+    const selectedWidget = document.getElementById('widgetSelect').value;
+    if (selectedWidget) {
+      // Schaue, ob das Widget existiert
+      const widget = document.querySelector(`[data-widget="${selectedWidget}"]`);
+      if (widget) {
+        // Widget sichtbar machen
+        widget.style.display = 'block';
+        saveWidgetState();
+      } else {
+        alert('Ungültiges Widget!');
+      }
+    } else {
+      alert('Bitte wählen Sie ein Widget aus.');
+    }
+  });
+
+  // Entfernen-Modus umschalten
+  toggleRemoveModeButton.addEventListener('click', () => {
+    removeMode = !removeMode;
+    document.querySelectorAll('.widget-remove-btn').forEach(btn => {
+      btn.style.display = removeMode ? 'block' : 'none';
+    });
+    toggleRemoveModeButton.textContent = removeMode ? 'Modus beenden' : 'Widget Entfernen';
+  });
+
+  // Dropdown für Widget-Auswahl ein-/ausblenden
+  addWidgetButton.addEventListener('click', () => {
+    const dropdown = document.getElementById('widgetDropdown');
+    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // -----------------------------
+  //  BEIM SEITEN-LADEN
+  // -----------------------------
+  $(document).ready(function(){
+    // Widgets initialisieren (drag/resize)
+    initWidgets();
+    // Zustand aus Local Storage laden
+    loadWidgetState();
+  });
 </script>
+
 {% endblock %}
