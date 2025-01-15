@@ -197,6 +197,7 @@ def setup():
         {'name': 'Mitgliederverwaltung', 'checked': 'checked'},
         {'name': 'Finanzen', 'checked': 'checked'},
         {'name': 'Events', 'checked': ''},
+        {'name': 'Dokumente', 'checked': ''},
         {'name': 'Notizen', 'checked': ''}
     ]
 
