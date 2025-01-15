@@ -218,12 +218,31 @@ def load_active_features():
 def register_user():
     form = RegisterForm()
     if form.validate_on_submit():
-        # Verein erstellen
-        new_verein = Verein(name=f"Verein von {form.username.data}", db_path=f"{form.username.data.lower()}_db.sqlite")
+        # 1) Prüfe, ob ein User mit dieser E-Mail schon existiert
+        existing_user = User.query.filter_by(email=form.email.data).first()
+        if existing_user:
+            flash("Es existiert bereits ein Benutzer mit dieser E-Mail-Adresse. "
+                  "Bitte logge dich ein, statt einen neuen Verein zu erstellen.", "danger")
+            return redirect(url_for('login'))
+
+        # 2) Prüfe, ob es schon einen Verein mit dem gleichen Namen gibt
+        #    (z.B. "Verein von <username>")
+        verein_name = f"Verein von {form.username.data}"
+        existing_verein = Verein.query.filter_by(name=verein_name).first()
+        if existing_verein:
+            flash("Ein Verein mit diesem Namen existiert bereits. "
+                  "Bitte wähle einen anderen Benutzernamen.", "danger")
+            return redirect(url_for('register_user'))
+
+        # 3) Verein erstellen (Unique-Constraint bleibt erhalten)
+        new_verein = Verein(
+            name=verein_name,
+            db_path=f"{form.username.data.lower()}_db.sqlite"
+        )
         db.session.add(new_verein)
         db.session.commit()
 
-        # Benutzer erstellen und mit Verein verknüpfen
+        # 4) Benutzer erstellen und mit Verein verknüpfen
         new_user = User(
             username=form.username.data,
             email=form.email.data,
@@ -231,15 +250,15 @@ def register_user():
             verein_id=new_verein.id
         )
 
-        # >>> Hier fügen wir unsere Passwort-Validierung ein <<<
+        # >>> Passwort-Validierung (bereits vorhanden) <<<
         import re
-        # Regulärer Ausdruck, der 8 Zeichen, Groß-/Kleinbuchstaben, Ziffer und Sonderzeichen erfordert.
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])(?=.{8,}).*$'
         if not re.match(pattern, form.password.data):
-            flash("Bitte wähle ein sicheres Passwort: mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahlen und Sonderzeichen.", "danger")
+            flash("Bitte wähle ein sicheres Passwort: mindestens 8 Zeichen, "
+                  "Groß- und Kleinbuchstaben, Zahlen und Sonderzeichen.", "danger")
             return redirect(url_for('register_user'))
 
-        # Wenn alles OK ist, Passwort setzen
+        # Passwort setzen
         new_user.set_password(form.password.data)
 
         try:
@@ -250,10 +269,10 @@ def register_user():
             flash(f"Fehler bei der Registrierung: {str(e)}", "danger")
             return redirect(url_for('register_user'))
 
-        # Datenbank für den Verein initialisieren
+        # 5) Datenbank für den Verein initialisieren
         init_verein_db(new_verein.db_path)
 
-        # Automatisch einloggen und zum Setup weiterleiten
+        # 6) Automatisch einloggen und zum Setup weiterleiten
         login_user(new_user)
         flash("Registrierung erfolgreich! Richte deinen Verein ein.", "success")
         return redirect(url_for('setup'))
