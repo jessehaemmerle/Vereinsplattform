@@ -135,3 +135,23 @@ class DeleteFinanzForm(FlaskForm):
 
 class DeleteEventForm(FlaskForm):
     pass
+
+class MemberRegisterForm(FlaskForm):
+    email = StringField('E-Mail', validators=[DataRequired(), Email()])
+    password = PasswordField('Passwort', validators=[
+        DataRequired(),
+        Length(min=8, message="Das Passwort muss mindestens 8 Zeichen lang sein.")
+    ])
+    confirm_password = PasswordField('Passwort bestätigen', validators=[
+        DataRequired(),
+        EqualTo('password', message="Passwörter müssen übereinstimmen.")
+    ])
+    vorname = StringField('Vorname', validators=[DataRequired()])
+    nachname = StringField('Nachname', validators=[DataRequired()])
+    
+    # Beispiel: Verein auswählen (falls du eine Liste aller Vereine hast)
+    verein_id = SelectField('Verein', coerce=int)  
+    # Falls du keinen Select möchtest, nimm stattdessen:
+    # verein_name = StringField('Vereinsname', validators=[DataRequired()])
+
+    submit = SubmitField('Registrieren')

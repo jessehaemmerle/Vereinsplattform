@@ -2,7 +2,7 @@ import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, DeleteEventForm, DeleteFinanzForm, NotizForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
+from forms import MitgliedForm, EventForm, FinanzForm, DeleteEventForm, DeleteFinanzForm, NotizForm, MemberRegisterForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
@@ -285,6 +285,63 @@ def register_user():
 
     return render_template('register.html', form=form)
 
+@app.route('/register_member', methods=['GET', 'POST'])
+def register_member():
+    form = MemberRegisterForm()
+
+    # 1) Hole dir die Liste vorhandener Vereine, damit das Select-Feld weiß, was es anzeigen soll
+    alle_vereine = Verein.query.all()
+    form.verein_id.choices = [(v.id, v.name) for v in alle_vereine]
+
+    if form.validate_on_submit():
+        # 2) Prüfe, ob die E-Mail schon existiert
+        existing_user = User.query.filter_by(email=form.email.data).first()
+        if existing_user:
+            flash("Unter dieser E-Mail existiert bereits ein Account. Bitte logge dich ein.", "warning")
+            return redirect(url_for('login'))
+        
+        # 3) Passwörter wurden schon via WTForms geprüft (Length, EqualTo, etc.)
+
+        # 4) Erstelle den neuen User in der DB
+        selected_verein = Verein.query.get(form.verein_id.data)
+        if not selected_verein:
+            flash("Fehler: Ausgewählter Verein existiert nicht.", "danger")
+            return redirect(url_for('register_member'))
+
+        # Rolle: mitglied
+        new_user = User(
+            email=form.email.data,
+            role='mitglied',
+            verein_id=selected_verein.id
+        )
+        # Passwort-Hash setzen
+        new_user.set_password(form.password.data)
+        db.session.add(new_user)
+        db.session.flush()  # Damit new_user.id in der DB bekannt ist
+
+        # 5) Optional: Damit wir gleichzeitig in der `Mitglied`-Tabelle einen Eintrag anlegen:
+        neues_mitglied = Mitglied(
+            vorname=form.vorname.data,
+            nachname=form.nachname.data,
+            email=form.email.data,
+            eintrittsdatum=date.today(),
+            status='aktiv',
+            verein_id=selected_verein.id
+        )
+        db.session.add(neues_mitglied)
+
+        # 6) Committen
+        try:
+            db.session.commit()
+            flash("Registrierung erfolgreich! Du kannst dich jetzt einloggen.", "success")
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Fehler bei der Registrierung: {str(e)}", "danger")
+            return redirect(url_for('register_member'))
+
+    # GET-Request oder Formular ungültig
+    return render_template('register_member.html', form=form)
 
 
 @app.route('/register_verein', methods=['GET', 'POST'])
