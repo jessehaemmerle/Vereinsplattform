@@ -102,7 +102,6 @@ def validate_member():
             return render_template('validate_member.html', form=form)
 
         # Prüfen, ob der Verein mit dem Mitglied übereinstimmt
-        # Annahme: Die Zuordnung erfolgt über ein Feld wie `mitglied.verein_id`
         zugeordnet_verein = Verein.query.filter_by(id=mitglied.verein_id, name=verein).first()
         if not zugeordnet_verein:
             flash('E-Mail oder Verein stimmt nicht überein.', 'danger')
@@ -116,7 +115,7 @@ def validate_member():
 
 
 
-# Neue Route: Passwort setzen
+
 @app.route('/set_password/<email>', methods=['GET', 'POST'])
 def set_password(email):
     mitglied = Mitglied.query.filter_by(email=email).first()
@@ -130,7 +129,7 @@ def set_password(email):
         # Benutzer in der User-Tabelle erstellen
         new_user = User(
             email=mitglied.email,
-            role='mitglied'  # Standardrolle
+            role='mitglied'  # Standardrolle für Mitglieder
         )
         new_user.password = generate_password_hash(password)
         db.session.add(new_user)
@@ -141,16 +140,22 @@ def set_password(email):
 
     return render_template('set_password.html', email=email)
 
-# Erweiterung des Dashboards
-@app.route('/dashboard')
-def dashboard():
-    user = User.query.filter_by(id=current_user.id).first()
+@app.route('/user_dashboard')
+@login_required
+def user_dashboard():
+    # Den aktuell eingeloggten User abrufen
+    user = current_user
+
+    # Herausfinden, mit welchem Mitglied die E-Mail übereinstimmt
     mitglied = Mitglied.query.filter_by(email=user.email).first()
     if not mitglied:
         flash('Keine Mitgliedsdaten gefunden.', 'danger')
         return redirect(url_for('login'))
 
-    return render_template('dashboard.html', mitglied=mitglied)
+    # Hier könntest du für das Template weitere Daten laden,
+    # z.B. anstehende Veranstaltungen, offene Zahlungen etc.
+
+    return render_template('user_templates/user_dashboard.html', user=user, mitglied=mitglied)
 
 # ----------------------------------
 # Nutzersetup für Web-App
@@ -322,9 +327,9 @@ def login():
     if current_user.is_authenticated:
         # Überprüfen, ob der Nutzer ein Admin ist
         if current_user.role == 'admin':
-            return redirect(url_for('index'))
+            return redirect(url_for('index'))  # Admin-Dashboard
         else:
-            return redirect(url_for('dashboard'))  # Nutzer-Dashboard
+            return redirect(url_for('user_dashboard'))  # Nutzer-Dashboard
 
     form = LoginForm()
     if form.validate_on_submit():
@@ -332,16 +337,18 @@ def login():
         if user and user.check_password(form.password.data):
             login_user(user)
             flash("Erfolgreich eingeloggt.")
+
             # Weiterleitung basierend auf der Rolle
             if user.role == 'admin':
                 return redirect(url_for('index'))  # Admin-Dashboard
             else:
-                return redirect(url_for('dashboard'))  # Nutzer-Dashboard
+                return redirect(url_for('user_dashboard'))  # Nutzer-Dashboard
         else:
             flash("Falsche E-Mail oder falsches Passwort.")
             return redirect(url_for('login'))
 
     return render_template('login.html', form=form)
+
 
 
 

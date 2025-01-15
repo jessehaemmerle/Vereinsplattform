@@ -1,0 +1,19 @@
+<!-- templates/user_templates/user_dashboard.html -->
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Mitglieder-Dashboard</title>
+    <!-- Dein CSS / Bootstrap etc. -->
+</head>
+<body>
+    <h1>Willkommen, {{ mitglied.vorname }} {{ mitglied.nachname }}!</h1>
+    <p>Du bist jetzt in deinem Mitglieder-Dashboard.</p>
+    
+    <!-- Beispiel: Offene Zahlungen, anstehende Events usw. -->
+    <p>Email: {{ mitglied.email }}</p>
+    <p>Status: {{ mitglied.status }}</p>
+
+    <p><a href="{{ url_for('logout') }}">Logout</a></p>
+</body>
+</html>
