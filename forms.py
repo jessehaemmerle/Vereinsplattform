@@ -157,7 +157,7 @@ class MemberRegisterForm(FlaskForm):
     submit = SubmitField('Registrieren')
 
 class MemberEmailForm(FlaskForm):
-    email = StringField('E-Mail', validators=[DataRequired(), Email()])
+    email = EmailField('E-Mail', validators=[DataRequired(), Email()])
     submit_search = SubmitField('Vereine suchen')
 
 class MemberSelectVereinForm(FlaskForm):
