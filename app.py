@@ -368,6 +368,92 @@ def register_verein():  # Neue Route für Vereinsregistrierung
 
     return render_template('register.html', form=form)
 
+@app.route('/register_member_verein', methods=['GET', 'POST'])
+def register_member_verein():
+    step = request.args.get('step', 'email')  # Standardmäßig auf "email"
+
+    # 1) Schritt: Email-Eingabe
+    if step == 'email':
+        email_form = MemberEmailForm()
+        if email_form.validate_on_submit() and email_form.submit_search.data:
+            # a) E-Mail aus dem Formular ziehen
+            email = email_form.email.data.strip().lower()
+
+            # b) Suche in der Mitglieds-Tabelle:
+            #    Hole alle Mitgliedschaften zu dieser E-Mail, die NICHT Admin sind
+            #    => Du könntest z. B. am Feld "role" oder "is_admin" unterscheiden
+            #    Falls du "User" als Admin-Info nutzt, schließe die "verein_id" aus,
+            #    in denen der Benutzer Admin ist. Hier ein Beispiel:
+
+            # --> Vereine ermitteln, in denen er als Mitglied eingetragen ist:
+            mitgliedschaften = Mitglied.query.filter_by(email=email).all()
+
+            # Falls es ein Feld in Mitglied gibt (z. B. `is_admin`), filtern wir:
+            # mitgliedschaften = Mitglied.query.filter_by(email=email, is_admin=False).all()
+
+            if not mitgliedschaften:
+                flash("Keine Mitgliedschaft für diese E-Mail gefunden (oder du bist in allen Vereinen Admin).", "warning")
+                return redirect(url_for('register_member_verein', step='email'))
+
+            # c) Speichere die Mitgliedschafts-IDs (oder verein_ids) temporär in der Session,
+            #    damit wir sie im nächsten Schritt anzeigen können.
+            session['tmp_email'] = email
+            session['tmp_verein_ids'] = [m.verein_id for m in mitgliedschaften]
+
+            # d) Weiterleitung zum "select"-Schritt
+            return redirect(url_for('register_member_verein', step='select'))
+
+        # GET oder ungültiges Formular => HTML rendern
+        return render_template('register_member_verein.html', step='email', email_form=email_form)
+
+    # 2) Schritt: Verein auswählen + Passwort setzen
+    elif step == 'select':
+        # a) Daten aus der Session holen
+        email = session.get('tmp_email')
+        verein_ids = session.get('tmp_verein_ids', [])
+        if not email or not verein_ids:
+            flash("Bitte zuerst E-Mail eingeben, um deine Mitgliedschaften zu finden.", "warning")
+            return redirect(url_for('register_member_verein', step='email'))
+
+        select_form = MemberSelectVereinForm()
+
+        # b) Dropdown befüllen: Nur die Verein-IDs, die in 'verein_ids' stecken
+        moegliche_vereine = Verein.query.filter(Verein.id.in_(verein_ids)).all()
+        select_form.verein_id.choices = [(v.id, v.name) for v in moegliche_vereine]
+
+        if select_form.validate_on_submit() and select_form.submit_register.data:
+            ausgewaehlter_verein_id = select_form.verein_id.data
+            password = select_form.password.data
+
+            # c) Prüfe, ob User schon existiert
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user:
+                flash("Es existiert bereits ein Nutzer mit dieser E-Mail. Bitte einloggen.", "warning")
+                return redirect(url_for('login'))
+
+            # d) Neuen User anlegen, Rolle = 'mitglied'
+            new_user = User(
+                email=email,
+                role='mitglied',
+                verein_id=ausgewaehlter_verein_id
+            )
+            new_user.password = generate_password_hash(password)
+            db.session.add(new_user)
+            db.session.commit()
+
+            flash("Registrierung erfolgreich! Du bist nun Mitglied und kannst dich einloggen.", "success")
+
+            # e) Automatisches Login und Weiterleitung aufs Mitglieder-Dashboard:
+            login_user(new_user)
+            return redirect(url_for('user_dashboard'))
+
+        # GET oder ungültiges Formular => HTML rendern
+        return render_template('register_member_verein.html', step='select', select_form=select_form)
+
+    # Falls ein unbekannter step:
+    return redirect(url_for('register_member_verein', step='email'))
+
+
 # ----------------------------------
 # User Loader für Flask-Login
 # ----------------------------------

@@ -155,3 +155,19 @@ class MemberRegisterForm(FlaskForm):
     # verein_name = StringField('Vereinsname', validators=[DataRequired()])
 
     submit = SubmitField('Registrieren')
+
+class MemberEmailForm(FlaskForm):
+    email = StringField('E-Mail', validators=[DataRequired(), Email()])
+    submit_search = SubmitField('Vereine suchen')
+
+class MemberSelectVereinForm(FlaskForm):
+    verein_id = SelectField('Bitte Verein auswählen', coerce=int)
+    password = PasswordField('Passwort', validators=[
+        DataRequired(),
+        Length(min=8, message="Das Passwort muss mindestens 8 Zeichen lang sein.")
+    ])
+    password_confirm = PasswordField('Passwort bestätigen', validators=[
+        DataRequired(),
+        EqualTo('password', message="Passwörter müssen übereinstimmen.")
+    ])
+    submit_register = SubmitField('Registrieren')
