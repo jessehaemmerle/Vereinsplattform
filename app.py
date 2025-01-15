@@ -230,7 +230,18 @@ def register_user():
             role='admin',
             verein_id=new_verein.id
         )
+
+        # >>> Hier fügen wir unsere Passwort-Validierung ein <<<
+        import re
+        # Regulärer Ausdruck, der 8 Zeichen, Groß-/Kleinbuchstaben, Ziffer und Sonderzeichen erfordert.
+        pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])(?=.{8,}).*$'
+        if not re.match(pattern, form.password.data):
+            flash("Bitte wähle ein sicheres Passwort: mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahlen und Sonderzeichen.", "danger")
+            return redirect(url_for('register_user'))
+
+        # Wenn alles OK ist, Passwort setzen
         new_user.set_password(form.password.data)
+
         try:
             db.session.add(new_user)
             db.session.commit()
