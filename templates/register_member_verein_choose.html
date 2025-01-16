@@ -7,6 +7,7 @@
 <body>
   <h1>Mitglied-Registrierung</h1>
   <form method="POST" action="{{ url_for('register_member_verein', step='choose') }}">
+    {{ csrf_token() }}
     <label for="email">E-Mail:</label>
     <input type="email" name="email" id="email" required>
 
