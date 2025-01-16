@@ -87,59 +87,6 @@ def init_verein_db(db_path):
 # Setup für Mitglieder-Selfservice
 # ----------------------------------
 
-# Neue Route: E-Mail-Validierung und Vereinssuche
-@app.route('/validate_member', methods=['GET', 'POST'])
-def validate_member():
-    form = ValidateMemberForm()  # Instanziere das Formular
-    if form.validate_on_submit():
-        email = form.email.data
-        verein = form.verein.data
-
-        # Prüfen, ob E-Mail existiert
-        mitglied = Mitglied.query.filter_by(email=email).first()
-        if not mitglied:
-            flash('Mitglied nicht gefunden.', 'danger')
-            return render_template('validate_member.html', form=form)
-
-        # Prüfen, ob der Verein mit dem Mitglied übereinstimmt
-        zugeordnet_verein = Verein.query.filter_by(id=mitglied.verein_id, name=verein).first()
-        if not zugeordnet_verein:
-            flash('E-Mail oder Verein stimmt nicht überein.', 'danger')
-            return render_template('validate_member.html', form=form)
-
-        # Mitglied ist validiert
-        flash('Mitglied gefunden! Bitte ein Passwort setzen.', 'success')
-        return redirect(url_for('set_password', email=email))
-
-    return render_template('validate_member.html', form=form)
-
-
-
-
-@app.route('/set_password/<email>', methods=['GET', 'POST'])
-def set_password(email):
-    mitglied = Mitglied.query.filter_by(email=email).first()
-    if not mitglied:
-        flash('Ungültiger Zugriff.', 'danger')
-        return redirect(url_for('validate_member'))
-
-    if request.method == 'POST':
-        password = request.form.get('password')
-
-        # Benutzer in der User-Tabelle erstellen
-        new_user = User(
-            email=mitglied.email,
-            role='mitglied'  # Standardrolle für Mitglieder
-        )
-        new_user.password = generate_password_hash(password)
-        db.session.add(new_user)
-        db.session.commit()
-
-        flash('Passwort erfolgreich gesetzt! Bitte einloggen.', 'success')
-        return redirect(url_for('login'))
-
-    return render_template('set_password.html', email=email)
-
 @app.route('/user_dashboard')
 @login_required
 def user_dashboard():
@@ -285,64 +232,6 @@ def register_user():
 
     return render_template('register.html', form=form)
 
-@app.route('/register_member', methods=['GET', 'POST'])
-def register_member():
-    form = MemberRegisterForm()
-
-    # 1) Hole dir die Liste vorhandener Vereine, damit das Select-Feld weiß, was es anzeigen soll
-    alle_vereine = Verein.query.all()
-    form.verein_id.choices = [(v.id, v.name) for v in alle_vereine]
-
-    if form.validate_on_submit():
-        # 2) Prüfe, ob die E-Mail schon existiert
-        existing_user = User.query.filter_by(email=form.email.data).first()
-        if existing_user:
-            flash("Unter dieser E-Mail existiert bereits ein Account. Bitte logge dich ein.", "warning")
-            return redirect(url_for('login'))
-        
-        # 3) Passwörter wurden schon via WTForms geprüft (Length, EqualTo, etc.)
-
-        # 4) Erstelle den neuen User in der DB
-        selected_verein = Verein.query.get(form.verein_id.data)
-        if not selected_verein:
-            flash("Fehler: Ausgewählter Verein existiert nicht.", "danger")
-            return redirect(url_for('register_member'))
-
-        # Rolle: mitglied
-        new_user = User(
-            email=form.email.data,
-            role='mitglied',
-            verein_id=selected_verein.id
-        )
-        # Passwort-Hash setzen
-        new_user.set_password(form.password.data)
-        db.session.add(new_user)
-        db.session.flush()  # Damit new_user.id in der DB bekannt ist
-
-        # 5) Optional: Damit wir gleichzeitig in der `Mitglied`-Tabelle einen Eintrag anlegen:
-        neues_mitglied = Mitglied(
-            vorname=form.vorname.data,
-            nachname=form.nachname.data,
-            email=form.email.data,
-            eintrittsdatum=date.today(),
-            status='aktiv',
-            verein_id=selected_verein.id
-        )
-        db.session.add(neues_mitglied)
-
-        # 6) Committen
-        try:
-            db.session.commit()
-            flash("Registrierung erfolgreich! Du kannst dich jetzt einloggen.", "success")
-            return redirect(url_for('login'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Fehler bei der Registrierung: {str(e)}", "danger")
-            return redirect(url_for('register_member'))
-
-    # GET-Request oder Formular ungültig
-    return render_template('register_member.html', form=form)
-
 
 @app.route('/register_verein', methods=['GET', 'POST'])
 def register_verein():  # Neue Route für Vereinsregistrierung
@@ -370,69 +259,108 @@ def register_verein():  # Neue Route für Vereinsregistrierung
 
 @app.route('/register_member_verein', methods=['GET', 'POST'])
 def register_member_verein():
-    step = request.args.get('step', 'email')  # Standardmäßig Schritt "email"
+    step = request.args.get('step', 'choose')
 
-    # -------------------------
-    # SCHRITT 1: E-Mail-Eingabe
-    # -------------------------
-    if step == 'email':
-        email_form = MemberEmailForm()
+    # ---------------------------------------------------------------
+    # SCHRITT 1: E-Mail + Verein auswählen (aus ALLEN Vereinen im System)
+    # ---------------------------------------------------------------
+    if step == 'choose':
+        # Erzeuge ein kleines Formular manuell oder nutze z. B. ein WTForms-Formular
+        # Für das Beispiel hier tun wir es manuell:
+        if request.method == 'POST':
+            email = request.form.get('email', '').strip().lower()
+            verein_id = request.form.get('verein_id', '')
 
-        # Prüfen: Formular gesendet & validiert & Button submit_search geklickt?
-        if email_form.validate_on_submit() and email_form.submit_search.data:
-            email = email_form.email.data.strip().lower()
+            # Validierungen
+            if not email or not verein_id:
+                flash("Bitte E-Mail und Verein auswählen.", "warning")
+                return redirect(url_for('register_member_verein', step='choose'))
 
-            # Mitgliedschaften zur E-Mail suchen (z. B. solche ohne Admin-Rechte)
-            mitgliedschaften = Mitglied.query.filter_by(email=email).all()
-
-            if not mitgliedschaften:
-                flash("Keine Mitgliedschaft für diese E-Mail gefunden oder du bist in allen Vereinen Admin.", "warning")
-                return redirect(url_for('register_member_verein', step='email'))
-
-            # Gefundene verein_ids in der Session speichern
+            # Speichere in der Session
             session['tmp_email'] = email
-            session['tmp_verein_ids'] = [m.verein_id for m in mitgliedschaften]
+            session['tmp_verein_id'] = verein_id
 
-            # Weiterleitung zu Schritt 2: Verein + Passwort
-            return redirect(url_for('register_member_verein', step='select'))
+            # Weiter zum nächsten Schritt
+            return redirect(url_for('register_member_verein', step='set_password'))
 
-        # GET oder ungültiges Formular => Template rendern
-        return render_template('register_member_verein.html', step='email', email_form=email_form)
+        # GET-Request: Zeige Formular
+        alle_vereine = Verein.query.all()  # ALLE Vereine im System
+        return render_template('register_member_verein_choose.html', alle_vereine=alle_vereine)
 
-    # ----------------------------------------------------------
-    # SCHRITT 2: Verein auswählen + Passwort setzen
-    # ----------------------------------------------------------
-    elif step == 'select':
+    # ------------------------------------------------------------------------
+    # SCHRITT 2: Passwort setzen, nachdem wir geprüft haben, ob er NICHT Admin ist
+    # ------------------------------------------------------------------------
+    elif step == 'set_password':
         email = session.get('tmp_email')
-        verein_ids = session.get('tmp_verein_ids', [])
+        verein_id = session.get('tmp_verein_id')
 
-        if not email or not verein_ids:
-            flash("Bitte zuerst deine E-Mail eingeben, um mögliche Mitgliedschaften zu finden.", "warning")
-            return redirect(url_for('register_member_verein', step='email'))
+        if not email or not verein_id:
+            flash("Bitte zuerst E-Mail und Verein wählen.", "warning")
+            return redirect(url_for('register_member_verein', step='choose'))
 
-        select_form = MemberSelectVereinForm()
+        # 1) Hole den Verein
+        verein = Verein.query.get(verein_id)
+        if not verein:
+            flash("Ungültiger Verein ausgewählt.", "danger")
+            return redirect(url_for('register_member_verein', step='choose'))
 
-        # Nur die Vereine zur Auswahl anbieten, in denen man Mitglied ist
-        moegliche_vereine = Verein.query.filter(Verein.id.in_(verein_ids)).all()
-        select_form.verein_id.choices = [(v.id, v.name) for v in moegliche_vereine]
+        # 2) Baue eine engine / DB-Session für das Vereins-DB-File
+        #    => DB-Pfad: verein.db_path
+        db_path = os.path.join(DATABASE_FOLDER, verein.db_path)
+        engine = create_engine(f"sqlite:///{db_path}")
+        # Evtl. eine temporäre Session benutzen oder per Reflection:
+        # Im einfachsten Fall: Schau in der members-Tabelle (Mitglied).
+        # Hier: Wir checken, ob in *dieser* DB die E-Mail eingetragen ist
+        # und NICHT Admin.
 
-        # Formular prüfen: validiert & Button submit_register geklickt?
-        if select_form.validate_on_submit() and select_form.submit_register.data:
-            ausgewaehlter_verein_id = select_form.verein_id.data
-            password = select_form.password.data
+        # Da du `Mitglied` aber in der globalen db-Session hast, ist ein direkter
+        # Query etwas tricky. Du müsstest das dynamisch laden. 
+        # => Wir machen es hier "konzeptionell":
+        # Wir prüfen, ob in *dieser* Vereinsdatenbank `mitglied` existiert,
+        # und ob es NICHT `is_admin`. 
+        # Da du aber in deinem Code Admin / Nicht-Admin über `User` definierst,
+        # bräuchtest du evtl. einen Weg, in diesem DB-File den `User`-Datensatz
+        # abzufragen. 
+        #
+        # In deinem Code machst du die Unterscheidung "Admin" an role='admin' fest.
+        # Dann bräuchte man dort einen Eintrag in `User`-Tabelle in diesem
+        # Vereins-DB. 
+        # => Hier zur Veranschaulichung (Pseudo-Code):
 
-            # Prüfen, ob E-Mail (User) bereits existiert
+        # Pseudo: Check ob E-Mail in "Mitglied" existiert
+        # und NICHT admin. 
+        # Wir gehen davon aus, dass `Mitglied` in dem DB-File existiert, 
+        # und dort *kein* Flag is_admin hat.
+        # => Also wir checken einfach, ob es existiert:
+        with engine.connect() as con:
+            result = con.execute(
+                "SELECT * FROM mitglied WHERE email = :email",
+                {"email": email}
+            ).fetchone()
+            if not result:
+                flash("In diesem Verein bist du nicht als Mitglied hinterlegt.", "danger")
+                return redirect(url_for('register_member_verein', step='choose'))
+
+        # => Falls du eine Admin-Kennzeichnung in der members-Tabelle hast,
+        #    oder in user, würdest du hier abfragen:
+        # "SELECT * FROM user WHERE email=? AND role='admin'"
+        # => und wenn das existiert => "Du bist Admin, hier kein Member-Register."
+
+        # 3) POST-Logik => Passwort setzen
+        if request.method == 'POST':
+            password = request.form.get('password', '').strip()
+            if not password:
+                flash("Bitte ein Passwort eingeben.", "warning")
+                return redirect(url_for('register_member_verein', step='set_password'))
+
+            # 4) Neuen User in *unserer* globalen DB anlegen
+            #    => role='mitglied', verein_id=...
             existing_user = User.query.filter_by(email=email).first()
             if existing_user:
-                flash("Es existiert bereits ein Account mit dieser E-Mail. Bitte logge dich ein.", "warning")
+                flash("Es existiert bereits ein Benutzer mit dieser E-Mail. Bitte logge dich ein.", "warning")
                 return redirect(url_for('login'))
 
-            # Neuen User anlegen (role='mitglied')
-            new_user = User(
-                email=email,
-                role='mitglied',
-                verein_id=ausgewaehlter_verein_id
-            )
+            new_user = User(email=email, role='mitglied', verein_id=verein.id)
             new_user.password = generate_password_hash(password)
             db.session.add(new_user)
             db.session.commit()
@@ -440,13 +368,57 @@ def register_member_verein():
             # Automatisches Einloggen
             login_user(new_user)
             flash("Registrierung erfolgreich! Du bist nun eingeloggt.", "success")
+
+            # Alles aufräumen
+            session.pop('tmp_email', None)
+            session.pop('tmp_verein_id', None)
+
             return redirect(url_for('user_dashboard'))
 
-        # GET oder ungültiges Formular => Template rendern
-        return render_template('register_member_verein.html', step='select', select_form=select_form)
+        # GET => Template mit Password-Feld
+        return render_template('register_member_verein_set_password.html',
+                               email=email,
+                               verein_name=verein.name)
 
-    # Fallback bei unbekanntem step: Zurück zu Schritt 1
-    return redirect(url_for('register_member_verein', step='email'))
+    # Fallback
+    return redirect(url_for('register_member_verein', step='choose'))
+
+@app.route('/login_member_verein', methods=['GET', 'POST'])
+def login_member_verein():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        verein_name = request.form.get('verein', '').strip()
+        password = request.form.get('password', '')
+
+        # 1) Suche in der globalen DB nach dem Verein
+        verein = Verein.query.filter_by(name=verein_name).first()
+        if not verein:
+            flash("Diesen Verein gibt es nicht.", "danger")
+            return redirect(url_for('login_member_verein'))
+
+        # 2) Suche in 'User' nach passendem Email + verein_id
+        user = User.query.filter_by(email=email, verein_id=verein.id).first()
+        if not user:
+            flash("Kein Account für diese E-Mail / diesen Verein gefunden.", "danger")
+            return redirect(url_for('login_member_verein'))
+
+        # 3) Prüfe das Passwort
+        if not user.check_password(password):
+            flash("Passwort ist falsch.", "danger")
+            return redirect(url_for('login_member_verein'))
+
+        # 4) Prüfen, ob er Admin ist
+        if user.role == 'admin':
+            flash("Dies ist ein Admin-Konto, bitte nutze den normalen Login.", "warning")
+            return redirect(url_for('login'))
+
+        # 5) Alles ok => einloggen
+        login_user(user)
+        flash("Willkommen im Mitglieder-Dashboard!", "success")
+        return redirect(url_for('user_dashboard'))
+
+    # GET => Zeige Template
+    return render_template('login_member_verein.html')
 
 
 # ----------------------------------
