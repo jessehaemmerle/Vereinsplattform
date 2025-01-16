@@ -462,32 +462,35 @@ def load_user(user_id):
 # ----------------------------------
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # 1) Falls der User bereits eingeloggt ist, leite ihn direkt
+    #    zum passenden Dashboard weiter (Admin oder Mitglied).
     if current_user.is_authenticated:
-        # Überprüfen, ob der Nutzer ein Admin ist
         if current_user.role == 'admin':
-            return redirect(url_for('index'))  # Admin-Dashboard
+            return redirect(url_for('index'))            # Admin-Dashboard
         else:
-            return redirect(url_for('user_dashboard'))  # Nutzer-Dashboard
+            return redirect(url_for('user_dashboard'))  # Mitglieder-Dashboard
 
+    # 2) User ist noch nicht eingeloggt: Zeige das Formular
     form = LoginForm()
     if form.validate_on_submit():
+        # E-Mail suchen und Passwort prüfen
         user = User.query.filter_by(email=form.email.data).first()
         if user and user.check_password(form.password.data):
+            # Login-Sitzung starten
             login_user(user)
-            flash("Erfolgreich eingeloggt.")
+            flash("Erfolgreich eingeloggt.", "success")
 
-            # Weiterleitung basierend auf der Rolle
+            # 3) Nach erfolgreichem Login unterscheiden wir die Rolle
             if user.role == 'admin':
-                return redirect(url_for('index'))  # Admin-Dashboard
+                return redirect(url_for('index'))            # Admin-Dashboard
             else:
-                return redirect(url_for('user_dashboard'))  # Nutzer-Dashboard
+                return redirect(url_for('user_dashboard'))  # Mitglieder-Dashboard
         else:
-            flash("Falsche E-Mail oder falsches Passwort.")
+            flash("Falsche E-Mail oder falsches Passwort.", "danger")
             return redirect(url_for('login'))
 
+    # 4) GET oder ungültiges Formular => Template rendern
     return render_template('login.html', form=form)
-
-
 
 
 # ----------------------------------
