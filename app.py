@@ -2,7 +2,7 @@ import os
 from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g, session
 from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, DeleteEventForm, DeleteFinanzForm, NotizForm, MemberRegisterForm, MemberEmailForm, MemberSelectVereinForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
+from forms import MitgliedForm, EventForm, FinanzForm, DeleteEventForm, DeleteFinanzForm, NotizForm, RegisterMemberVereinChooseForm, MemberRegisterForm, MemberEmailForm, MemberSelectVereinForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
