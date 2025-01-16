@@ -265,27 +265,35 @@ def register_member_verein():
     # SCHRITT 1: E-Mail + Verein auswählen (aus ALLEN Vereinen im System)
     # ---------------------------------------------------------------
     if step == 'choose':
-        # Erzeuge ein kleines Formular manuell oder nutze z. B. ein WTForms-Formular
-        # Für das Beispiel hier tun wir es manuell:
-        if request.method == 'POST':
-            email = request.form.get('email', '').strip().lower()
-            verein_id = request.form.get('verein_id', '')
+        # Wir verwenden ein WTForms-Formular:
+        form = RegisterMemberVereinChooseForm()
 
-            # Validierungen
+        # Liste aller Vereine laden, damit wir sie dem SelectField zuweisen können
+        alle_vereine = Verein.query.all()
+        form.verein_id.choices = [(v.id, v.name) for v in alle_vereine]
+
+        # Falls das Formular per POST kommt und valide ist:
+        if form.validate_on_submit():
+            email = form.email.data.strip().lower()
+            verein_id = form.verein_id.data
+
+            # Validierung, ob wirklich was ausgewählt wurde
             if not email or not verein_id:
                 flash("Bitte E-Mail und Verein auswählen.", "warning")
                 return redirect(url_for('register_member_verein', step='choose'))
 
-            # Speichere in der Session
+            # In Session zwischenspeichern
             session['tmp_email'] = email
             session['tmp_verein_id'] = verein_id
 
             # Weiter zum nächsten Schritt
             return redirect(url_for('register_member_verein', step='set_password'))
 
-        # GET-Request: Zeige Formular
-        alle_vereine = Verein.query.all()  # ALLE Vereine im System
-        return render_template('register_member_verein_choose.html', alle_vereine=alle_vereine)
+        # GET-Request oder ungültiges Formular => Template anzeigen
+        return render_template(
+            'register_member_verein_choose.html',
+            form=form
+        )
 
     # ------------------------------------------------------------------------
     # SCHRITT 2: Passwort setzen, nachdem wir geprüft haben, ob er NICHT Admin ist
@@ -304,34 +312,12 @@ def register_member_verein():
             flash("Ungültiger Verein ausgewählt.", "danger")
             return redirect(url_for('register_member_verein', step='choose'))
 
-        # 2) Baue eine engine / DB-Session für das Vereins-DB-File
-        #    => DB-Pfad: verein.db_path
+        # 2) Vereins-DB öffnen (rein konzeptionell)
         db_path = os.path.join(DATABASE_FOLDER, verein.db_path)
         engine = create_engine(f"sqlite:///{db_path}")
-        # Evtl. eine temporäre Session benutzen oder per Reflection:
-        # Im einfachsten Fall: Schau in der members-Tabelle (Mitglied).
-        # Hier: Wir checken, ob in *dieser* DB die E-Mail eingetragen ist
-        # und NICHT Admin.
 
-        # Da du `Mitglied` aber in der globalen db-Session hast, ist ein direkter
-        # Query etwas tricky. Du müsstest das dynamisch laden. 
-        # => Wir machen es hier "konzeptionell":
-        # Wir prüfen, ob in *dieser* Vereinsdatenbank `mitglied` existiert,
-        # und ob es NICHT `is_admin`. 
-        # Da du aber in deinem Code Admin / Nicht-Admin über `User` definierst,
-        # bräuchtest du evtl. einen Weg, in diesem DB-File den `User`-Datensatz
-        # abzufragen. 
-        #
-        # In deinem Code machst du die Unterscheidung "Admin" an role='admin' fest.
-        # Dann bräuchte man dort einen Eintrag in `User`-Tabelle in diesem
-        # Vereins-DB. 
-        # => Hier zur Veranschaulichung (Pseudo-Code):
-
-        # Pseudo: Check ob E-Mail in "Mitglied" existiert
-        # und NICHT admin. 
-        # Wir gehen davon aus, dass `Mitglied` in dem DB-File existiert, 
-        # und dort *kein* Flag is_admin hat.
-        # => Also wir checken einfach, ob es existiert:
+        # Prüfen, ob im mitglied-Table für diesen Verein ein Eintrag existiert
+        # (E-Mail => Kein Admin).
         with engine.connect() as con:
             result = con.execute(
                 "SELECT * FROM mitglied WHERE email = :email",
@@ -341,47 +327,45 @@ def register_member_verein():
                 flash("In diesem Verein bist du nicht als Mitglied hinterlegt.", "danger")
                 return redirect(url_for('register_member_verein', step='choose'))
 
-        # => Falls du eine Admin-Kennzeichnung in der members-Tabelle hast,
-        #    oder in user, würdest du hier abfragen:
-        # "SELECT * FROM user WHERE email=? AND role='admin'"
-        # => und wenn das existiert => "Du bist Admin, hier kein Member-Register."
-
-        # 3) POST-Logik => Passwort setzen
+        # 3) Passwort-POST-Logik
         if request.method == 'POST':
             password = request.form.get('password', '').strip()
             if not password:
                 flash("Bitte ein Passwort eingeben.", "warning")
                 return redirect(url_for('register_member_verein', step='set_password'))
 
-            # 4) Neuen User in *unserer* globalen DB anlegen
-            #    => role='mitglied', verein_id=...
+            # Prüfen, ob User in globaler DB schon existiert
             existing_user = User.query.filter_by(email=email).first()
             if existing_user:
                 flash("Es existiert bereits ein Benutzer mit dieser E-Mail. Bitte logge dich ein.", "warning")
                 return redirect(url_for('login'))
 
+            # Neuen User mit role='mitglied' in globaler DB anlegen
             new_user = User(email=email, role='mitglied', verein_id=verein.id)
             new_user.password = generate_password_hash(password)
             db.session.add(new_user)
             db.session.commit()
 
-            # Automatisches Einloggen
+            # Automatisches Login
             login_user(new_user)
             flash("Registrierung erfolgreich! Du bist nun eingeloggt.", "success")
 
-            # Alles aufräumen
+            # Session aufräumen
             session.pop('tmp_email', None)
             session.pop('tmp_verein_id', None)
 
             return redirect(url_for('user_dashboard'))
 
-        # GET => Template mit Password-Feld
-        return render_template('register_member_verein_set_password.html',
-                               email=email,
-                               verein_name=verein.name)
+        # GET => Template mit Password-Feld anzeigen
+        return render_template(
+            'register_member_verein_set_password.html',
+            email=email,
+            verein_name=verein.name
+        )
 
     # Fallback
     return redirect(url_for('register_member_verein', step='choose'))
+
 
 @app.route('/login_member_verein', methods=['GET', 'POST'])
 def login_member_verein():

@@ -171,3 +171,8 @@ class MemberSelectVereinForm(FlaskForm):
         EqualTo('password', message="Passwörter müssen übereinstimmen.")
     ])
     submit_register = SubmitField('Registrieren')
+
+class RegisterMemberVereinChooseForm(FlaskForm):
+    email = EmailField('E-Mail', validators=[DataRequired(), Email()])
+    verein_id = SelectField('Verein', coerce=int, validators=[DataRequired()])
+    submit = SubmitField('Weiter')
