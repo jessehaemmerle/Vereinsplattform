@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Mitglieder-Login</title>
+</head>
+<body>
+  <h1>Mitglieder-Login für einen Verein</h1>
+  <form method="POST" action="{{ url_for('login_member_verein') }}">
+    <label for="email">E-Mail:</label>
+    <input type="email" name="email" id="email" required>
+
+    <label for="verein">Verein:</label>
+    <input type="text" name="verein" id="verein" required>
+
+    <label for="password">Passwort:</label>
+    <input type="password" name="password" id="password" required>
+
+    <button type="submit">Einloggen</button>
+  </form>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul>
+        {% for category, msg in messages %}
+          <li class="text-{{ category }}">{{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+</body>
+</html>
