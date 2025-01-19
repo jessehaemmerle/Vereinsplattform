@@ -733,7 +733,8 @@ def mitglieder_import():
         try:
             # Verarbeite Dateiinhalt als CSV
             try:
-                stream = io.StringIO(file.stream.read().decode("utf-8"), newline=None)
+                stream = io.StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
+
             except UnicodeDecodeError:
                 flash('Die CSV-Datei muss im UTF-8-Format vorliegen.', 'danger')
                 return redirect(url_for('mitglieder_import'))
