@@ -517,25 +517,32 @@ def index():
 @app.route('/mitglieder')
 @login_required
 def mitglieder_liste():
-
-    # Unser neues Formular instanzieren
     form = ToggleBeitragForm()
+
+    # Nur Mitglieder des aktuellen Vereins laden
+    if not current_user.verein_id:
+        flash("Kein Verein verknüpft.", "danger")
+        return redirect(url_for('setup'))
 
     search_query = request.args.get('search', '').strip()
     if search_query:
         mitglieder = Mitglied.query.filter(
-            db.or_(
-                Mitglied.vorname.ilike(f"%{search_query}%"),
-                Mitglied.nachname.ilike(f"%{search_query}%"),
-                Mitglied.email.ilike(f"%{search_query}%"),
-                Mitglied.plz.ilike(f"%{search_query}%"),
-                Mitglied.ort.ilike(f"%{search_query}%")
+            db.and_(
+                Mitglied.verein_id == current_user.verein_id,  # Filter auf aktuellen Verein
+                db.or_(
+                    Mitglied.vorname.ilike(f"%{search_query}%"),
+                    Mitglied.nachname.ilike(f"%{search_query}%"),
+                    Mitglied.email.ilike(f"%{search_query}%"),
+                    Mitglied.plz.ilike(f"%{search_query}%"),
+                    Mitglied.ort.ilike(f"%{search_query}%")
+                )
             )
         ).all()
     else:
-        mitglieder = Mitglied.query.all()
+        mitglieder = Mitglied.query.filter_by(verein_id=current_user.verein_id).all()  # Filter auf aktuellen Verein
 
     return render_template('mitglieder.html', mitglieder=mitglieder, form=form)
+
 
 
 import logging
@@ -550,12 +557,11 @@ def mitglied_new():
     form = MitgliedForm()
     if form.validate_on_submit():
         try:
-            # Verwenden Sie die verein_id des aktuell angemeldeten Benutzers
+            # Sicherstellen, dass der aktuelle Benutzer einen Verein hat
             if not current_user.verein_id:
                 flash("Es ist kein Verein mit Ihrem Benutzerkonto verknüpft.", "danger")
                 return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied", mitglied=None)
             
-            # Verarbeitung von beitrag_bezahlt
             beitrag_bezahlt = form.beitrag_bezahlt.data.lower() == 'ja'
 
             # Neues Mitglied erstellen
@@ -577,7 +583,7 @@ def mitglied_new():
                 verein_id=current_user.verein_id  # Verknüpfung mit dem Verein des Benutzers
             )
             db.session.add(neues_mitglied)
-            db.session.flush()  # Damit neues_mitglied.id bereits bekannt ist
+            db.session.flush()
 
             # Falls bereits bezahlt, Finanzbuchung anlegen
             if neues_mitglied.beitrag_bezahlt and neues_mitglied.mitgliedsbeitrag > 0:
@@ -587,23 +593,19 @@ def mitglied_new():
                     betrag=neues_mitglied.mitgliedsbeitrag,
                     datum=date.today(),
                     beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
-                    mitglied_id=neues_mitglied.id  # Jetzt verfügbar nach flush
+                    mitglied_id=neues_mitglied.id
                 )
                 db.session.add(finanzbuchung)
-                logger.info(f"Finanzbuchung für Mitglied ID {neues_mitglied.id} erstellt.")
             
             db.session.commit()
             flash("Neues Mitglied erfolgreich erstellt.", "success")
             return redirect(url_for('mitglieder_liste'))
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Fehler beim Erstellen des Mitglieds: {e}")
-            flash("Fehler beim Erstellen des Mitglieds.", "danger")
-    else:
-        if form.errors:
-            logger.warning(f"Formularfehler beim Erstellen eines neuen Mitglieds: {form.errors}")
+            flash(f"Fehler beim Erstellen des Mitglieds: {e}", "danger")
     
     return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied", mitglied=None)
+
 
 @app.route('/mitglied/<int:mitglied_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -667,11 +669,13 @@ def mitglied_edit(mitglied_id):
 @app.route('/mitglied/<int:mitglied_id>/delete', methods=['POST'])
 @login_required
 def mitglied_delete(mitglied_id):
-    form = DeleteMitgliedForm()
-    mitglied = Mitglied.query.get_or_404(mitglied_id)
+    # Nur Mitglieder des aktuellen Vereins abrufen
+    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_user.verein_id).first_or_404()
     db.session.delete(mitglied)
     db.session.commit()
+    flash("Mitglied erfolgreich gelöscht.", "success")
     return redirect(url_for('mitglieder_liste'))
+
 
 
 
@@ -822,7 +826,9 @@ def mitglied_update_beitrag(mitglied_id):
 @app.route('/mitglied/<int:mitglied_id>')
 @login_required
 def mitglied_detail(mitglied_id):
-    mitglied = Mitglied.query.get_or_404(mitglied_id)
+    # Filter auf das Mitglied des aktuellen Vereins
+    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_user.verein_id).first_or_404()
+
     alter = None
     if mitglied.geburtstag:
         heute = date.today()
@@ -830,10 +836,11 @@ def mitglied_detail(mitglied_id):
             heute.year - mitglied.geburtstag.year -
             ((heute.month, heute.day) < (mitglied.geburtstag.month, mitglied.geburtstag.day))
         )
-    
+
     # Zahlungen über die Beziehung abrufen
     zahlungen = mitglied.finanzbuchungen
     return render_template('mitglied_detail.html', mitglied=mitglied, alter=alter, zahlungen=zahlungen)
+
 
 
 @app.route('/mitglied/<int:mitglied_id>/zahlung_hinzufuegen', methods=['POST'])
