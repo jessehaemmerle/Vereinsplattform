@@ -37,6 +37,125 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/static/main.js"></script>
+<script>
+  $(document).ready(function () {
+    let removeMode = false;
+  
+    // Initialize the dashboard
+    initDashboard();
+  
+    // Toggle widget dropdown
+    $('#addWidgetButton').on('click', function () {
+      $('#widgetDropdown').toggle();
+    });
+  
+    // Add widget from dropdown
+    $('#confirmWidgetButton').on('click', function () {
+      const selectedWidget = $('#widgetSelect').val();
+      if (selectedWidget) {
+        addWidget(selectedWidget);
+        $('#widgetDropdown').hide();
+      } else {
+        alert('Bitte wählen Sie ein Widget aus.');
+      }
+    });
+  
+    // Toggle remove mode
+    $('#toggleRemoveMode').on('click', function () {
+      removeMode = !removeMode;
+      $('.widget-remove-btn').toggle(removeMode);
+      $(this).text(removeMode ? 'Modus beenden' : 'Widget Entfernen');
+    });
+  
+    // Remove widget
+    $(document).on('click', '.widget-remove-btn', function () {
+      $(this).closest('.widget').remove();
+      saveWidgetState();
+    });
+  
+    // Initialize draggable and resizable widgets
+    function initDraggableResizable() {
+      $('.widget').draggable({
+        handle: '.widget-drag-handle',
+        containment: '#dashboardContainer',
+        stop: saveWidgetState,
+      }).resizable({
+        stop: saveWidgetState,
+        minWidth: 150,
+        minHeight: 100,
+      });
+    }
+  
+    // Add a new widget
+    function addWidget(type) {
+      const widgetHtml = `
+        <div class="widget card" data-widget="${type}">
+          <div class="widget-drag-handle">
+            <span class="badge text-bg-secondary">Verschieben</span>
+          </div>
+          <div class="card-body">
+            <h5 class="card-title">${type.charAt(0).toUpperCase() + type.slice(1)}</h5>
+            <p class="card-text display-5">${getWidgetContent(type)}</p>
+            <button class="btn btn-sm btn-danger widget-remove-btn">X</button>
+          </div>
+        </div>
+      `;
+      $('#dashboardContainer').append(widgetHtml);
+      initDraggableResizable();
+      saveWidgetState();
+    }
+  
+    // Get widget content based on type
+    function getWidgetContent(type) {
+      const data = {
+        mitglieder: '{{ anzahl_mitglieder }}',
+        events: '{{ anzahl_events }}',
+        notizen: '{{ anzahl_notizen }}',
+        saldo: '{{ saldo }} €',
+        einnahmen-ausgaben: '<canvas id="einnahmenAusgabenChart"></canvas>',
+        mitgliederstatus: '<canvas id="mitgliederStatusChart"></canvas>',
+      };
+      return data[type] || 'No data available';
+    }
+  
+    // Save widget state to localStorage
+    function saveWidgetState() {
+      const widgetStates = [];
+      $('.widget').each(function () {
+        const $widget = $(this);
+        const state = {
+          type: $widget.data('widget'),
+          top: ($widget.position().top / $('#dashboardContainer').height()) * 100,
+          left: ($widget.position().left / $('#dashboardContainer').width()) * 100,
+          width: ($widget.width() / $('#dashboardContainer').width()) * 100,
+          height: ($widget.height() / $('#dashboardContainer').height()) * 100,
+        };
+        widgetStates.push(state);
+      });
+      localStorage.setItem('widgetStates', JSON.stringify(widgetStates));
+    }
+  
+    // Load widget state from localStorage
+    function loadWidgetState() {
+      const savedStates = JSON.parse(localStorage.getItem('widgetStates')) || [];
+      savedStates.forEach(state => {
+        addWidget(state.type);
+        const $widget = $(`[data-widget="${state.type}"]`);
+        $widget.css({
+          top: `${state.top}%`,
+          left: `${state.left}%`,
+          width: `${state.width}%`,
+          height: `${state.height}%`,
+        });
+      });
+    }
+  
+    // Initialize the dashboard
+    function initDashboard() {
+      loadWidgetState();
+      initDraggableResizable();
+    }
+  });
+</script>
 
 {% endblock %}
