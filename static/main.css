@@ -49,3 +49,33 @@ main {
     background-color: #444444;
     color: #ffffff;
 }
+
+/* static/css/dashboard.css */
+.dashboard-container {
+    position: relative;
+    width: 100%;
+    min-height: 100vh;
+    border: 1px solid #ccc;
+  }
+  
+  .widget {
+    position: absolute;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  .widget-drag-handle {
+    cursor: move;
+    position: absolute;
+    top: 5px;
+    right: 5px;
+  }
+  
+  .widget-remove-btn {
+    display: none;
+    position: absolute;
+    top: 5px;
+    left: 5px;
+  }
