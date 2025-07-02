@@ -471,6 +471,8 @@ const AdminDashboard = ({ verein, onLogout }) => {
         await fetchPayments();
       } else if (activeTab === 'events') {
         await fetchEvents();
+      } else if (activeTab === 'calendar') {
+        await fetchCalendarIntegrations();
       } else if (activeTab === 'reports') {
         await fetchFinancialReport();
       }
@@ -494,6 +496,11 @@ const AdminDashboard = ({ verein, onLogout }) => {
   const fetchEvents = async () => {
     const response = await axios.get(`${API}/admin/events`);
     setEvents(response.data);
+  };
+
+  const fetchCalendarIntegrations = async () => {
+    const response = await axios.get(`${API}/admin/calendar/integrations`);
+    setCalendarIntegrations(response.data);
   };
 
   const fetchEventRegistrations = async (eventId) => {
