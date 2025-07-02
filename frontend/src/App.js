@@ -438,9 +438,9 @@ const AdminDashboard = ({ verein, onLogout }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (activeTab === 'members') {
-        await fetchMembers();
-      } else if (activeTab === 'payments') {
+      await fetchMembers(); // Always fetch members as we need them for payment display
+      
+      if (activeTab === 'payments') {
         await fetchPayments();
       } else if (activeTab === 'reports') {
         await fetchFinancialReport();
