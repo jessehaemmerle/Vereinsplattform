@@ -931,6 +931,7 @@ const AdminDashboard = ({ verein, onLogout }) => {
         )}
       </div>
 
+      {/* Add Member Modal */}
       {showAddMember && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
@@ -991,6 +992,15 @@ const AdminDashboard = ({ verein, onLogout }) => {
                     onChange={(e) => setMemberForm({...memberForm, phone: e.target.value})}
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Adresse</label>
+                  <textarea
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    rows="2"
+                    value={memberForm.address}
+                    onChange={(e) => setMemberForm({...memberForm, address: e.target.value})}
+                  />
+                </div>
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
@@ -1002,6 +1012,109 @@ const AdminDashboard = ({ verein, onLogout }) => {
                   <button
                     type="submit"
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Hinzufügen
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Payment Modal */}
+      {showAddPayment && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Neue Zahlung hinzufügen
+                {selectedMember && <span className="text-sm text-gray-500"> - {selectedMember.name}</span>}
+              </h3>
+              <form onSubmit={handleAddPayment} className="space-y-4">
+                {!selectedMember && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Mitglied</label>
+                    <select
+                      required
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                      value={paymentForm.member_id}
+                      onChange={(e) => setPaymentForm({...paymentForm, member_id: e.target.value})}
+                    >
+                      <option value="">Mitglied auswählen</option>
+                      {members.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name} ({member.membership_number})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Zahlungsart</label>
+                  <select
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                    value={paymentForm.payment_type}
+                    onChange={(e) => setPaymentForm({...paymentForm, payment_type: e.target.value})}
+                  >
+                    <option value="Mitgliedsbeitrag">Mitgliedsbeitrag</option>
+                    <option value="Zusatzgebühr">Zusatzgebühr</option>
+                    <option value="Strafe">Strafe</option>
+                    <option value="Sondergebühr">Sondergebühr</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Beschreibung</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="z.B. Jahresbeitrag 2024"
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                    value={paymentForm.description}
+                    onChange={(e) => setPaymentForm({...paymentForm, description: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Betrag (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    placeholder="0.00"
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm({...paymentForm, amount: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Fälligkeitsdatum</label>
+                  <input
+                    type="date"
+                    required
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                    value={paymentForm.due_date}
+                    onChange={(e) => setPaymentForm({...paymentForm, due_date: e.target.value})}
+                  />
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddPayment(false);
+                      setSelectedMember(null);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
                   >
                     Hinzufügen
                   </button>
