@@ -101,6 +101,36 @@ class MemberUpdate(BaseModel):
     address: Optional[str] = None
     fees_status: Optional[str] = None
 
+class PaymentCreate(BaseModel):
+    member_id: str
+    amount: float
+    payment_type: str  # "Mitgliedsbeitrag", "Zusatzgebühr", "Strafe"
+    description: str
+    due_date: datetime
+    
+class Payment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str
+    member_id: str
+    amount: float
+    payment_type: str
+    description: str
+    due_date: datetime
+    paid_date: Optional[datetime] = None
+    status: str = "Ausstehend"  # Ausstehend, Bezahlt, Überfällig
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class PaymentUpdate(BaseModel):
+    status: Optional[str] = None
+    paid_date: Optional[datetime] = None
+    amount: Optional[float] = None
+    description: Optional[str] = None
+
+class InvoiceCreate(BaseModel):
+    member_id: str
+    payment_ids: List[str]
+    invoice_number: Optional[str] = None
+
 # Utility functions
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
