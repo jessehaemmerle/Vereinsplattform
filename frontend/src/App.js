@@ -9,6 +9,13 @@ const API = `${BACKEND_URL}/api`;
 const getSubdomain = () => {
   const hostname = window.location.hostname;
   const parts = hostname.split('.');
+  
+  // Handle preview domains like e7ac2d55-3a43-4368-bb35-863c6593dcf7.preview.emergentagent.com
+  if (hostname.includes('emergentagent.com') || hostname.includes('localhost')) {
+    // This is the main domain or localhost
+    return null;
+  }
+  
   if (parts.length > 2) {
     return parts[0];
   }
