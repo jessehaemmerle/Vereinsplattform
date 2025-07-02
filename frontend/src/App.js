@@ -771,8 +771,8 @@ function App() {
         setAuthToken(null);
         setCurrentView('login');
       }
-    } else if (!subdomain) {
-      // Main domain - show registration
+    } else if (!subdomain || subdomain === 'localhost' || subdomain.includes('emergentagent')) {
+      // Main domain - show registration (no subdomain or localhost/preview domain)
       setCurrentView('registration');
     } else if (path === '/member') {
       // Member login
