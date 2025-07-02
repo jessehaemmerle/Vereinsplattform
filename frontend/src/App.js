@@ -780,18 +780,30 @@ function App() {
         setAuthToken(null);
         determineView(); // Recurse to determine view without token
       }
-    } else if (!subdomain) {
-      // Main domain - show registration
-      console.log('Showing registration form');
-      setCurrentView('registration');
-    } else if (path === '/member') {
-      // Member login
-      console.log('Showing member login');
-      setCurrentView('member-login');
+    } else if (subdomain) {
+      // We have a subdomain - this is a tenant's domain
+      if (path === '/member') {
+        // Member login for this tenant
+        console.log('Showing member login for tenant:', subdomain);
+        setCurrentView('member-login');
+      } else {
+        // Admin login (default for subdomains)
+        console.log('Showing admin login for tenant:', subdomain);
+        setCurrentView('admin-login');
+      }
     } else {
-      // Admin login (default for subdomains)
-      console.log('Showing admin login');
-      setCurrentView('admin-login');
+      // Main domain - check path
+      if (path === '/admin') {
+        console.log('Showing admin login on main domain');
+        setCurrentView('admin-login');
+      } else if (path === '/member') {
+        console.log('Showing member login on main domain');
+        setCurrentView('member-login');
+      } else {
+        // Default for main domain is registration
+        console.log('Showing registration form on main domain');
+        setCurrentView('registration');
+      }
     }
   };
 
