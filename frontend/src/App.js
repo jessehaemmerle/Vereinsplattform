@@ -1505,6 +1505,17 @@ const MemberDashboard = ({ member, onLogout }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
 
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('de-AT');
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('de-AT', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(amount);
+  };
+
   useEffect(() => {
     fetchMemberData();
   }, []);
