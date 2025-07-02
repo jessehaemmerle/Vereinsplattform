@@ -794,7 +794,20 @@ class VereinAPITester:
         self.test_get_member_profile()
         self.test_get_member_verein()
         
+        # Event management
+        self.test_create_event()
+        self.test_get_admin_events()
+        self.test_get_admin_event()
+        self.test_update_event()
+        self.test_get_member_events()
+        self.test_register_for_event()
+        self.test_get_event_registrations()
+        self.test_update_registration_status()
+        self.test_get_my_registrations()
+        self.test_unregister_from_event()
+        
         # Cleanup
+        self.test_delete_event()
         self.test_delete_payment()
         self.test_delete_member()
         
