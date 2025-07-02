@@ -17,6 +17,8 @@ class VereinAPITester:
         self.member_id = None
         self.member_email = None
         self.member_number = None
+        self.payment_id = None
+        self.payment_ids = []
         self.tests_run = 0
         self.tests_passed = 0
 
