@@ -811,6 +811,14 @@ function App() {
   useEffect(() => {
     initializeAuth();
     determineView();
+    
+    // Listen for route changes
+    const handleRouteChange = () => {
+      determineView();
+    };
+    
+    window.addEventListener('popstate', handleRouteChange);
+    return () => window.removeEventListener('popstate', handleRouteChange);
   }, []);
 
   const determineView = () => {
@@ -818,7 +826,7 @@ function App() {
     const subdomain = getSubdomain();
     const path = window.location.pathname;
 
-    console.log('Subdomain detection:', { hostname: window.location.hostname, subdomain, path });
+    console.log('Route determination:', { hostname: window.location.hostname, subdomain, path });
 
     if (token) {
       // User is logged in, determine type from token
@@ -828,38 +836,40 @@ function App() {
           setUserType('admin');
           setUserData({ verein_name: 'Admin' }); // Will be updated by component
           setCurrentView('admin-dashboard');
+          return;
         } else if (payload.type === 'member') {
           setUserType('member');
           setUserData({ member_name: 'Mitglied' }); // Will be updated by component
           setCurrentView('member-dashboard');
+          return;
         }
       } catch (err) {
         // Invalid token
         setAuthToken(null);
-        determineView(); // Recurse to determine view without token
+        // Continue to determine view without token
       }
-    } else if (subdomain) {
+    }
+
+    // No valid token - determine view based on domain and path
+    if (subdomain) {
       // We have a subdomain - this is a tenant's domain
       if (path === '/member') {
-        // Member login for this tenant
-        console.log('Showing member login for tenant:', subdomain);
+        console.log('Tenant member login:', subdomain);
         setCurrentView('member-login');
       } else {
-        // Admin login (default for subdomains)
-        console.log('Showing admin login for tenant:', subdomain);
+        console.log('Tenant admin login:', subdomain);
         setCurrentView('admin-login');
       }
     } else {
       // Main domain - check path
       if (path === '/admin') {
-        console.log('Showing admin login on main domain');
+        console.log('Main domain admin login');
         setCurrentView('admin-login');
       } else if (path === '/member') {
-        console.log('Showing member login on main domain');
+        console.log('Main domain member login');
         setCurrentView('member-login');
       } else {
-        // Default for main domain is registration
-        console.log('Showing registration form on main domain');
+        console.log('Main domain registration');
         setCurrentView('registration');
       }
     }
