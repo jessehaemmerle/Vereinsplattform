@@ -408,10 +408,12 @@ const AdminDashboard = ({ verein, onLogout }) => {
   const [payments, setPayments] = useState([]);
   const [events, setEvents] = useState([]);
   const [eventRegistrations, setEventRegistrations] = useState({});
+  const [calendarIntegrations, setCalendarIntegrations] = useState([]);
   const [financialReport, setFinancialReport] = useState(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showAddCalendar, setShowAddCalendar] = useState(false);
   const [showEventRegistrations, setShowEventRegistrations] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -446,6 +448,14 @@ const AdminDashboard = ({ verein, onLogout }) => {
     max_participants: '',
     registration_required: true,
     cost: '0'
+  });
+
+  const [calendarForm, setCalendarForm] = useState({
+    calendar_type: 'google',
+    calendar_name: '',
+    access_token: '',
+    calendar_id: '',
+    sync_events: true
   });
 
   useEffect(() => {
