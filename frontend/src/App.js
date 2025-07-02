@@ -169,7 +169,8 @@ const VereinRegistration = ({ onRegistrationSuccess }) => {
 const AdminLogin = ({ subdomain, onLogin }) => {
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    subdomain: subdomain || ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -179,10 +180,17 @@ const AdminLogin = ({ subdomain, onLogin }) => {
     setLoading(true);
     setError('');
 
+    if (!formData.subdomain) {
+      setError('Bitte geben Sie eine Subdomain ein');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await axios.post(`${API}/admin/login`, {
-        ...formData,
-        subdomain
+        email: formData.email,
+        password: formData.password,
+        subdomain: formData.subdomain
       });
       setAuthToken(response.data.token);
       onLogin(response.data);
@@ -199,9 +207,11 @@ const AdminLogin = ({ subdomain, onLogin }) => {
         <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
           Admin Anmeldung
         </h1>
-        <p className="text-center text-gray-600 mb-6">
-          Verein: <strong>{subdomain}</strong>
-        </p>
+        {subdomain && (
+          <p className="text-center text-gray-600 mb-6">
+            Verein: <strong>{subdomain}</strong>
+          </p>
+        )}
         
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -210,6 +220,22 @@ const AdminLogin = ({ subdomain, onLogin }) => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!subdomain && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Verein Subdomain
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="z.B. sv-muenchen"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                value={formData.subdomain}
+                onChange={(e) => setFormData({...formData, subdomain: e.target.value})}
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               E-Mail
@@ -245,9 +271,12 @@ const AdminLogin = ({ subdomain, onLogin }) => {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <a href="/member" className="text-blue-600 hover:text-blue-800 text-sm">
+        <div className="mt-6 text-center space-y-2">
+          <a href="/member" className="block text-blue-600 hover:text-blue-800 text-sm">
             Mitglieder-Portal →
+          </a>
+          <a href="/" className="block text-gray-600 hover:text-gray-800 text-sm">
+            ← Zurück zur Registrierung
           </a>
         </div>
       </div>
