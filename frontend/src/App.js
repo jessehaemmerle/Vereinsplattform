@@ -607,6 +607,44 @@ const AdminDashboard = ({ verein, onLogout }) => {
         </div>
       </nav>
 
+      {/* Tab Navigation */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('members')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'members'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Mitgliederverwaltung
+            </button>
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'payments'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Zahlungsverwaltung
+            </button>
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'reports'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Finanzberichte
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -614,87 +652,283 @@ const AdminDashboard = ({ verein, onLogout }) => {
           </div>
         )}
 
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-medium text-gray-900">Mitgliederverwaltung</h2>
-              <button
-                onClick={() => setShowAddMember(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >
-                Mitglied hinzufügen
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="text-center py-4">Lade Mitglieder...</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        E-Mail
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Mitgliedsnummer
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Typ
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Beitragsstatus
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Aktionen
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {members.map((member) => (
-                      <tr key={member.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {member.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {member.email}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {member.membership_number}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {member.membership_type}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            value={member.fees_status}
-                            onChange={(e) => updateFeesStatus(member.id, e.target.value)}
-                            className="text-sm border-gray-300 rounded-md"
-                          >
-                            <option value="Offen">Offen</option>
-                            <option value="Bezahlt">Bezahlt</option>
-                            <option value="Überfällig">Überfällig</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => handleDeleteMember(member.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Löschen
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {/* Members Tab */}
+        {activeTab === 'members' && (
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-medium text-gray-900">Mitgliederverwaltung</h2>
+                <button
+                  onClick={() => setShowAddMember(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                >
+                  Mitglied hinzufügen
+                </button>
               </div>
+
+              {loading ? (
+                <div className="text-center py-4">Lade Mitglieder...</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          E-Mail
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Mitgliedsnummer
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Typ
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Beitragsstatus
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Aktionen
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {members.map((member) => (
+                        <tr key={member.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {member.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {member.email}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {member.membership_number}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {member.membership_type}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <select
+                              value={member.fees_status}
+                              onChange={(e) => updateFeesStatus(member.id, e.target.value)}
+                              className="text-sm border-gray-300 rounded-md"
+                            >
+                              <option value="Offen">Offen</option>
+                              <option value="Bezahlt">Bezahlt</option>
+                              <option value="Überfällig">Überfällig</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                            <button
+                              onClick={() => {
+                                setSelectedMember(member);
+                                setPaymentForm({...paymentForm, member_id: member.id});
+                                setShowAddPayment(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              Zahlung
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMember(member.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Löschen
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Payments Tab */}
+        {activeTab === 'payments' && (
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-medium text-gray-900">Zahlungsverwaltung</h2>
+                <button
+                  onClick={() => setShowAddPayment(true)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                >
+                  Zahlung hinzufügen
+                </button>
+              </div>
+
+              {loading ? (
+                <div className="text-center py-4">Lade Zahlungen...</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Mitglied
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Beschreibung
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Art
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Betrag
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Fällig
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Aktionen
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {payments.map((payment) => {
+                        const member = members.find(m => m.id === payment.member_id);
+                        return (
+                          <tr key={payment.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {member?.name || 'Unbekannt'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {payment.description}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {payment.payment_type}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {formatCurrency(payment.amount)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {formatDate(payment.due_date)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <select
+                                value={payment.status}
+                                onChange={(e) => updatePaymentStatus(payment.id, e.target.value)}
+                                className={`text-sm border-gray-300 rounded-md ${getStatusColor(payment.status)}`}
+                              >
+                                <option value="Ausstehend">Ausstehend</option>
+                                <option value="Bezahlt">Bezahlt</option>
+                                <option value="Überfällig">Überfällig</option>
+                              </select>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <button
+                                onClick={() => generateInvoice(payment.member_id, [payment.id])}
+                                className="text-purple-600 hover:text-purple-900"
+                              >
+                                Rechnung
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Reports Tab */}
+        {activeTab === 'reports' && (
+          <div className="space-y-6">
+            {loading ? (
+              <div className="text-center py-4">Lade Finanzberichte...</div>
+            ) : financialReport && (
+              <>
+                <div className="bg-white shadow rounded-lg p-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Finanzübersicht</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-green-100 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-green-800">Bezahlt</h3>
+                      <p className="text-2xl font-bold text-green-900">
+                        {formatCurrency(financialReport.summary.total_paid)}
+                      </p>
+                    </div>
+                    <div className="bg-yellow-100 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-yellow-800">Ausstehend</h3>
+                      <p className="text-2xl font-bold text-yellow-900">
+                        {formatCurrency(financialReport.summary.total_outstanding)}
+                      </p>
+                    </div>
+                    <div className="bg-red-100 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-red-800">Überfällig</h3>
+                      <p className="text-2xl font-bold text-red-900">
+                        {formatCurrency(financialReport.summary.total_overdue)}
+                      </p>
+                    </div>
+                    <div className="bg-blue-100 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-blue-800">Zahlungen</h3>
+                      <p className="text-2xl font-bold text-blue-900">
+                        {financialReport.total_payments}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white shadow rounded-lg p-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Nach Zahlungsart</h2>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Art
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Gesamt
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Bezahlt
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Ausstehend
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Überfällig
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {Object.entries(financialReport.by_payment_type).map(([type, data]) => (
+                          <tr key={type}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {type}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {formatCurrency(data.total)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                              {formatCurrency(data.paid)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">
+                              {formatCurrency(data.outstanding)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                              {formatCurrency(data.overdue)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             )}
           </div>
-        </div>
+        )}
       </div>
 
       {showAddMember && (
