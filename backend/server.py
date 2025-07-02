@@ -205,6 +205,45 @@ class CalendarIntegrationUpdate(BaseModel):
     is_active: Optional[bool] = None
     sync_events: Optional[bool] = None
 
+class DashboardWidget(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str
+    widget_type: str  # member_stats, payment_overview, recent_events, financial_chart, quick_actions, activity_feed
+    widget_title: str
+    position_x: int = 0
+    position_y: int = 0
+    width: int = 1
+    height: int = 1
+    is_visible: bool = True
+    configuration: dict = {}
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class DashboardWidgetCreate(BaseModel):
+    widget_type: str
+    widget_title: str
+    position_x: int = 0
+    position_y: int = 0
+    width: int = 1
+    height: int = 1
+    configuration: dict = {}
+
+class DashboardWidgetUpdate(BaseModel):
+    widget_title: Optional[str] = None
+    position_x: Optional[int] = None
+    position_y: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    is_visible: Optional[bool] = None
+    configuration: Optional[dict] = None
+
+class DashboardLayout(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str
+    layout_name: str = "Standard"
+    is_default: bool = True
+    widgets: List[str] = []  # List of widget IDs
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 # Utility functions
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
