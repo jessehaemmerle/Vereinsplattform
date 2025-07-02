@@ -403,10 +403,15 @@ const MemberLogin = ({ subdomain, onLogin }) => {
 };
 
 const AdminDashboard = ({ verein, onLogout }) => {
+  const [activeTab, setActiveTab] = useState('members');
   const [members, setMembers] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [financialReport, setFinancialReport] = useState(null);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showAddPayment, setShowAddPayment] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedMember, setSelectedMember] = useState(null);
 
   const [memberForm, setMemberForm] = useState({
     name: '',
@@ -418,19 +423,48 @@ const AdminDashboard = ({ verein, onLogout }) => {
     fees_status: 'Offen'
   });
 
-  useEffect(() => {
-    fetchMembers();
-  }, []);
+  const [paymentForm, setPaymentForm] = useState({
+    member_id: '',
+    amount: '',
+    payment_type: 'Mitgliedsbeitrag',
+    description: '',
+    due_date: ''
+  });
 
-  const fetchMembers = async () => {
+  useEffect(() => {
+    fetchData();
+  }, [activeTab]);
+
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const response = await axios.get(`${API}/admin/members`);
-      setMembers(response.data);
+      if (activeTab === 'members') {
+        await fetchMembers();
+      } else if (activeTab === 'payments') {
+        await fetchPayments();
+      } else if (activeTab === 'reports') {
+        await fetchFinancialReport();
+      }
     } catch (err) {
-      setError('Fehler beim Laden der Mitglieder');
+      setError('Fehler beim Laden der Daten');
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchMembers = async () => {
+    const response = await axios.get(`${API}/admin/members`);
+    setMembers(response.data);
+  };
+
+  const fetchPayments = async () => {
+    const response = await axios.get(`${API}/admin/payments`);
+    setPayments(response.data);
+  };
+
+  const fetchFinancialReport = async () => {
+    const response = await axios.get(`${API}/admin/reports/financial`);
+    setFinancialReport(response.data);
   };
 
   const handleAddMember = async (e) => {
@@ -453,6 +487,28 @@ const AdminDashboard = ({ verein, onLogout }) => {
     }
   };
 
+  const handleAddPayment = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/admin/payments`, {
+        ...paymentForm,
+        amount: parseFloat(paymentForm.amount),
+        due_date: new Date(paymentForm.due_date).toISOString()
+      });
+      setPaymentForm({
+        member_id: '',
+        amount: '',
+        payment_type: 'Mitgliedsbeitrag',
+        description: '',
+        due_date: ''
+      });
+      setShowAddPayment(false);
+      fetchPayments();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Fehler beim Hinzufügen der Zahlung');
+    }
+  };
+
   const handleDeleteMember = async (memberId) => {
     if (window.confirm('Sind Sie sicher, dass Sie dieses Mitglied löschen möchten?')) {
       try {
@@ -461,6 +517,39 @@ const AdminDashboard = ({ verein, onLogout }) => {
       } catch (err) {
         setError('Fehler beim Löschen des Mitglieds');
       }
+    }
+  };
+
+  const updatePaymentStatus = async (paymentId, newStatus) => {
+    try {
+      await axios.put(`${API}/admin/payments/${paymentId}`, {
+        status: newStatus
+      });
+      fetchPayments();
+    } catch (err) {
+      setError('Fehler beim Aktualisieren des Zahlungsstatus');
+    }
+  };
+
+  const generateInvoice = async (memberId, paymentIds) => {
+    try {
+      const response = await axios.post(`${API}/admin/invoices/generate`, {
+        member_id: memberId,
+        payment_ids: paymentIds
+      }, { 
+        responseType: 'blob' 
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Rechnung_${Date.now()}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError('Fehler beim Generieren der Rechnung');
     }
   };
 
@@ -474,6 +563,27 @@ const AdminDashboard = ({ verein, onLogout }) => {
       setError('Fehler beim Aktualisieren des Beitragsstatus');
     }
   };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Bezahlt': return 'text-green-600';
+      case 'Überfällig': return 'text-red-600';
+      default: return 'text-yellow-600';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('de-AT');
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('de-AT', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(amount);
+  };
+
+  // ... rest of the component
 
   return (
     <div className="min-h-screen bg-gray-50">
