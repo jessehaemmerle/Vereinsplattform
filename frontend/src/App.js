@@ -459,6 +459,8 @@ const AdminDashboard = ({ verein, onLogout }) => {
       
       if (activeTab === 'payments') {
         await fetchPayments();
+      } else if (activeTab === 'events') {
+        await fetchEvents();
       } else if (activeTab === 'reports') {
         await fetchFinancialReport();
       }
@@ -477,6 +479,19 @@ const AdminDashboard = ({ verein, onLogout }) => {
   const fetchPayments = async () => {
     const response = await axios.get(`${API}/admin/payments`);
     setPayments(response.data);
+  };
+
+  const fetchEvents = async () => {
+    const response = await axios.get(`${API}/admin/events`);
+    setEvents(response.data);
+  };
+
+  const fetchEventRegistrations = async (eventId) => {
+    const response = await axios.get(`${API}/admin/events/${eventId}/registrations`);
+    setEventRegistrations(prev => ({
+      ...prev,
+      [eventId]: response.data
+    }));
   };
 
   const fetchFinancialReport = async () => {
