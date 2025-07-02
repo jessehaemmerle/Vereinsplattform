@@ -47,6 +47,7 @@ class Verein(BaseModel):
     subdomain: str
     description: Optional[str] = ""
     admin_email: str
+    admin_password: str  # This was missing!
     created_at: datetime = Field(default_factory=datetime.utcnow)
     active: bool = True
 
