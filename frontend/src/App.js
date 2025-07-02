@@ -596,6 +596,7 @@ const AdminDashboard = ({ verein, onLogout }) => {
       setError('Fehler beim Aktualisieren des Anmeldestatus');
     }
   };
+  const handleAddPayment = async (e) => {
     e.preventDefault();
     try {
       const paymentData = {
@@ -629,6 +630,7 @@ const AdminDashboard = ({ verein, onLogout }) => {
       console.error('Error creating payment:', err);
       setError(err.response?.data?.detail || 'Fehler beim Hinzufügen der Zahlung');
     }
+  };
   };
 
   const handleDeleteMember = async (memberId) => {
