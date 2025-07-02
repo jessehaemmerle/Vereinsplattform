@@ -303,7 +303,267 @@ async def delete_member(member_id: str, admin: dict = Depends(get_current_admin)
         raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
     return {"message": "Mitglied erfolgreich gelöscht"}
 
-# Member Portal Routes
+# Payment Management Routes
+@api_router.post("/admin/payments", response_model=Payment)
+async def create_payment(payment_data: PaymentCreate, admin: dict = Depends(get_current_admin)):
+    # Verify member belongs to this tenant
+    member = await db.members.find_one({
+        "id": payment_data.member_id,
+        "tenant_id": admin["tenant_id"]
+    })
+    if not member:
+        raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
+    
+    payment_dict = payment_data.dict()
+    payment_dict["tenant_id"] = admin["tenant_id"]
+    
+    # Set status based on due date
+    if payment_data.due_date < datetime.utcnow():
+        payment_dict["status"] = "Überfällig"
+    
+    payment_obj = Payment(**payment_dict)
+    await db.payments.insert_one(payment_obj.dict())
+    return payment_obj
+
+@api_router.get("/admin/payments", response_model=List[Payment])
+async def get_payments(admin: dict = Depends(get_current_admin)):
+    payments = await db.payments.find({"tenant_id": admin["tenant_id"]}).to_list(1000)
+    return [Payment(**payment) for payment in payments]
+
+@api_router.get("/admin/payments/member/{member_id}", response_model=List[Payment])
+async def get_member_payments(member_id: str, admin: dict = Depends(get_current_admin)):
+    # Verify member belongs to this tenant
+    member = await db.members.find_one({
+        "id": member_id,
+        "tenant_id": admin["tenant_id"]
+    })
+    if not member:
+        raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
+    
+    payments = await db.payments.find({
+        "tenant_id": admin["tenant_id"],
+        "member_id": member_id
+    }).to_list(1000)
+    return [Payment(**payment) for payment in payments]
+
+@api_router.put("/admin/payments/{payment_id}", response_model=Payment)
+async def update_payment(payment_id: str, payment_update: PaymentUpdate, admin: dict = Depends(get_current_admin)):
+    payment = await db.payments.find_one({
+        "id": payment_id,
+        "tenant_id": admin["tenant_id"]
+    })
+    if not payment:
+        raise HTTPException(status_code=404, detail="Zahlung nicht gefunden")
+    
+    update_data = {k: v for k, v in payment_update.dict().items() if v is not None}
+    
+    # If marking as paid, set paid_date
+    if update_data.get("status") == "Bezahlt" and not update_data.get("paid_date"):
+        update_data["paid_date"] = datetime.utcnow()
+    
+    if update_data:
+        await db.payments.update_one(
+            {"id": payment_id, "tenant_id": admin["tenant_id"]},
+            {"$set": update_data}
+        )
+        
+        updated_payment = await db.payments.find_one({
+            "id": payment_id,
+            "tenant_id": admin["tenant_id"]
+        })
+        return Payment(**updated_payment)
+    
+    return Payment(**payment)
+
+@api_router.delete("/admin/payments/{payment_id}")
+async def delete_payment(payment_id: str, admin: dict = Depends(get_current_admin)):
+    result = await db.payments.delete_one({
+        "id": payment_id,
+        "tenant_id": admin["tenant_id"]
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Zahlung nicht gefunden")
+    return {"message": "Zahlung erfolgreich gelöscht"}
+
+# Invoice Generation
+def generate_german_invoice_pdf(verein_info, member_info, payments, invoice_number):
+    """Generate a German invoice PDF"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=2*cm, leftMargin=2*cm, 
+                           topMargin=2*cm, bottomMargin=2*cm)
+    
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # Header
+    header_style = styles['Heading1']
+    header_style.alignment = 0  # Left align
+    story.append(Paragraph(f"<b>{verein_info['name']}</b>", header_style))
+    story.append(Spacer(1, 12))
+    
+    # Invoice info
+    invoice_style = styles['Heading2']
+    story.append(Paragraph(f"<b>Rechnung Nr.: {invoice_number}</b>", invoice_style))
+    story.append(Paragraph(f"<b>Datum: {datetime.now().strftime('%d.%m.%Y')}</b>", styles['Normal']))
+    story.append(Spacer(1, 24))
+    
+    # Member info
+    story.append(Paragraph("<b>Rechnungsempfänger:</b>", styles['Heading3']))
+    story.append(Paragraph(f"{member_info['name']}", styles['Normal']))
+    story.append(Paragraph(f"{member_info['email']}", styles['Normal']))
+    if member_info.get('address'):
+        story.append(Paragraph(f"{member_info['address']}", styles['Normal']))
+    story.append(Paragraph(f"Mitgliedsnummer: {member_info['membership_number']}", styles['Normal']))
+    story.append(Spacer(1, 24))
+    
+    # Payment table
+    story.append(Paragraph("<b>Rechnungsposten:</b>", styles['Heading3']))
+    story.append(Spacer(1, 12))
+    
+    # Table data
+    table_data = [
+        ['Beschreibung', 'Art', 'Fälligkeitsdatum', 'Betrag (€)']
+    ]
+    
+    total_amount = 0
+    for payment in payments:
+        table_data.append([
+            payment['description'],
+            payment['payment_type'],
+            payment['due_date'].strftime('%d.%m.%Y'),
+            f"{payment['amount']:.2f}"
+        ])
+        total_amount += payment['amount']
+    
+    # Add total row
+    table_data.append(['', '', 'Gesamtbetrag:', f"{total_amount:.2f}"])
+    
+    # Create table
+    table = Table(table_data, colWidths=[6*cm, 3*cm, 3*cm, 2*cm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 24))
+    
+    # Payment instructions
+    story.append(Paragraph("<b>Zahlungshinweise:</b>", styles['Heading3']))
+    story.append(Paragraph("Bitte überweisen Sie den Betrag bis zum angegebenen Fälligkeitsdatum.", styles['Normal']))
+    story.append(Paragraph("Bei Fragen zur Rechnung wenden Sie sich bitte an die Vereinsleitung.", styles['Normal']))
+    story.append(Spacer(1, 12))
+    
+    # Footer
+    story.append(Paragraph(f"Mit freundlichen Grüßen<br/>{verein_info['name']}", styles['Normal']))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+@api_router.post("/admin/invoices/generate")
+async def generate_invoice(invoice_data: InvoiceCreate, admin: dict = Depends(get_current_admin)):
+    # Get member info
+    member = await db.members.find_one({
+        "id": invoice_data.member_id,
+        "tenant_id": admin["tenant_id"]
+    })
+    if not member:
+        raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
+    
+    # Get payments
+    payments = []
+    for payment_id in invoice_data.payment_ids:
+        payment = await db.payments.find_one({
+            "id": payment_id,
+            "tenant_id": admin["tenant_id"],
+            "member_id": invoice_data.member_id
+        })
+        if payment:
+            payments.append(payment)
+    
+    if not payments:
+        raise HTTPException(status_code=404, detail="Keine gültigen Zahlungen gefunden")
+    
+    # Get Verein info
+    verein = await db.vereine.find_one({"id": admin["tenant_id"]})
+    if not verein:
+        raise HTTPException(status_code=404, detail="Verein nicht gefunden")
+    
+    # Generate invoice number if not provided
+    invoice_number = invoice_data.invoice_number
+    if not invoice_number:
+        timestamp = int(datetime.now().timestamp())
+        invoice_number = f"RE-{verein['subdomain']}-{timestamp}"
+    
+    # Generate PDF
+    pdf_buffer = generate_german_invoice_pdf(verein, member, payments, invoice_number)
+    
+    # Return PDF as response
+    return StreamingResponse(
+        BytesIO(pdf_buffer.read()),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=Rechnung_{invoice_number}.pdf"}
+    )
+
+# Financial Reports
+@api_router.get("/admin/reports/financial")
+async def get_financial_report(admin: dict = Depends(get_current_admin)):
+    # Get all payments for this tenant
+    payments = await db.payments.find({"tenant_id": admin["tenant_id"]}).to_list(1000)
+    
+    total_outstanding = 0
+    total_paid = 0
+    total_overdue = 0
+    
+    payments_by_type = {}
+    
+    for payment in payments:
+        amount = payment['amount']
+        status = payment['status']
+        payment_type = payment['payment_type']
+        
+        if status == "Bezahlt":
+            total_paid += amount
+        elif status == "Überfällig":
+            total_overdue += amount
+        else:
+            total_outstanding += amount
+        
+        if payment_type not in payments_by_type:
+            payments_by_type[payment_type] = {
+                "total": 0,
+                "paid": 0,
+                "outstanding": 0,
+                "overdue": 0
+            }
+        
+        payments_by_type[payment_type]["total"] += amount
+        if status == "Bezahlt":
+            payments_by_type[payment_type]["paid"] += amount
+        elif status == "Überfällig":
+            payments_by_type[payment_type]["overdue"] += amount
+        else:
+            payments_by_type[payment_type]["outstanding"] += amount
+    
+    return {
+        "summary": {
+            "total_outstanding": total_outstanding,
+            "total_paid": total_paid,
+            "total_overdue": total_overdue,
+            "total_revenue": total_paid
+        },
+        "by_payment_type": payments_by_type,
+        "total_payments": len(payments)
+    }
 @api_router.post("/member/login")
 async def member_login(login_data: MemberLogin):
     # Get tenant_id from subdomain
