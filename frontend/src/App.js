@@ -632,6 +632,7 @@ const AdminDashboard = ({ verein, onLogout }) => {
     }
   };
   };
+  };
 
   const handleDeleteMember = async (memberId) => {
     if (window.confirm('Sind Sie sicher, dass Sie dieses Mitglied löschen möchten?')) {
