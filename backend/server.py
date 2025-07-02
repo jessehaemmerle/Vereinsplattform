@@ -191,6 +191,7 @@ async def get_verein_info(admin: dict = Depends(get_current_admin)):
     if not verein:
         raise HTTPException(status_code=404, detail="Verein nicht gefunden")
     
+    # Return Verein info without the password
     return {
         "id": verein["id"],
         "name": verein["name"],
