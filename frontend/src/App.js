@@ -469,7 +469,9 @@ const AdminDashboard = ({ verein, onLogout }) => {
     try {
       await fetchMembers(); // Always fetch members as we need them for payment display
       
-      if (activeTab === 'payments') {
+      if (activeTab === 'dashboard') {
+        await fetchDashboardWidgets();
+      } else if (activeTab === 'payments') {
         await fetchPayments();
       } else if (activeTab === 'events') {
         await fetchEvents();
