@@ -1355,6 +1355,144 @@ const AdminDashboard = ({ verein, onLogout }) => {
           </div>
         </div>
       )}
+
+      {/* Add Event Modal */}
+      {showAddEvent && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Neue Veranstaltung erstellen
+              </h3>
+              <form onSubmit={handleAddEvent} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Titel</label>
+                  <input
+                    type="text"
+                    required
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                    value={eventForm.title}
+                    onChange={(e) => setEventForm({...eventForm, title: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Art der Veranstaltung</label>
+                  <select
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                    value={eventForm.event_type}
+                    onChange={(e) => setEventForm({...eventForm, event_type: e.target.value})}
+                  >
+                    <option value="Training">Training</option>
+                    <option value="Wettkampf">Wettkampf</option>
+                    <option value="Vereinsfeier">Vereinsfeier</option>
+                    <option value="Mitgliederversammlung">Mitgliederversammlung</option>
+                    <option value="Sonstiges">Sonstiges</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Beschreibung</label>
+                  <textarea
+                    required
+                    rows="3"
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                    value={eventForm.description}
+                    onChange={(e) => setEventForm({...eventForm, description: e.target.value})}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Startdatum</label>
+                    <input
+                      type="datetime-local"
+                      required
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                      value={eventForm.start_datetime}
+                      onChange={(e) => setEventForm({...eventForm, start_datetime: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Enddatum</label>
+                    <input
+                      type="datetime-local"
+                      required
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                      value={eventForm.end_datetime}
+                      onChange={(e) => setEventForm({...eventForm, end_datetime: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Ort</label>
+                  <input
+                    type="text"
+                    required
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                    value={eventForm.location}
+                    onChange={(e) => setEventForm({...eventForm, location: e.target.value})}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Max. Teilnehmer</label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Unbegrenzt"
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                      value={eventForm.max_participants}
+                      onChange={(e) => setEventForm({...eventForm, max_participants: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Kosten (€)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                      value={eventForm.cost}
+                      onChange={(e) => setEventForm({...eventForm, cost: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-purple-600 shadow-sm focus:border-purple-300 focus:ring focus:ring-purple-200"
+                      checked={eventForm.registration_required}
+                      onChange={(e) => setEventForm({...eventForm, registration_required: e.target.checked})}
+                    />
+                    <span className="ml-2 text-sm text-gray-700">Anmeldung erforderlich</span>
+                  </label>
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddEvent(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700"
+                  >
+                    Erstellen
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
