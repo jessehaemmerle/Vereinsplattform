@@ -631,8 +631,6 @@ const AdminDashboard = ({ verein, onLogout }) => {
       setError(err.response?.data?.detail || 'Fehler beim Hinzufügen der Zahlung');
     }
   };
-  };
-  };
 
   const handleDeleteMember = async (memberId) => {
     if (window.confirm('Sind Sie sicher, dass Sie dieses Mitglied löschen möchten?')) {
