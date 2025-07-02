@@ -520,6 +520,42 @@ const AdminDashboard = ({ verein, onLogout }) => {
     setFinancialReport(response.data);
   };
 
+  const fetchDashboardWidgets = async () => {
+    const response = await axios.get(`${API}/admin/dashboard/widgets`);
+    setDashboardWidgets(response.data);
+    
+    // Fetch data for each widget type
+    const widgetTypes = [...new Set(response.data.map(w => w.widget_type))];
+    const dataPromises = widgetTypes.map(async (type) => {
+      try {
+        const dataResponse = await axios.get(`${API}/admin/dashboard/widget-data/${type}`);
+        return { type, data: dataResponse.data };
+      } catch (err) {
+        console.error(`Error fetching data for widget type ${type}:`, err);
+        return { type, data: {} };
+      }
+    });
+    
+    const widgetDataResults = await Promise.all(dataPromises);
+    const newWidgetData = {};
+    widgetDataResults.forEach(({ type, data }) => {
+      newWidgetData[type] = data;
+    });
+    setWidgetData(newWidgetData);
+  };
+
+  const resetDefaultDashboard = async () => {
+    if (window.confirm('Möchten Sie das Dashboard auf die Standardkonfiguration zurücksetzen?')) {
+      try {
+        await axios.post(`${API}/admin/dashboard/reset-default`);
+        await fetchDashboardWidgets();
+        alert('Dashboard erfolgreich zurückgesetzt!');
+      } catch (err) {
+        setError('Fehler beim Zurücksetzen des Dashboards');
+      }
+    }
+  };
+
   const handleAddMember = async (e) => {
     e.preventDefault();
     try {
