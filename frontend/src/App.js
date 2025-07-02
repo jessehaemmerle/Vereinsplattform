@@ -1410,6 +1410,164 @@ const AdminDashboard = ({ verein, onLogout }) => {
           </div>
         )}
 
+        {/* Calendar Integration Tab */}
+        {activeTab === 'calendar' && (
+          <div className="space-y-6">
+            <div className="bg-white shadow rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-lg font-medium text-gray-900">Kalender-Integrationen</h2>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={exportCalendar}
+                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                    >
+                      Kalender exportieren
+                    </button>
+                    <button
+                      onClick={syncEventsToCalendar}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                    >
+                      Synchronisieren
+                    </button>
+                    <button
+                      onClick={() => setShowAddCalendar(true)}
+                      className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700"
+                    >
+                      Integration hinzufügen
+                    </button>
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-4">Lade Kalender-Integrationen...</div>
+                ) : (
+                  <div className="space-y-4">
+                    {calendarIntegrations.length === 0 ? (
+                      <div className="text-center py-8">
+                        <div className="text-gray-500 mb-4">Noch keine Kalender-Integrationen konfiguriert</div>
+                        <p className="text-sm text-gray-400">
+                          Verbinden Sie Ihre Veranstaltungen mit Google Calendar oder Outlook für automatische Synchronisation.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Kalender Name
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Typ
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Synchronisation
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Erstellt
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Aktionen
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {calendarIntegrations.map((integration) => (
+                              <tr key={integration.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {integration.calendar_name}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                    integration.calendar_type === 'google' 
+                                      ? 'bg-blue-100 text-blue-800' 
+                                      : 'bg-orange-100 text-orange-800'
+                                  }`}>
+                                    {integration.calendar_type === 'google' ? 'Google Calendar' : 'Outlook'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                    integration.is_active 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {integration.is_active ? 'Aktiv' : 'Inaktiv'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                    integration.sync_events 
+                                      ? 'bg-purple-100 text-purple-800' 
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {integration.sync_events ? 'Ein' : 'Aus'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {formatDate(integration.created_at)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <button
+                                    onClick={() => handleDeleteCalendar(integration.id)}
+                                    className="text-red-600 hover:text-red-900"
+                                  >
+                                    Löschen
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Calendar Help Section */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h3 className="text-lg font-medium text-blue-900 mb-4">Kalender-Integration Hilfe</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-2">Google Calendar</h4>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• Besuchen Sie die Google Calendar API Konsole</li>
+                    <li>• Erstellen Sie OAuth 2.0 Anmeldedaten</li>
+                    <li>• Kopieren Sie den Access Token hierher</li>
+                    <li>• Automatische Synchronisation aller Veranstaltungen</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-2">Outlook Calendar</h4>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• Registrieren Sie Ihre App in Azure AD</li>
+                    <li>• Verwenden Sie Microsoft Graph API</li>
+                    <li>• Konfigurieren Sie Calendar.ReadWrite Berechtigung</li>
+                    <li>• Zwei-Wege-Synchronisation verfügbar</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="mt-4 p-4 bg-white rounded border border-blue-200">
+                <h4 className="font-medium text-blue-800 mb-2">iCal Export</h4>
+                <p className="text-sm text-blue-700 mb-3">
+                  Exportieren Sie Ihren Vereinskalender als .ics Datei für die Verwendung in jedem Kalender-Programm.
+                </p>
+                <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                  <strong>Öffentlicher Kalender-Link:</strong><br/>
+                  {`${BACKEND_URL}/api/calendar/{subdomain}/public.ics`}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Reports Tab */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
