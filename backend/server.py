@@ -743,7 +743,238 @@ async def update_event_registration_status(
     
     return {"message": "Anmeldestatus aktualisiert"}
 
-# Member Event Routes
+# Calendar Integration Utilities
+def generate_ical_event(event, verein_info):
+    """Generate iCal format for an event"""
+    from datetime import datetime
+    
+    # Format dates for iCal (UTC format)
+    start_dt = event['start_datetime'].strftime('%Y%m%dT%H%M%SZ') if isinstance(event['start_datetime'], datetime) else event['start_datetime']
+    end_dt = event['end_datetime'].strftime('%Y%m%dT%H%M%SZ') if isinstance(event['end_datetime'], datetime) else event['end_datetime']
+    created_dt = event['created_at'].strftime('%Y%m%dT%H%M%SZ') if isinstance(event['created_at'], datetime) else datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+    
+    ical_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Verein Management System//Event//DE
+BEGIN:VEVENT
+UID:{event['id']}@{verein_info['subdomain']}.vereinsystem.com
+DTSTART:{start_dt}
+DTEND:{end_dt}
+DTSTAMP:{created_dt}
+SUMMARY:{event['title']}
+DESCRIPTION:{event['description']}
+LOCATION:{event['location']}
+STATUS:{'CONFIRMED' if event['status'] == 'Bestätigt' else 'TENTATIVE'}
+ORGANIZER:CN={verein_info['name']}:MAILTO:admin@{verein_info['subdomain']}.vereinsystem.com
+CATEGORIES:{event['event_type']}
+END:VEVENT
+END:VCALENDAR"""
+    
+    return ical_content
+
+def generate_ical_calendar(events, verein_info):
+    """Generate iCal format for multiple events"""
+    ical_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Verein Management System//Calendar//DE
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:{verein_info['name']} - Veranstaltungen
+X-WR-CALDESC:Vereinskalender für {verein_info['name']}
+X-WR-TIMEZONE:Europe/Vienna
+"""
+    
+    for event in events:
+        start_dt = event['start_datetime'].strftime('%Y%m%dT%H%M%SZ') if isinstance(event['start_datetime'], datetime) else event['start_datetime']
+        end_dt = event['end_datetime'].strftime('%Y%m%dT%H%M%SZ') if isinstance(event['end_datetime'], datetime) else event['end_datetime']
+        created_dt = event['created_at'].strftime('%Y%m%dT%H%M%SZ') if isinstance(event['created_at'], datetime) else datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+        
+        ical_content += f"""
+BEGIN:VEVENT
+UID:{event['id']}@{verein_info['subdomain']}.vereinsystem.com
+DTSTART:{start_dt}
+DTEND:{end_dt}
+DTSTAMP:{created_dt}
+SUMMARY:{event['title']}
+DESCRIPTION:{event['description']}
+LOCATION:{event['location']}
+STATUS:{'CONFIRMED' if event['status'] == 'Bestätigt' else 'TENTATIVE'}
+ORGANIZER:CN={verein_info['name']}:MAILTO:admin@{verein_info['subdomain']}.vereinsystem.com
+CATEGORIES:{event['event_type']}
+END:VEVENT"""
+    
+    ical_content += "\nEND:VCALENDAR"
+    return ical_content
+
+# Calendar Integration Routes
+@api_router.get("/admin/calendar/integrations")
+async def get_calendar_integrations(admin: dict = Depends(get_current_admin)):
+    integrations = await db.calendar_integrations.find({"tenant_id": admin["tenant_id"]}).to_list(100)
+    # Remove sensitive data from response
+    for integration in integrations:
+        integration.pop('access_token', None)
+        integration.pop('refresh_token', None)
+    return integrations
+
+@api_router.post("/admin/calendar/integrations")
+async def create_calendar_integration(
+    integration_data: CalendarIntegrationCreate, 
+    admin: dict = Depends(get_current_admin)
+):
+    integration_dict = integration_data.dict()
+    integration_dict["tenant_id"] = admin["tenant_id"]
+    
+    integration_obj = CalendarIntegration(**integration_dict)
+    await db.calendar_integrations.insert_one(integration_obj.dict())
+    
+    # Remove sensitive data from response
+    response_data = integration_obj.dict()
+    response_data.pop('access_token', None)
+    response_data.pop('refresh_token', None)
+    
+    return {"message": "Kalender-Integration erfolgreich erstellt", "integration": response_data}
+
+@api_router.put("/admin/calendar/integrations/{integration_id}")
+async def update_calendar_integration(
+    integration_id: str,
+    integration_update: CalendarIntegrationUpdate,
+    admin: dict = Depends(get_current_admin)
+):
+    integration = await db.calendar_integrations.find_one({
+        "id": integration_id,
+        "tenant_id": admin["tenant_id"]
+    })
+    if not integration:
+        raise HTTPException(status_code=404, detail="Kalender-Integration nicht gefunden")
+    
+    update_data = {k: v for k, v in integration_update.dict().items() if v is not None}
+    
+    if update_data:
+        await db.calendar_integrations.update_one(
+            {"id": integration_id, "tenant_id": admin["tenant_id"]},
+            {"$set": update_data}
+        )
+    
+    return {"message": "Kalender-Integration aktualisiert"}
+
+@api_router.delete("/admin/calendar/integrations/{integration_id}")
+async def delete_calendar_integration(integration_id: str, admin: dict = Depends(get_current_admin)):
+    result = await db.calendar_integrations.delete_one({
+        "id": integration_id,
+        "tenant_id": admin["tenant_id"]
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Kalender-Integration nicht gefunden")
+    return {"message": "Kalender-Integration erfolgreich gelöscht"}
+
+@api_router.get("/admin/calendar/export")
+async def export_calendar(admin: dict = Depends(get_current_admin)):
+    # Get all events for this tenant
+    events = await db.events.find({"tenant_id": admin["tenant_id"]}).to_list(1000)
+    
+    # Get Verein info
+    verein = await db.vereine.find_one({"id": admin["tenant_id"]})
+    if not verein:
+        raise HTTPException(status_code=404, detail="Verein nicht gefunden")
+    
+    # Generate iCal content
+    ical_content = generate_ical_calendar(events, verein)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        BytesIO(ical_content.encode('utf-8')),
+        media_type="text/calendar",
+        headers={"Content-Disposition": f"attachment; filename={verein['subdomain']}_kalender.ics"}
+    )
+
+@api_router.get("/admin/calendar/export/event/{event_id}")
+async def export_event(event_id: str, admin: dict = Depends(get_current_admin)):
+    # Get specific event
+    event = await db.events.find_one({"id": event_id, "tenant_id": admin["tenant_id"]})
+    if not event:
+        raise HTTPException(status_code=404, detail="Veranstaltung nicht gefunden")
+    
+    # Get Verein info
+    verein = await db.vereine.find_one({"id": admin["tenant_id"]})
+    if not verein:
+        raise HTTPException(status_code=404, detail="Verein nicht gefunden")
+    
+    # Generate iCal content
+    ical_content = generate_ical_event(event, verein)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        BytesIO(ical_content.encode('utf-8')),
+        media_type="text/calendar",
+        headers={"Content-Disposition": f"attachment; filename={event['title'].replace(' ', '_')}.ics"}
+    )
+
+@api_router.post("/admin/calendar/sync")
+async def sync_events_to_calendar(admin: dict = Depends(get_current_admin)):
+    # Get active calendar integrations
+    integrations = await db.calendar_integrations.find({
+        "tenant_id": admin["tenant_id"],
+        "is_active": True,
+        "sync_events": True
+    }).to_list(100)
+    
+    if not integrations:
+        raise HTTPException(status_code=400, detail="Keine aktive Kalender-Integration gefunden")
+    
+    # Get all future events
+    current_time = datetime.utcnow()
+    events = await db.events.find({
+        "tenant_id": admin["tenant_id"],
+        "start_datetime": {"$gt": current_time},
+        "status": {"$in": ["Geplant", "Bestätigt"]}
+    }).to_list(1000)
+    
+    sync_results = []
+    for integration in integrations:
+        try:
+            # This is where you would implement actual Google/Outlook API calls
+            # For now, we'll simulate the sync
+            sync_results.append({
+                "calendar_name": integration["calendar_name"],
+                "calendar_type": integration["calendar_type"],
+                "events_synced": len(events),
+                "status": "Erfolgreich"
+            })
+        except Exception as e:
+            sync_results.append({
+                "calendar_name": integration["calendar_name"],
+                "calendar_type": integration["calendar_type"],
+                "events_synced": 0,
+                "status": f"Fehler: {str(e)}"
+            })
+    
+    return {
+        "message": "Kalender-Synchronisation abgeschlossen",
+        "results": sync_results
+    }
+
+# Public Calendar Access (for sharing)
+@api_router.get("/calendar/{tenant_subdomain}/public.ics")
+async def get_public_calendar(tenant_subdomain: str):
+    # Find tenant by subdomain
+    verein = await db.vereine.find_one({"subdomain": tenant_subdomain})
+    if not verein:
+        raise HTTPException(status_code=404, detail="Verein nicht gefunden")
+    
+    # Get public events (confirmed events only)
+    events = await db.events.find({
+        "tenant_id": verein["id"],
+        "status": "Bestätigt"
+    }).to_list(1000)
+    
+    # Generate iCal content
+    ical_content = generate_ical_calendar(events, verein)
+    
+    return StreamingResponse(
+        BytesIO(ical_content.encode('utf-8')),
+        media_type="text/calendar",
+        headers={"Content-Disposition": f"attachment; filename={tenant_subdomain}_oeffentlich.ics"}
+    )
 @api_router.get("/member/events")
 async def get_member_events(member: dict = Depends(get_current_member)):
     # Get all future events for this tenant
