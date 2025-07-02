@@ -542,6 +542,221 @@ class VereinAPITester:
             print_response=True
         )
         return success
+        
+    # Event Management Tests
+    def test_create_event(self):
+        """Test creating a new event"""
+        if not self.admin_token:
+            print("❌ No admin token available for testing")
+            return False
+            
+        # Create event data with dates in the future
+        start_datetime = (datetime.utcnow() + timedelta(days=7)).isoformat()
+        end_datetime = (datetime.utcnow() + timedelta(days=7, hours=2)).isoformat()
+        
+        data = {
+            "title": f"Test Event {int(time.time())}",
+            "description": "Ein Test Event für API Tests",
+            "event_type": "Training",
+            "start_datetime": start_datetime,
+            "end_datetime": end_datetime,
+            "location": "Teststraße 1, 1010 Wien",
+            "max_participants": 20,
+            "registration_required": True,
+            "cost": 15.0
+        }
+        
+        success, response = self.run_test(
+            "Create Event",
+            "POST",
+            "admin/events",
+            200,
+            data=data,
+            token=self.admin_token,
+            print_response=True
+        )
+        
+        if success and 'id' in response:
+            self.event_id = response['id']
+            print(f"Created event with ID: {self.event_id}")
+            return True
+        return False
+    
+    def test_get_admin_events(self):
+        """Test getting all events as admin"""
+        if not self.admin_token:
+            print("❌ No admin token available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get All Events (Admin)",
+            "GET",
+            "admin/events",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+    
+    def test_get_admin_event(self):
+        """Test getting a specific event as admin"""
+        if not self.admin_token or not self.event_id:
+            print("❌ No admin token or event ID available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get Specific Event (Admin)",
+            "GET",
+            f"admin/events/{self.event_id}",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+    
+    def test_update_event(self):
+        """Test updating an event"""
+        if not self.admin_token or not self.event_id:
+            print("❌ No admin token or event ID available for testing")
+            return False
+            
+        data = {
+            "title": f"Updated Test Event {int(time.time())}",
+            "status": "Bestätigt"
+        }
+        
+        success, response = self.run_test(
+            "Update Event",
+            "PUT",
+            f"admin/events/{self.event_id}",
+            200,
+            data=data,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+    
+    def test_get_member_events(self):
+        """Test getting available events as member"""
+        if not self.member_token:
+            print("❌ No member token available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get Available Events (Member)",
+            "GET",
+            "member/events",
+            200,
+            token=self.member_token,
+            print_response=True
+        )
+        return success
+    
+    def test_register_for_event(self):
+        """Test registering for an event"""
+        if not self.member_token or not self.event_id:
+            print("❌ No member token or event ID available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Register for Event",
+            "POST",
+            f"member/events/{self.event_id}/register",
+            200,
+            token=self.member_token,
+            print_response=True
+        )
+        return success
+    
+    def test_get_event_registrations(self):
+        """Test getting event registrations as admin"""
+        if not self.admin_token or not self.event_id:
+            print("❌ No admin token or event ID available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get Event Registrations (Admin)",
+            "GET",
+            f"admin/events/{self.event_id}/registrations",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        
+        if success and len(response) > 0:
+            self.registration_id = response[0]['id']
+            print(f"Found registration with ID: {self.registration_id}")
+            return True
+        return success
+    
+    def test_update_registration_status(self):
+        """Test updating registration status"""
+        if not self.admin_token or not self.event_id or not self.registration_id:
+            print("❌ No admin token, event ID, or registration ID available for testing")
+            return False
+            
+        data = {
+            "status": "Teilgenommen"
+        }
+        
+        success, response = self.run_test(
+            "Update Registration Status",
+            "PUT",
+            f"admin/events/{self.event_id}/registrations/{self.registration_id}",
+            200,
+            data=data,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+    
+    def test_get_my_registrations(self):
+        """Test getting member's own registrations"""
+        if not self.member_token:
+            print("❌ No member token available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get My Registrations",
+            "GET",
+            "member/events/my-registrations",
+            200,
+            token=self.member_token,
+            print_response=True
+        )
+        return success
+    
+    def test_unregister_from_event(self):
+        """Test unregistering from an event"""
+        if not self.member_token or not self.event_id:
+            print("❌ No member token or event ID available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Unregister from Event",
+            "DELETE",
+            f"member/events/{self.event_id}/register",
+            200,
+            token=self.member_token,
+            print_response=True
+        )
+        return success
+    
+    def test_delete_event(self):
+        """Test deleting an event"""
+        if not self.admin_token or not self.event_id:
+            print("❌ No admin token or event ID available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Delete Event",
+            "DELETE",
+            f"admin/events/{self.event_id}",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
 
     def run_all_tests(self):
         """Run all API tests in sequence"""
