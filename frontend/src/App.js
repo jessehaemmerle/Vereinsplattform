@@ -403,12 +403,14 @@ const MemberLogin = ({ subdomain, onLogin }) => {
 };
 
 const AdminDashboard = ({ verein, onLogout }) => {
-  const [activeTab, setActiveTab] = useState('members');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [events, setEvents] = useState([]);
   const [eventRegistrations, setEventRegistrations] = useState({});
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
+  const [dashboardWidgets, setDashboardWidgets] = useState([]);
+  const [widgetData, setWidgetData] = useState({});
   const [financialReport, setFinancialReport] = useState(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
