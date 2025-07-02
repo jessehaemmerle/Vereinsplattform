@@ -3,7 +3,7 @@ import json
 import sys
 import uuid
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class VereinAPITester:
     def __init__(self, base_url="https://e7ac2d55-3a43-4368-bb35-863c6593dcf7.preview.emergentagent.com"):
@@ -19,6 +19,8 @@ class VereinAPITester:
         self.member_number = None
         self.payment_id = None
         self.payment_ids = []
+        self.event_id = None
+        self.registration_id = None
         self.tests_run = 0
         self.tests_passed = 0
 
