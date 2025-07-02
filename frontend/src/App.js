@@ -490,11 +490,18 @@ const AdminDashboard = ({ verein, onLogout }) => {
   const handleAddPayment = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API}/admin/payments`, {
-        ...paymentForm,
+      const paymentData = {
+        member_id: paymentForm.member_id,
         amount: parseFloat(paymentForm.amount),
+        payment_type: paymentForm.payment_type,
+        description: paymentForm.description,
         due_date: new Date(paymentForm.due_date).toISOString()
-      });
+      };
+      
+      console.log('Submitting payment:', paymentData);
+      const response = await axios.post(`${API}/admin/payments`, paymentData);
+      console.log('Payment created:', response.data);
+      
       setPaymentForm({
         member_id: '',
         amount: '',
@@ -503,8 +510,15 @@ const AdminDashboard = ({ verein, onLogout }) => {
         due_date: ''
       });
       setShowAddPayment(false);
-      fetchPayments();
+      setSelectedMember(null);
+      
+      // Refresh both payments and members data
+      await fetchPayments();
+      if (activeTab === 'members') {
+        await fetchMembers();
+      }
     } catch (err) {
+      console.error('Error creating payment:', err);
       setError(err.response?.data?.detail || 'Fehler beim Hinzufügen der Zahlung');
     }
   };
