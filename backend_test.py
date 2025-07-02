@@ -563,12 +563,22 @@ class VereinAPITester:
         self.test_get_member()
         self.test_update_member()
         
+        # Payment management
+        self.test_create_payment()
+        self.test_create_additional_payment()
+        self.test_get_payments()
+        self.test_get_member_payments()
+        self.test_update_payment_status()
+        self.test_generate_invoice()
+        self.test_get_financial_report()
+        
         # Member login and portal
         self.test_member_login()
         self.test_get_member_profile()
         self.test_get_member_verein()
         
         # Cleanup
+        self.test_delete_payment()
         self.test_delete_member()
         
         # Print results
