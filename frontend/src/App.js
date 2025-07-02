@@ -287,7 +287,8 @@ const AdminLogin = ({ subdomain, onLogin }) => {
 const MemberLogin = ({ subdomain, onLogin }) => {
   const [formData, setFormData] = useState({
     email: '',
-    membership_number: ''
+    membership_number: '',
+    subdomain: subdomain || ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -297,10 +298,17 @@ const MemberLogin = ({ subdomain, onLogin }) => {
     setLoading(true);
     setError('');
 
+    if (!formData.subdomain) {
+      setError('Bitte geben Sie eine Subdomain ein');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await axios.post(`${API}/member/login`, {
-        ...formData,
-        subdomain
+        email: formData.email,
+        membership_number: formData.membership_number,
+        subdomain: formData.subdomain
       });
       setAuthToken(response.data.token);
       onLogin(response.data);
@@ -317,9 +325,11 @@ const MemberLogin = ({ subdomain, onLogin }) => {
         <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
           Mitglieder-Portal
         </h1>
-        <p className="text-center text-gray-600 mb-6">
-          Verein: <strong>{subdomain}</strong>
-        </p>
+        {subdomain && (
+          <p className="text-center text-gray-600 mb-6">
+            Verein: <strong>{subdomain}</strong>
+          </p>
+        )}
         
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -328,6 +338,22 @@ const MemberLogin = ({ subdomain, onLogin }) => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!subdomain && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Verein Subdomain
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="z.B. sv-muenchen"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                value={formData.subdomain}
+                onChange={(e) => setFormData({...formData, subdomain: e.target.value})}
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               E-Mail
@@ -363,9 +389,12 @@ const MemberLogin = ({ subdomain, onLogin }) => {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <a href="/admin" className="text-blue-600 hover:text-blue-800 text-sm">
+        <div className="mt-6 text-center space-y-2">
+          <a href="/admin" className="block text-blue-600 hover:text-blue-800 text-sm">
             ← Admin-Bereich
+          </a>
+          <a href="/" className="block text-gray-600 hover:text-gray-800 text-sm">
+            ← Zurück zur Registrierung
           </a>
         </div>
       </div>
