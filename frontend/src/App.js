@@ -406,9 +406,14 @@ const AdminDashboard = ({ verein, onLogout }) => {
   const [activeTab, setActiveTab] = useState('members');
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [eventRegistrations, setEventRegistrations] = useState({});
   const [financialReport, setFinancialReport] = useState(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showEventRegistrations, setShowEventRegistrations] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedMember, setSelectedMember] = useState(null);
@@ -429,6 +434,18 @@ const AdminDashboard = ({ verein, onLogout }) => {
     payment_type: 'Mitgliedsbeitrag',
     description: '',
     due_date: ''
+  });
+
+  const [eventForm, setEventForm] = useState({
+    title: '',
+    description: '',
+    event_type: 'Training',
+    start_datetime: '',
+    end_datetime: '',
+    location: '',
+    max_participants: '',
+    registration_required: true,
+    cost: '0'
   });
 
   useEffect(() => {
