@@ -179,6 +179,32 @@ class EventRegistration(BaseModel):
     status: str = "Angemeldet"  # Angemeldet, Teilgenommen, Abgemeldet, Nicht erschienen
     notes: Optional[str] = ""
 
+class CalendarIntegration(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str
+    calendar_type: str  # "google", "outlook"
+    calendar_name: str
+    calendar_id: str
+    access_token: str
+    refresh_token: Optional[str] = ""
+    expires_at: Optional[datetime] = None
+    is_active: bool = True
+    sync_events: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class CalendarIntegrationCreate(BaseModel):
+    calendar_type: str
+    calendar_name: str
+    access_token: str
+    refresh_token: Optional[str] = ""
+    calendar_id: Optional[str] = ""
+    sync_events: bool = True
+
+class CalendarIntegrationUpdate(BaseModel):
+    calendar_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    sync_events: Optional[bool] = None
+
 # Utility functions
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
