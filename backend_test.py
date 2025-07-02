@@ -108,6 +108,12 @@ class VereinAPITester:
             "subdomain": self.verein_subdomain
         }
         
+        print(f"Attempting admin login with: {json.dumps(data, indent=2)}")
+        
+        # Add a small delay to ensure the Verein is fully created in the database
+        print("Waiting 2 seconds for database to update...")
+        time.sleep(2)
+        
         success, response = self.run_test(
             "Admin Login",
             "POST",
