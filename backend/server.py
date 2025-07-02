@@ -612,6 +612,245 @@ async def get_financial_report(admin: dict = Depends(get_current_admin)):
         "by_payment_type": payments_by_type,
         "total_payments": len(payments)
     }
+# Event Management Routes
+@api_router.post("/admin/events", response_model=Event)
+async def create_event(event_data: EventCreate, admin: dict = Depends(get_current_admin)):
+    event_dict = event_data.dict()
+    event_dict["tenant_id"] = admin["tenant_id"]
+    event_dict["created_by"] = admin["email"]
+    
+    event_obj = Event(**event_dict)
+    await db.events.insert_one(event_obj.dict())
+    return event_obj
+
+@api_router.get("/admin/events", response_model=List[Event])
+async def get_admin_events(admin: dict = Depends(get_current_admin)):
+    events = await db.events.find({"tenant_id": admin["tenant_id"]}).to_list(1000)
+    return [Event(**event) for event in events]
+
+@api_router.get("/admin/events/{event_id}", response_model=Event)
+async def get_admin_event(event_id: str, admin: dict = Depends(get_current_admin)):
+    event = await db.events.find_one({"id": event_id, "tenant_id": admin["tenant_id"]})
+    if not event:
+        raise HTTPException(status_code=404, detail="Veranstaltung nicht gefunden")
+    return Event(**event)
+
+@api_router.put("/admin/events/{event_id}", response_model=Event)
+async def update_event(event_id: str, event_update: EventUpdate, admin: dict = Depends(get_current_admin)):
+    event = await db.events.find_one({"id": event_id, "tenant_id": admin["tenant_id"]})
+    if not event:
+        raise HTTPException(status_code=404, detail="Veranstaltung nicht gefunden")
+    
+    update_data = {k: v for k, v in event_update.dict().items() if v is not None}
+    
+    if update_data:
+        await db.events.update_one(
+            {"id": event_id, "tenant_id": admin["tenant_id"]},
+            {"$set": update_data}
+        )
+        
+        updated_event = await db.events.find_one({"id": event_id, "tenant_id": admin["tenant_id"]})
+        return Event(**updated_event)
+    
+    return Event(**event)
+
+@api_router.delete("/admin/events/{event_id}")
+async def delete_event(event_id: str, admin: dict = Depends(get_current_admin)):
+    # Also delete all registrations for this event
+    await db.event_registrations.delete_many({
+        "event_id": event_id,
+        "tenant_id": admin["tenant_id"]
+    })
+    
+    result = await db.events.delete_one({"id": event_id, "tenant_id": admin["tenant_id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Veranstaltung nicht gefunden")
+    return {"message": "Veranstaltung erfolgreich gelöscht"}
+
+@api_router.get("/admin/events/{event_id}/registrations")
+async def get_event_registrations(event_id: str, admin: dict = Depends(get_current_admin)):
+    # Verify event belongs to this tenant
+    event = await db.events.find_one({"id": event_id, "tenant_id": admin["tenant_id"]})
+    if not event:
+        raise HTTPException(status_code=404, detail="Veranstaltung nicht gefunden")
+    
+    registrations = await db.event_registrations.find({
+        "event_id": event_id,
+        "tenant_id": admin["tenant_id"]
+    }).to_list(1000)
+    
+    # Enhance with member information
+    enhanced_registrations = []
+    for reg in registrations:
+        member = await db.members.find_one({"id": reg["member_id"], "tenant_id": admin["tenant_id"]})
+        if member:
+            reg["member_name"] = member["name"]
+            reg["member_email"] = member["email"]
+            reg["membership_number"] = member["membership_number"]
+        enhanced_registrations.append(reg)
+    
+    return enhanced_registrations
+
+@api_router.put("/admin/events/{event_id}/registrations/{registration_id}")
+async def update_event_registration_status(
+    event_id: str, 
+    registration_id: str, 
+    status_update: dict,
+    admin: dict = Depends(get_current_admin)
+):
+    # Verify event belongs to this tenant
+    event = await db.events.find_one({"id": event_id, "tenant_id": admin["tenant_id"]})
+    if not event:
+        raise HTTPException(status_code=404, detail="Veranstaltung nicht gefunden")
+    
+    result = await db.event_registrations.update_one(
+        {
+            "id": registration_id,
+            "event_id": event_id,
+            "tenant_id": admin["tenant_id"]
+        },
+        {"$set": status_update}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Anmeldung nicht gefunden")
+    
+    return {"message": "Anmeldestatus aktualisiert"}
+
+# Member Event Routes
+@api_router.get("/member/events")
+async def get_member_events(member: dict = Depends(get_current_member)):
+    # Get all future events for this tenant
+    current_time = datetime.utcnow()
+    events = await db.events.find({
+        "tenant_id": member["tenant_id"],
+        "start_datetime": {"$gt": current_time},
+        "status": {"$in": ["Geplant", "Bestätigt"]}
+    }).to_list(1000)
+    
+    # Enhance with registration status
+    enhanced_events = []
+    for event in events:
+        # Check if member is registered
+        registration = await db.event_registrations.find_one({
+            "event_id": event["id"],
+            "member_id": member["member_id"],
+            "tenant_id": member["tenant_id"]
+        })
+        
+        event["is_registered"] = registration is not None
+        event["registration_status"] = registration["status"] if registration else None
+        event["registration_id"] = registration["id"] if registration else None
+        
+        # Check capacity
+        registration_count = await db.event_registrations.count_documents({
+            "event_id": event["id"],
+            "tenant_id": member["tenant_id"],
+            "status": {"$ne": "Abgemeldet"}
+        })
+        event["registration_count"] = registration_count
+        event["is_full"] = event.get("max_participants") and registration_count >= event["max_participants"]
+        
+        enhanced_events.append(event)
+    
+    return enhanced_events
+
+@api_router.post("/member/events/{event_id}/register")
+async def register_for_event(event_id: str, member: dict = Depends(get_current_member)):
+    # Verify event exists and is open for registration
+    event = await db.events.find_one({
+        "id": event_id,
+        "tenant_id": member["tenant_id"],
+        "status": {"$in": ["Geplant", "Bestätigt"]}
+    })
+    if not event:
+        raise HTTPException(status_code=404, detail="Veranstaltung nicht gefunden oder nicht verfügbar")
+    
+    # Check if event requires registration
+    if not event.get("registration_required", True):
+        raise HTTPException(status_code=400, detail="Für diese Veranstaltung ist keine Anmeldung erforderlich")
+    
+    # Check if already registered
+    existing_registration = await db.event_registrations.find_one({
+        "event_id": event_id,
+        "member_id": member["member_id"],
+        "tenant_id": member["tenant_id"],
+        "status": {"$ne": "Abgemeldet"}
+    })
+    if existing_registration:
+        raise HTTPException(status_code=400, detail="Sie sind bereits für diese Veranstaltung angemeldet")
+    
+    # Check capacity
+    if event.get("max_participants"):
+        registration_count = await db.event_registrations.count_documents({
+            "event_id": event_id,
+            "tenant_id": member["tenant_id"],
+            "status": {"$ne": "Abgemeldet"}
+        })
+        if registration_count >= event["max_participants"]:
+            raise HTTPException(status_code=400, detail="Die Veranstaltung ist bereits ausgebucht")
+    
+    # Check if event is in the future
+    if event["start_datetime"] <= datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Anmeldung für vergangene Veranstaltungen nicht möglich")
+    
+    # Create registration
+    registration = EventRegistration(
+        tenant_id=member["tenant_id"],
+        event_id=event_id,
+        member_id=member["member_id"]
+    )
+    
+    await db.event_registrations.insert_one(registration.dict())
+    
+    return {"message": "Erfolgreich für Veranstaltung angemeldet"}
+
+@api_router.delete("/member/events/{event_id}/register")
+async def unregister_from_event(event_id: str, member: dict = Depends(get_current_member)):
+    # Find registration
+    registration = await db.event_registrations.find_one({
+        "event_id": event_id,
+        "member_id": member["member_id"],
+        "tenant_id": member["tenant_id"],
+        "status": {"$ne": "Abgemeldet"}
+    })
+    if not registration:
+        raise HTTPException(status_code=404, detail="Keine aktive Anmeldung gefunden")
+    
+    # Check if event is still in the future (allow unregistration up to event start)
+    event = await db.events.find_one({"id": event_id, "tenant_id": member["tenant_id"]})
+    if event and event["start_datetime"] <= datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Abmeldung für laufende oder vergangene Veranstaltungen nicht möglich")
+    
+    # Update registration status to "Abgemeldet"
+    await db.event_registrations.update_one(
+        {"id": registration["id"]},
+        {"$set": {"status": "Abgemeldet"}}
+    )
+    
+    return {"message": "Erfolgreich von Veranstaltung abgemeldet"}
+
+@api_router.get("/member/events/my-registrations")
+async def get_my_event_registrations(member: dict = Depends(get_current_member)):
+    registrations = await db.event_registrations.find({
+        "member_id": member["member_id"],
+        "tenant_id": member["tenant_id"],
+        "status": {"$ne": "Abgemeldet"}
+    }).to_list(1000)
+    
+    # Enhance with event information
+    enhanced_registrations = []
+    for reg in registrations:
+        event = await db.events.find_one({"id": reg["event_id"], "tenant_id": member["tenant_id"]})
+        if event:
+            reg["event_title"] = event["title"]
+            reg["event_start"] = event["start_datetime"]
+            reg["event_location"] = event["location"]
+            reg["event_type"] = event["event_type"]
+            enhanced_registrations.append(reg)
+    
+    return enhanced_registrations
+
 @api_router.post("/member/login")
 async def member_login(login_data: MemberLogin):
     # Get tenant_id from subdomain
