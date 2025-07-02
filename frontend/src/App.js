@@ -760,6 +760,8 @@ function App() {
     const subdomain = getSubdomain();
     const path = window.location.pathname;
 
+    console.log('Subdomain detection:', { hostname: window.location.hostname, subdomain, path });
+
     if (token) {
       // User is logged in, determine type from token
       try {
@@ -776,16 +778,19 @@ function App() {
       } catch (err) {
         // Invalid token
         setAuthToken(null);
-        setCurrentView('login');
+        determineView(); // Recurse to determine view without token
       }
-    } else if (!subdomain || subdomain === 'localhost' || subdomain.includes('emergentagent')) {
-      // Main domain - show registration (no subdomain or localhost/preview domain)
+    } else if (!subdomain) {
+      // Main domain - show registration
+      console.log('Showing registration form');
       setCurrentView('registration');
     } else if (path === '/member') {
       // Member login
+      console.log('Showing member login');
       setCurrentView('member-login');
     } else {
       // Admin login (default for subdomains)
+      console.log('Showing admin login');
       setCurrentView('admin-login');
     }
   };
