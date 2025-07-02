@@ -342,6 +342,204 @@ class VereinAPITester:
             print_response=True
         )
         return success
+        
+    # Payment Management Tests
+    def test_create_payment(self):
+        """Test creating a new payment"""
+        if not self.admin_token or not self.member_id:
+            print("❌ No admin token or member ID available for testing")
+            return False
+            
+        # Create payment data
+        due_date = (datetime.utcnow().isoformat())
+        
+        data = {
+            "member_id": self.member_id,
+            "amount": 120.50,
+            "payment_type": "Mitgliedsbeitrag",
+            "description": "Jahresbeitrag 2025",
+            "due_date": due_date
+        }
+        
+        success, response = self.run_test(
+            "Create Payment",
+            "POST",
+            "admin/payments",
+            200,
+            data=data,
+            token=self.admin_token,
+            print_response=True
+        )
+        
+        if success and 'id' in response:
+            self.payment_id = response['id']
+            self.payment_ids.append(self.payment_id)
+            print(f"Created payment with ID: {self.payment_id}")
+            return True
+        return False
+        
+    def test_create_additional_payment(self):
+        """Test creating an additional payment"""
+        if not self.admin_token or not self.member_id:
+            print("❌ No admin token or member ID available for testing")
+            return False
+            
+        # Create payment data
+        due_date = (datetime.utcnow().isoformat())
+        
+        data = {
+            "member_id": self.member_id,
+            "amount": 25.00,
+            "payment_type": "Zusatzgebühr",
+            "description": "Sonderveranstaltung",
+            "due_date": due_date
+        }
+        
+        success, response = self.run_test(
+            "Create Additional Payment",
+            "POST",
+            "admin/payments",
+            200,
+            data=data,
+            token=self.admin_token,
+            print_response=True
+        )
+        
+        if success and 'id' in response:
+            additional_payment_id = response['id']
+            self.payment_ids.append(additional_payment_id)
+            print(f"Created additional payment with ID: {additional_payment_id}")
+            return True
+        return False
+        
+    def test_get_payments(self):
+        """Test getting all payments"""
+        if not self.admin_token:
+            print("❌ No admin token available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get All Payments",
+            "GET",
+            "admin/payments",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+        
+    def test_get_member_payments(self):
+        """Test getting payments for a specific member"""
+        if not self.admin_token or not self.member_id:
+            print("❌ No admin token or member ID available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get Member Payments",
+            "GET",
+            f"admin/payments/member/{self.member_id}",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+        
+    def test_update_payment_status(self):
+        """Test updating payment status"""
+        if not self.admin_token or not self.payment_id:
+            print("❌ No admin token or payment ID available for testing")
+            return False
+            
+        data = {
+            "status": "Bezahlt"
+        }
+        
+        success, response = self.run_test(
+            "Update Payment Status",
+            "PUT",
+            f"admin/payments/{self.payment_id}",
+            200,
+            data=data,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+        
+    def test_generate_invoice(self):
+        """Test generating an invoice"""
+        if not self.admin_token or not self.member_id or not self.payment_ids:
+            print("❌ No admin token, member ID, or payment IDs available for testing")
+            return False
+            
+        data = {
+            "member_id": self.member_id,
+            "payment_ids": self.payment_ids,
+            "invoice_number": f"TEST-INV-{int(time.time())}"
+        }
+        
+        # For invoice generation, we expect a PDF response
+        # We'll just check if the request is successful
+        url = f"{self.api_url}/admin/invoices/generate"
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.admin_token}'
+        }
+        
+        self.tests_run += 1
+        print(f"\n🔍 Testing Generate Invoice...")
+        
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            success = response.status_code == 200
+            
+            if success:
+                self.tests_passed += 1
+                print(f"✅ Passed - Status: {response.status_code}")
+                print(f"✅ Successfully generated PDF invoice")
+                return True
+            else:
+                print(f"❌ Failed - Expected 200, got {response.status_code}")
+                try:
+                    print(f"Error: {response.json()}")
+                except:
+                    print(f"Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Failed - Error: {str(e)}")
+            return False
+            
+    def test_get_financial_report(self):
+        """Test getting financial report"""
+        if not self.admin_token:
+            print("❌ No admin token available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get Financial Report",
+            "GET",
+            "admin/reports/financial",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+        
+    def test_delete_payment(self):
+        """Test deleting a payment"""
+        if not self.admin_token or not self.payment_id:
+            print("❌ No admin token or payment ID available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Delete Payment",
+            "DELETE",
+            f"admin/payments/{self.payment_id}",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
 
     def run_all_tests(self):
         """Run all API tests in sequence"""
