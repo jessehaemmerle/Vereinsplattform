@@ -131,6 +131,54 @@ class InvoiceCreate(BaseModel):
     payment_ids: List[str]
     invoice_number: Optional[str] = None
 
+class EventCreate(BaseModel):
+    title: str
+    description: str
+    event_type: str  # Training, Wettkampf, Vereinsfeier, Mitgliederversammlung, Sonstiges
+    start_datetime: datetime
+    end_datetime: datetime
+    location: str
+    max_participants: Optional[int] = None
+    registration_required: bool = True
+    cost: Optional[float] = 0.0
+
+class Event(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str
+    title: str
+    description: str
+    event_type: str
+    start_datetime: datetime
+    end_datetime: datetime
+    location: str
+    max_participants: Optional[int] = None
+    registration_required: bool = True
+    cost: Optional[float] = 0.0
+    status: str = "Geplant"  # Geplant, Bestätigt, Abgeschlossen, Abgesagt
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str  # Admin email who created the event
+
+class EventUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    event_type: Optional[str] = None
+    start_datetime: Optional[datetime] = None
+    end_datetime: Optional[datetime] = None
+    location: Optional[str] = None
+    max_participants: Optional[int] = None
+    registration_required: Optional[bool] = None
+    cost: Optional[float] = None
+    status: Optional[str] = None
+
+class EventRegistration(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str
+    event_id: str
+    member_id: str
+    registration_date: datetime = Field(default_factory=datetime.utcnow)
+    status: str = "Angemeldet"  # Angemeldet, Teilgenommen, Abgemeldet, Nicht erschienen
+    notes: Optional[str] = ""
+
 # Utility functions
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
