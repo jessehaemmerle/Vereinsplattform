@@ -1500,11 +1500,22 @@ const AdminDashboard = ({ verein, onLogout }) => {
 const MemberDashboard = ({ member, onLogout }) => {
   const [profile, setProfile] = useState(null);
   const [vereinInfo, setVereinInfo] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [myRegistrations, setMyRegistrations] = useState([]);
+  const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchMemberData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'events') {
+      fetchEvents();
+    } else if (activeTab === 'registrations') {
+      fetchMyRegistrations();
+    }
+  }, [activeTab]);
 
   const fetchMemberData = async () => {
     try {
@@ -1518,6 +1529,47 @@ const MemberDashboard = ({ member, onLogout }) => {
       console.error('Fehler beim Laden der Mitgliederdaten:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEvents = async () => {
+    try {
+      const response = await axios.get(`${API}/member/events`);
+      setEvents(response.data);
+    } catch (err) {
+      console.error('Fehler beim Laden der Veranstaltungen:', err);
+    }
+  };
+
+  const fetchMyRegistrations = async () => {
+    try {
+      const response = await axios.get(`${API}/member/events/my-registrations`);
+      setMyRegistrations(response.data);
+    } catch (err) {
+      console.error('Fehler beim Laden der Anmeldungen:', err);
+    }
+  };
+
+  const registerForEvent = async (eventId) => {
+    try {
+      await axios.post(`${API}/member/events/${eventId}/register`);
+      fetchEvents();
+      alert('Erfolgreich für Veranstaltung angemeldet!');
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Fehler bei der Anmeldung');
+    }
+  };
+
+  const unregisterFromEvent = async (eventId) => {
+    if (window.confirm('Möchten Sie sich wirklich von dieser Veranstaltung abmelden?')) {
+      try {
+        await axios.delete(`${API}/member/events/${eventId}/register`);
+        fetchEvents();
+        fetchMyRegistrations();
+        alert('Erfolgreich von Veranstaltung abgemeldet!');
+      } catch (err) {
+        alert(err.response?.data?.detail || 'Fehler bei der Abmeldung');
+      }
     }
   };
 
