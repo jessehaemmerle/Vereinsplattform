@@ -628,6 +628,68 @@ const AdminDashboard = ({ verein, onLogout }) => {
       setError('Fehler beim Exportieren der Veranstaltung');
     }
   };
+
+  const handleDeleteCalendar = async (calendarId) => {
+    if (window.confirm('Sind Sie sicher, dass Sie diese Kalender-Integration löschen möchten?')) {
+      try {
+        await axios.delete(`${API}/admin/calendar/integrations/${calendarId}`);
+        fetchCalendarIntegrations();
+      } catch (err) {
+        setError('Fehler beim Löschen der Kalender-Integration');
+      }
+    }
+  };
+
+  const syncEventsToCalendar = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.post(`${API}/admin/calendar/sync`);
+      alert('Veranstaltungen erfolgreich synchronisiert!');
+      console.log('Sync results:', response.data);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Fehler bei der Kalender-Synchronisation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exportCalendar = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/calendar/export`, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `vereinskalender_${Date.now()}.ics`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError('Fehler beim Exportieren des Kalenders');
+    }
+  };
+
+  const exportEvent = async (eventId, eventTitle) => {
+    try {
+      const response = await axios.get(`${API}/admin/calendar/export/event/${eventId}`, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${eventTitle.replace(/\s+/g, '_')}.ics`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError('Fehler beim Exportieren der Veranstaltung');
+    }
+  };
     e.preventDefault();
     try {
       const eventData = {
