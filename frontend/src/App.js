@@ -2093,6 +2093,142 @@ const AdminDashboard = ({ verein, onLogout }) => {
   );
 };
 
+// Dashboard Widget Component
+const DashboardWidget = ({ widget, data, onQuickAction }) => {
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('de-AT', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(amount);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('de-AT');
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Bezahlt': return 'text-green-600';
+      case 'Überfällig': return 'text-red-600';
+      case 'Angemeldet': return 'text-green-600';
+      case 'Bestätigt': return 'text-blue-600';
+      default: return 'text-yellow-600';
+    }
+  };
+
+  const renderWidgetContent = () => {
+    switch (widget.widget_type) {
+      case 'member_stats':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{data?.total_members || 0}</div>
+                <div className="text-sm text-gray-500">Gesamt</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{data?.new_members_this_month || 0}</div>
+                <div className="text-sm text-gray-500">Neu</div>
+              </div>
+            </div>
+            
+            {data?.fees_status && (
+              <div className="space-y-1">
+                <div className="text-xs text-gray-500">Beitragsstatus:</div>
+                {data.fees_status.map((status, index) => (
+                  <div key={index} className="flex justify-between text-sm">
+                    <span>{status._id}:</span>
+                    <span className={getStatusColor(status._id)}>{status.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'payment_overview':
+        return (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Bezahlt:</span>
+                <span className="text-sm font-medium text-green-600">
+                  {formatCurrency(data?.total_paid || 0)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Ausstehend:</span>
+                <span className="text-sm font-medium text-yellow-600">
+                  {formatCurrency(data?.total_outstanding || 0)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Überfällig:</span>
+                <span className="text-sm font-medium text-red-600">
+                  {formatCurrency(data?.total_overdue || 0)}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'recent_events':
+        return (
+          <div className="space-y-3">
+            <div className="text-xs text-gray-500">Kommende Veranstaltungen:</div>
+            {data?.upcoming_events?.slice(0, 3).map((event, index) => (
+              <div key={index} className="text-sm border-l-2 border-purple-200 pl-2">
+                <div className="font-medium">{event.title}</div>
+                <div className="text-xs text-gray-500">{formatDate(event.start_datetime)}</div>
+              </div>
+            )) || <div className="text-sm text-gray-400">Keine Veranstaltungen</div>}
+          </div>
+        );
+
+      case 'quick_actions':
+        return (
+          <div className="grid grid-cols-1 gap-2">
+            {data?.actions?.slice(0, 4).map((action, index) => (
+              <button
+                key={index}
+                onClick={() => onQuickAction(action.id)}
+                className={`text-left px-3 py-2 rounded text-sm font-medium text-white bg-${action.color}-600 hover:bg-${action.color}-700`}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        );
+
+      case 'activity_feed':
+        return (
+          <div className="space-y-2">
+            {data?.activities?.slice(0, 4).map((activity, index) => (
+              <div key={index} className="text-sm border-l-2 border-gray-200 pl-2">
+                <div className="font-medium">{activity.message}</div>
+                <div className="text-xs text-gray-500">{formatDate(activity.timestamp)}</div>
+              </div>
+            )) || <div className="text-sm text-gray-400">Keine Aktivitäten</div>}
+          </div>
+        );
+
+      default:
+        return <div className="text-sm text-gray-400">Widget-Typ nicht unterstützt</div>;
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex-shrink-0 mb-3">
+        <h3 className="text-lg font-medium text-gray-900">{widget.widget_title}</h3>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        {renderWidgetContent()}
+      </div>
+    </div>
+  );
+};
+
 const MemberDashboard = ({ member, onLogout }) => {
   const [profile, setProfile] = useState(null);
   const [vereinInfo, setVereinInfo] = useState(null);
