@@ -730,6 +730,68 @@ const AdminDashboard = ({ verein, onLogout }) => {
       setError('Fehler beim Exportieren der Veranstaltung');
     }
   };
+
+  const handleQuickAction = (actionId) => {
+    switch (actionId) {
+      case 'add_member':
+        setShowAddMember(true);
+        break;
+      case 'add_event':
+        setShowAddEvent(true);
+        break;
+      case 'add_payment':
+        setShowAddPayment(true);
+        break;
+      case 'export_calendar':
+        exportCalendar();
+        break;
+      case 'financial_report':
+        setActiveTab('reports');
+        break;
+      default:
+        console.log('Unknown action:', actionId);
+    }
+  };
+
+  const resetDefaultDashboard = async () => {
+    if (window.confirm('Möchten Sie das Dashboard auf die Standardkonfiguration zurücksetzen?')) {
+      try {
+        await axios.post(`${API}/admin/dashboard/reset-default`);
+        await fetchDashboardWidgets();
+        alert('Dashboard erfolgreich zurückgesetzt!');
+      } catch (err) {
+        setError('Fehler beim Zurücksetzen des Dashboards');
+      }
+    }
+  };
+
+  const fetchDashboardWidgets = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/dashboard/widgets`);
+      setDashboardWidgets(response.data);
+      
+      // Fetch data for each widget type
+      const widgetTypes = [...new Set(response.data.map(w => w.widget_type))];
+      const dataPromises = widgetTypes.map(async (type) => {
+        try {
+          const dataResponse = await axios.get(`${API}/admin/dashboard/widget-data/${type}`);
+          return { type, data: dataResponse.data };
+        } catch (err) {
+          console.error(`Error fetching data for widget type ${type}:`, err);
+          return { type, data: {} };
+        }
+      });
+      
+      const widgetDataResults = await Promise.all(dataPromises);
+      const newWidgetData = {};
+      widgetDataResults.forEach(({ type, data }) => {
+        newWidgetData[type] = data;
+      });
+      setWidgetData(newWidgetData);
+    } catch (err) {
+      console.error('Error fetching dashboard widgets:', err);
+    }
+  };
     e.preventDefault();
     try {
       const eventData = {
