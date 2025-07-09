@@ -758,6 +758,63 @@ class VereinAPITester:
         )
         return success
 
+    # Dashboard Widget Tests
+    def test_get_dashboard_widgets(self):
+        """Test getting dashboard widgets"""
+        if not self.admin_token:
+            print("❌ No admin token available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Get Dashboard Widgets",
+            "GET",
+            "admin/dashboard/widgets",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+    
+    def test_get_widget_data(self):
+        """Test getting widget data for different widget types"""
+        if not self.admin_token:
+            print("❌ No admin token available for testing")
+            return False
+        
+        widget_types = ["member_stats", "payment_overview", "recent_events", "quick_actions", "activity_feed"]
+        all_success = True
+        
+        for widget_type in widget_types:
+            print(f"\nTesting widget data for type: {widget_type}")
+            success, _ = self.run_test(
+                f"Get Widget Data ({widget_type})",
+                "GET",
+                f"admin/dashboard/widget-data/{widget_type}",
+                200,
+                token=self.admin_token,
+                print_response=True
+            )
+            if not success:
+                all_success = False
+        
+        return all_success
+    
+    def test_reset_default_dashboard(self):
+        """Test resetting dashboard to default configuration"""
+        if not self.admin_token:
+            print("❌ No admin token available for testing")
+            return False
+            
+        success, response = self.run_test(
+            "Reset Default Dashboard",
+            "POST",
+            "admin/dashboard/reset-default",
+            200,
+            token=self.admin_token,
+            print_response=True
+        )
+        return success
+    
     def run_all_tests(self):
         """Run all API tests in sequence"""
         print("🚀 Starting API Tests for Verein Management System")
@@ -805,6 +862,11 @@ class VereinAPITester:
         self.test_update_registration_status()
         self.test_get_my_registrations()
         self.test_unregister_from_event()
+        
+        # Dashboard tests
+        self.test_get_dashboard_widgets()
+        self.test_get_widget_data()
+        self.test_reset_default_dashboard()
         
         # Cleanup
         self.test_delete_event()
