@@ -1015,6 +1015,56 @@ const AdminDashboard = ({ verein, onLogout }) => {
           </div>
         )}
 
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {/* Dashboard Header */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-medium text-gray-900">Dashboard</h2>
+                <button
+                  onClick={resetDefaultDashboard}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+                >
+                  Standard-Dashboard wiederherstellen
+                </button>
+              </div>
+            </div>
+
+            {/* Dashboard Widgets Grid */}
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="text-gray-500">Lade Dashboard...</div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {dashboardWidgets.map((widget) => (
+                  <div key={widget.id} className="bg-white shadow rounded-lg p-6">
+                    <DashboardWidget 
+                      widget={widget} 
+                      data={widgetData[widget.widget_type]} 
+                      onQuickAction={(action) => handleQuickAction(action)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!loading && dashboardWidgets.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-gray-500 mb-4">Noch keine Widgets konfiguriert</div>
+                <button
+                  onClick={resetDefaultDashboard}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
+                >
+                  Standard-Dashboard erstellen
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Members Tab */}
         {activeTab === 'members' && (
           <div className="bg-white shadow rounded-lg">
