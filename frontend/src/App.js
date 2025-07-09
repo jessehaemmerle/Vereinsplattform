@@ -792,43 +792,7 @@ const AdminDashboard = ({ verein, onLogout }) => {
       console.error('Error fetching dashboard widgets:', err);
     }
   };
-    e.preventDefault();
-    try {
-      const eventData = {
-        title: eventForm.title,
-        description: eventForm.description,
-        event_type: eventForm.event_type,
-        start_datetime: new Date(eventForm.start_datetime).toISOString(),
-        end_datetime: new Date(eventForm.end_datetime).toISOString(),
-        location: eventForm.location,
-        max_participants: eventForm.max_participants ? parseInt(eventForm.max_participants) : null,
-        registration_required: eventForm.registration_required,
-        cost: parseFloat(eventForm.cost) || 0
-      };
-      
-      console.log('Submitting event:', eventData);
-      const response = await axios.post(`${API}/admin/events`, eventData);
-      console.log('Event created:', response.data);
-      
-      setEventForm({
-        title: '',
-        description: '',
-        event_type: 'Training',
-        start_datetime: '',
-        end_datetime: '',
-        location: '',
-        max_participants: '',
-        registration_required: true,
-        cost: '0'
-      });
-      setShowAddEvent(false);
-      
-      await fetchEvents();
-    } catch (err) {
-      console.error('Error creating event:', err);
-      setError(err.response?.data?.detail || 'Fehler beim Erstellen der Veranstaltung');
-    }
-  };
+  const handleAddEvent = async (e) => {
 
   const handleDeleteEvent = async (eventId) => {
     if (window.confirm('Sind Sie sicher, dass Sie diese Veranstaltung löschen möchten?')) {
