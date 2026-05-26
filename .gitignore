@@ -1,5 +1,7 @@
 __pycache__
 instance
+databases/
+uploads/
 build
 dist
 app.spec

@@ -20,15 +20,15 @@
     <a class="navbar-brand" href="{{ url_for('index') }}">
       <!-- Logo anzeigen -->
       <!-- Logo anzeigen -->
-      {% if current_user.is_authenticated and current_user.verein.logo_path %}
-      <img src="{{ url_for('static', filename='../uploads/' + current_user.verein.logo_path) }}" 
+      {% if current_user.is_authenticated and current_user.verein and current_user.verein.logo_path %}
+      <img src="{{ url_for('uploaded_file', filename=current_user.verein.logo_path) }}"
            alt="Vereinslogo" 
            id="vereinslogo" 
            style="height: 40px;">
       {% endif %}
       <!-- Vereinsname anzeigen -->
       <span class="ms-2">
-        {{ current_user.verein.name if current_user.is_authenticated and current_user.verein.name else "Vereinsverwaltung" }}
+        {{ current_user.verein.name if current_user.is_authenticated and current_user.verein and current_user.verein.name else "Vereinsverwaltung" }}
       </span>
     </a>
     <!-- Weitere Navigation -->
@@ -77,6 +77,11 @@
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('einstellungen') }}">Einstellungen</a>
         </li>
+        {% if is_platform_admin %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('platform_admin_dashboard') }}">Admin</a>
+        </li>
+        {% endif %}
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('about') }}">Info</a>
         </li>
@@ -90,7 +95,7 @@
             <a class="nav-link" href="{{ url_for('login') }}">Login</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('register') }}">Registrieren</a>
+            <a class="nav-link" href="{{ url_for('register_user') }}">Registrieren</a>
           </li>          
         {% endif %}
       </ul>      

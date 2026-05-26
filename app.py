@@ -1,1972 +1,1551 @@
-import os
-from datetime import date
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort, make_response, g, session
-from models import db, Mitglied, Event, Finanzbuchung, Notiz, User, Document, Nachrichtenvorlage, Verein, VereinFeature
-from forms import MitgliedForm, EventForm, FinanzForm, DeleteEventForm, DeleteFinanzForm, NotizForm, RegisterMemberVereinChooseForm, MemberRegisterForm, MemberEmailForm, MemberSelectVereinForm, RegisterForm, LoginForm, DocumentForm, FeedbackForm, ValidateMemberForm, ToggleBeitragForm,DeleteMitgliedForm,UpdateKontoForm, ImportMitgliedForm
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_mail import Mail, Message
-from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, EmailField, SubmitField
-from wtforms.validators import DataRequired, Email
-from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
-import uuid # Für Eindeutige Dateinamen in der Struktur.
 import csv
-import json
 import io
-from fpdf import FPDF
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-from services import zahlung_erstellen
-import webbrowser
-from models import db
+import json
+import os
+import re
+import uuid
+from datetime import date, datetime, timedelta
+from functools import wraps
+
 import requests
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from flask import (
+    Flask,
+    abort,
+    flash,
+    g,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    session,
+    url_for,
+)
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf.csrf import CSRFProtect
-# Erweiterung des Mitglieder-Portals
-from flask import Flask, render_template, request, redirect, url_for, flash
-from werkzeug.security import generate_password_hash
-from models import db, Mitglied, User
-from flask_login import login_user
+from fpdf import FPDF
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from sqlalchemy import case, extract
+from sqlalchemy.exc import IntegrityError
+from werkzeug.utils import secure_filename
+
+from forms import (
+    DeleteDocumentForm,
+    DeleteEventForm,
+    DeleteFinanzForm,
+    DeleteLicenseForm,
+    DeleteMitgliedForm,
+    DeleteNotizForm,
+    DeleteTemplateForm,
+    DocumentForm,
+    EmptyForm,
+    EventForm,
+    FeedbackForm,
+    FinanzForm,
+    ImportMitgliedForm,
+    LicenseForm,
+    LoginForm,
+    MemberPasswordForm,
+    MitgliedForm,
+    NotizForm,
+    RegisterForm,
+    RegisterMemberVereinChooseForm,
+    SendMessageForm,
+    ToggleBeitragForm,
+    UpdateKontoForm,
+)
+from models import (
+    Document,
+    Event,
+    Finanzbuchung,
+    License,
+    LicenseUsageEvent,
+    Mitglied,
+    Nachrichtenvorlage,
+    Notiz,
+    User,
+    Verein,
+    VereinFeature,
+    db,
+)
+from services import zahlung_erstellen
 
 
-if not os.path.exists('uploads'):
-    os.makedirs('uploads')
-
-# Ordner für die Datenbank sicherstellen
-DATABASE_FOLDER = '/app/databases'
-if not os.path.exists(DATABASE_FOLDER):
-    os.makedirs(DATABASE_FOLDER)
-
-
-# Umgebungsdatei laden
 load_dotenv()
 
-# Flask-Login konfigurieren
-login_manager = LoginManager()
-login_manager.login_view = 'login'  # Ziel-View, falls der User nicht eingeloggt ist
-login_manager.login_message = "Bitte logge dich ein, um fortzufahren."
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DATABASE_FOLDER = os.getenv("DATABASE_FOLDER", os.path.join(BASE_DIR, "databases"))
+UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", os.path.join(BASE_DIR, "uploads"))
+DATABASE_PATH = os.getenv("DATABASE_PATH", os.path.join(DATABASE_FOLDER, "verein.db"))
+
+DEFAULT_FEATURES = ["Mitgliederverwaltung", "Finanzen", "Events", "Dokumente", "Notizen"]
+FEATURE_CHOICES = DEFAULT_FEATURES
+
+os.makedirs(DATABASE_FOLDER, exist_ok=True)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # In Produktion in Umgebungsvariablen auslagern
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/databases/verein.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = '/app/uploads'
-csrf = CSRFProtect(app)
-
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DATABASE_PATH}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 db.init_app(app)
+csrf = CSRFProtect(app)
+
+login_manager = LoginManager()
+login_manager.login_view = "login"
+login_manager.login_message = "Bitte logge dich ein, um fortzufahren."
 login_manager.init_app(app)
 
-# Auswahl der Datenbank
-@app.before_request
-def set_db_connection():
-    if current_user.is_authenticated:
-        if not current_user.verein_id:
-            # Kein Verein verknüpft, leite zur Registrierung weiter
-            flash("Bitte registriere dich, um einen Verein zu erstellen.", "warning")
-            return redirect(url_for('register_user'))
 
-        verein = Verein.query.get(current_user.verein_id)
-        if verein:
-            db.session.bind = create_engine(f'sqlite:///{verein.db_path}')
-        else:
-            abort(403, description="Ungültiger Zugriff. Kein Verein verknüpft.")
-
-
-def init_verein_db(db_path):
-    """
-    Initialisiert die SQLite-Datenbank für einen neuen Verein.
-    """
-    full_db_path = os.path.join(DATABASE_FOLDER, db_path)
-    engine = create_engine(f'sqlite:///{full_db_path}')
-    db.metadata.create_all(engine)  # Nutzt db.metadata für Tabellen
-
-# ----------------------------------
-# Setup für Mitglieder-Selfservice
-# ----------------------------------
-
-@app.route('/user_dashboard')
-@login_required
-def user_dashboard():
-    # Den aktuell eingeloggten User abrufen
-    user = current_user
-
-    # Herausfinden, mit welchem Mitglied die E-Mail übereinstimmt
-    mitglied = Mitglied.query.filter_by(email=user.email).first()
-    if not mitglied:
-        flash('Keine Mitgliedsdaten gefunden.', 'danger')
-        return redirect(url_for('login'))
-
-    # Hier könntest du für das Template weitere Daten laden,
-    # z.B. anstehende Veranstaltungen, offene Zahlungen etc.
-
-    return render_template('user_templates/user_dashboard.html', user=user, mitglied=mitglied)
-
-# ----------------------------------
-# Nutzersetup für Web-App
-# ----------------------------------
-# Setup-Route erweitern
-@app.route('/setup', methods=['GET', 'POST'])
-@login_required
-def setup():
-    if not current_user.verein_id:
-        flash("Kein Verein verknüpft! Bitte registriere dich erneut.", "danger")
-        return redirect(url_for('register_user'))
-
-    verein = Verein.query.get(current_user.verein_id)
-    if not verein:
-        flash("Kein gültiger Verein gefunden.", "danger")
-        return redirect(url_for('register_user'))
-
-    if request.method == 'POST':
-        verein.name = request.form.get('verein_name', verein.name)
-        logo_file = request.files.get('logo')
-
-        # Logo speichern
-        if logo_file and logo_file.filename != '':
-            if logo_file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                logo_filename = f"logo_{verein.id}.png"
-                logo_path = os.path.join('uploads', logo_filename)
-                logo_file.save(logo_path)
-                verein.logo_path = f'uploads/{logo_filename}'
-            else:
-                flash("Nur PNG- oder JPG-Dateien sind erlaubt.", "danger")
-
-        # Features speichern
-        selected_features = request.form.getlist('features')
-        VereinFeature.query.filter_by(verein_id=verein.id).delete()
-        for feature in selected_features:
-            db.session.add(VereinFeature(verein_id=verein.id, feature=feature))
-        db.session.commit()
-
-        flash("Setup abgeschlossen!", "success")
-        return redirect(url_for('index'))
-
-    # Standardfeatures
-    features = [
-        {'name': 'Mitgliederverwaltung', 'checked': 'checked'},
-        {'name': 'Finanzen', 'checked': 'checked'},
-        {'name': 'Events', 'checked': ''},
-        {'name': 'Dokumente', 'checked': ''},
-        {'name': 'Notizen', 'checked': ''}
-    ]
-
-    return render_template('setup.html', verein=verein, features=features)
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 
 @app.before_request
 def load_active_features():
     if current_user.is_authenticated and current_user.verein_id:
         g.active_features = [
-            feature.feature for feature in VereinFeature.query.filter_by(verein_id=current_user.verein_id).all()
+            row.feature
+            for row in VereinFeature.query.filter_by(verein_id=current_user.verein_id).order_by(VereinFeature.feature).all()
         ]
     else:
         g.active_features = []
 
 
+@app.context_processor
+def inject_template_helpers():
+    return {"delete_form": EmptyForm(), "is_platform_admin": is_platform_admin_user()}
 
-@app.route('/register', methods=['GET', 'POST'])
-def register_user():
-    form = RegisterForm()
-    if form.validate_on_submit():
-        # 1) Prüfe, ob ein User mit dieser E-Mail schon existiert
-        existing_user = User.query.filter_by(email=form.email.data).first()
-        if existing_user:
-            flash("Es existiert bereits ein Benutzer mit dieser E-Mail-Adresse. "
-                  "Bitte logge dich ein, statt einen neuen Verein zu erstellen.", "danger")
-            return redirect(url_for('login'))
 
-        # 2) Prüfe, ob es schon einen Verein mit dem gleichen Namen gibt
-        #    (z.B. "Verein von <username>")
-        verein_name = f"Verein von {form.username.data}"
-        existing_verein = Verein.query.filter_by(name=verein_name).first()
-        if existing_verein:
-            flash("Ein Verein mit diesem Namen existiert bereits. "
-                  "Bitte wähle einen anderen Benutzernamen.", "danger")
-            return redirect(url_for('register_user'))
+def configured_system_admin_emails():
+    raw = os.getenv("SYSTEM_ADMIN_EMAILS", "")
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
 
-        # 3) Verein erstellen (Unique-Constraint bleibt erhalten)
-        new_verein = Verein(
-            name=verein_name,
-            db_path=f"{form.username.data.lower()}_db.sqlite"
+
+def is_platform_admin_user():
+    if not current_user.is_authenticated:
+        return False
+    if getattr(current_user, "is_system_admin", False):
+        return True
+    return current_user.email.lower() in configured_system_admin_emails()
+
+
+def platform_admin_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped(*args, **kwargs):
+        if not is_platform_admin_user():
+            flash("Dieser Bereich ist nur fuer Plattform-Administratoren verfuegbar.", "warning")
+            return redirect(url_for("index"))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def admin_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped(*args, **kwargs):
+        if not current_user.is_admin:
+            flash("Dieser Bereich ist nur fuer Vereinsadministratoren gedacht.", "warning")
+            return redirect(url_for("user_dashboard"))
+        if not current_user.verein_id:
+            flash("Bitte richte zuerst deinen Verein ein.", "warning")
+            return redirect(url_for("setup"))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def current_verein_id():
+    if not current_user.is_authenticated or not current_user.verein_id:
+        abort(403)
+    return current_user.verein_id
+
+
+def safe_float(value, default=0.0):
+    try:
+        return float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_date(value, default=None):
+    if not value:
+        return default
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return default
+
+
+def pdf_response(pdf, filename):
+    response = make_response(pdf.output(dest="S").encode("latin1", errors="replace"))
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return response
+
+
+def add_default_features(verein_id):
+    for feature in DEFAULT_FEATURES:
+        db.session.add(VereinFeature(verein_id=verein_id, feature=feature))
+
+
+def generate_license_key():
+    return f"MW-{uuid.uuid4().hex[:8].upper()}-{uuid.uuid4().hex[:8].upper()}"
+
+
+def slugify(value):
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", value.strip().lower()).strip("_")
+    return slug or "mitglied"
+
+
+def unique_member_username(email, verein_id):
+    base = f"mitglied_{verein_id}_{slugify(email.split('@')[0])}"
+    username = base
+    counter = 2
+    while User.query.filter_by(username=username).first():
+        username = f"{base}_{counter}"
+        counter += 1
+    return username
+
+
+def create_member_fee_booking(mitglied, typ="Einnahme", kategorie="Mitgliedsbeitrag", beschreibung=None):
+    if not mitglied.mitgliedsbeitrag or mitglied.mitgliedsbeitrag <= 0:
+        return
+    db.session.add(
+        Finanzbuchung(
+            verein_id=mitglied.verein_id,
+            mitglied_id=mitglied.id,
+            typ=typ,
+            kategorie=kategorie,
+            betrag=mitglied.mitgliedsbeitrag,
+            datum=date.today(),
+            beschreibung=beschreibung or f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
         )
-        db.session.add(new_verein)
-        db.session.commit()
+    )
 
-        # 4) Benutzer erstellen und mit Verein verknüpfen
-        new_user = User(
-            username=form.username.data,
-            email=form.email.data,
-            role='admin',
-            verein_id=new_verein.id
+
+def license_for_verein(verein_id):
+    if not verein_id:
+        return None
+    return (
+        License.query.filter_by(verein_id=verein_id)
+        .order_by(
+            case(
+                (License.status == "active", 0),
+                (License.status == "trial", 1),
+                else_=2,
+            ),
+            License.created_at.desc(),
         )
+        .first()
+    )
 
-        # >>> Passwort-Validierung (bereits vorhanden) <<<
-        import re
-        pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])(?=.{8,}).*$'
-        if not re.match(pattern, form.password.data):
-            flash("Bitte wähle ein sicheres Passwort: mindestens 8 Zeichen, "
-                  "Groß- und Kleinbuchstaben, Zahlen und Sonderzeichen.", "danger")
-            return redirect(url_for('register_user'))
 
-        # Passwort setzen
-        new_user.set_password(form.password.data)
+def record_license_usage(event_type, metadata=None):
+    if not current_user.is_authenticated or not current_user.verein_id:
+        return
 
+    license_obj = license_for_verein(current_user.verein_id)
+    if not license_obj:
+        return
+
+    db.session.add(
+        LicenseUsageEvent(
+            license_id=license_obj.id,
+            verein_id=current_user.verein_id,
+            user_id=current_user.id,
+            event_type=event_type,
+            endpoint=request.endpoint,
+            path=request.path[:255],
+            event_metadata=json.dumps(metadata or {}, ensure_ascii=False),
+        )
+    )
+    db.session.commit()
+
+
+@app.after_request
+def track_license_usage(response):
+    endpoint = request.endpoint or ""
+    ignored_prefixes = ("static", "uploaded_file", "platform_admin")
+    if (
+        response.status_code < 400
+        and request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and not endpoint.startswith(ignored_prefixes)
+        and not request.path.startswith("/platform-admin")
+    ):
         try:
-            db.session.add(new_user)
-            db.session.commit()
-        except Exception as e:
+            record_license_usage("write_action", {"method": request.method})
+        except Exception:
             db.session.rollback()
-            flash(f"Fehler bei der Registrierung: {str(e)}", "danger")
-            return redirect(url_for('register_user'))
-
-        # 5) Datenbank für den Verein initialisieren
-        init_verein_db(new_verein.db_path)
-
-        # 6) Automatisch einloggen und zum Setup weiterleiten
-        login_user(new_user)
-        flash("Registrierung erfolgreich! Richte deinen Verein ein.", "success")
-        return redirect(url_for('setup'))
-
-    return render_template('register.html', form=form)
+    return response
 
 
-@app.route('/register_verein', methods=['GET', 'POST'])
-def register_verein():  # Neue Route für Vereinsregistrierung
+def send_brevo_email(subject, html_content, recipient_emails):
+    api_key = os.getenv("BREVO_API_KEY")
+    if not api_key:
+        raise RuntimeError("Kein Brevo API-Schluessel konfiguriert.")
+
+    headers = {"api-key": api_key, "Content-Type": "application/json"}
+    data = {
+        "sender": {"name": "Vereinsverwaltung", "email": "info@memberworks.at"},
+        "to": [{"email": email} for email in recipient_emails],
+        "subject": subject,
+        "htmlContent": html_content,
+    }
+    response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data, timeout=20)
+    if response.status_code not in (200, 201, 202):
+        raise RuntimeError(f"Brevo meldet {response.status_code}: {response.text}")
+
+
+def add_event_to_google_calendar(event, user):
+    if user.calendar_integration != "google" or not user.calendar_api_key:
+        return
+
+    credentials = Credentials(token=user.calendar_api_key)
+    service = build("calendar", "v3", credentials=credentials)
+    start_date = event.datum.isoformat()
+    body = {
+        "summary": event.titel,
+        "location": event.ort,
+        "description": event.beschreibung,
+        "start": {"date": start_date, "timeZone": "Europe/Vienna"},
+        "end": {"date": (event.datum + timedelta(days=1)).isoformat(), "timeZone": "Europe/Vienna"},
+    }
+    service.events().insert(calendarId="primary", body=body).execute()
+
+
+@app.route("/uploads/<path:filename>")
+@login_required
+def uploaded_file(filename):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register_user():
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+
     form = RegisterForm()
     if form.validate_on_submit():
-        new_verein = Verein(name=form.verein_name.data, db_path=f"{form.verein_name.data}.db")
-        db.session.add(new_verein)
-        db.session.commit()
+        verein_name = form.verein_name.data.strip()
+        username = form.username.data.strip()
+        email = form.email.data.strip().lower()
 
-        new_user = User(
-            username=form.username.data,
-            email=form.email.data,
-            verein_id=new_verein.id
+        if User.query.filter((User.email == email) | (User.username == username)).first():
+            flash("Dieser Benutzername oder diese E-Mail-Adresse ist bereits vergeben.", "danger")
+            return redirect(url_for("register_user"))
+        if Verein.query.filter_by(name=verein_name).first():
+            flash("Ein Verein mit diesem Namen existiert bereits.", "danger")
+            return redirect(url_for("register_user"))
+
+        verein = Verein(name=verein_name)
+        db.session.add(verein)
+        db.session.flush()
+
+        role = "system_admin" if email in configured_system_admin_emails() else "admin"
+        user = User(username=username, email=email, role=role, verein_id=verein.id)
+        user.set_password(form.password.data)
+        db.session.add(user)
+        add_default_features(verein.id)
+        db.session.add(
+            License(
+                license_key=generate_license_key(),
+                name=f"Testlizenz - {verein.name}",
+                status="trial",
+                max_users=5,
+                max_members=100,
+                valid_from=date.today(),
+                valid_until=date.today() + timedelta(days=30),
+                verein_id=verein.id,
+            )
         )
-        new_user.set_password(form.password.data)
-        db.session.add(new_user)
         db.session.commit()
 
-        init_verein_db(new_verein.db_path)
+        login_user(user)
+        flash("Registrierung erfolgreich. Richte deinen Verein ein.", "success")
+        return redirect(url_for("setup"))
 
-        flash("Verein erfolgreich registriert!")
-        return redirect(url_for('setup'))
+    return render_template("register.html", form=form)
 
-    return render_template('register.html', form=form)
 
-@app.route('/register_member_verein', methods=['GET', 'POST'])
+@app.route("/register_verein", methods=["GET", "POST"])
+def register_verein():
+    return register_user()
+
+
+@app.route("/register_member_verein", methods=["GET", "POST"])
 def register_member_verein():
-    step = request.args.get('step', 'choose')
+    step = request.args.get("step", "choose")
 
-    # ---------------------------------------------------------------
-    # SCHRITT 1: E-Mail + Verein auswählen (aus ALLEN Vereinen im System)
-    # ---------------------------------------------------------------
-    if step == 'choose':
-        # Wir verwenden ein WTForms-Formular:
+    if step == "choose":
         form = RegisterMemberVereinChooseForm()
+        form.verein_id.choices = [(v.id, v.name) for v in Verein.query.order_by(Verein.name).all()]
+        if not form.verein_id.choices:
+            flash("Es gibt noch keinen registrierten Verein.", "warning")
+            return redirect(url_for("register_user"))
 
-        # Liste aller Vereine laden, damit wir sie dem SelectField zuweisen können
-        alle_vereine = Verein.query.all()
-        form.verein_id.choices = [(v.id, v.name) for v in alle_vereine]
-
-        # Falls das Formular per POST kommt und valide ist:
         if form.validate_on_submit():
             email = form.email.data.strip().lower()
             verein_id = form.verein_id.data
+            mitglied = Mitglied.query.filter_by(email=email, verein_id=verein_id).first()
+            if not mitglied:
+                flash("Diese E-Mail ist in diesem Verein nicht als Mitglied hinterlegt.", "danger")
+                return redirect(url_for("register_member_verein", step="choose"))
 
-            # Validierung, ob wirklich was ausgewählt wurde
-            if not email or not verein_id:
-                flash("Bitte E-Mail und Verein auswählen.", "warning")
-                return redirect(url_for('register_member_verein', step='choose'))
+            session["tmp_member_email"] = email
+            session["tmp_member_verein_id"] = verein_id
+            return redirect(url_for("register_member_verein", step="set_password"))
 
-            # In Session zwischenspeichern
-            session['tmp_email'] = email
-            session['tmp_verein_id'] = verein_id
+        return render_template("register_member_verein_choose.html", form=form)
 
-            # Weiter zum nächsten Schritt
-            return redirect(url_for('register_member_verein', step='set_password'))
+    if step == "set_password":
+        email = session.get("tmp_member_email")
+        verein_id = session.get("tmp_member_verein_id")
+        verein = Verein.query.get(verein_id) if verein_id else None
+        if not email or not verein:
+            flash("Bitte waehle zuerst E-Mail und Verein aus.", "warning")
+            return redirect(url_for("register_member_verein", step="choose"))
 
-        # GET-Request oder ungültiges Formular => Template anzeigen
-        return render_template(
-            'register_member_verein_choose.html',
-            form=form
-        )
-
-    # ------------------------------------------------------------------------
-    # SCHRITT 2: Passwort setzen, nachdem wir geprüft haben, ob er NICHT Admin ist
-    # ------------------------------------------------------------------------
-    elif step == 'set_password':
-        email = session.get('tmp_email')
-        verein_id = session.get('tmp_verein_id')
-
-        if not email or not verein_id:
-            flash("Bitte zuerst E-Mail und Verein wählen.", "warning")
-            return redirect(url_for('register_member_verein', step='choose'))
-
-        # 1) Hole den Verein
-        verein = Verein.query.get(verein_id)
-        if not verein:
-            flash("Ungültiger Verein ausgewählt.", "danger")
-            return redirect(url_for('register_member_verein', step='choose'))
-
-        # 2) Vereins-DB öffnen (rein konzeptionell)
-        db_path = os.path.join(DATABASE_FOLDER, verein.db_path)
-        engine = create_engine(f"sqlite:///{db_path}")
-
-        # Prüfen, ob im mitglied-Table für diesen Verein ein Eintrag existiert
-        # (E-Mail => Kein Admin).
-        with engine.connect() as con:
-            result = con.execute(
-                "SELECT * FROM mitglied WHERE email = :email",
-                {"email": email}
-            ).fetchone()
-            if not result:
-                flash("In diesem Verein bist du nicht als Mitglied hinterlegt.", "danger")
-                return redirect(url_for('register_member_verein', step='choose'))
-
-        # 3) Passwort-POST-Logik
-        if request.method == 'POST':
-            password = request.form.get('password', '').strip()
-            if not password:
-                flash("Bitte ein Passwort eingeben.", "warning")
-                return redirect(url_for('register_member_verein', step='set_password'))
-
-            # Prüfen, ob User in globaler DB schon existiert
-            existing_user = User.query.filter_by(email=email).first()
-            if existing_user:
+        form = MemberPasswordForm()
+        if form.validate_on_submit():
+            if User.query.filter_by(email=email).first():
                 flash("Es existiert bereits ein Benutzer mit dieser E-Mail. Bitte logge dich ein.", "warning")
-                return redirect(url_for('login'))
+                return redirect(url_for("login"))
 
-            # Neuen User mit role='mitglied' in globaler DB anlegen
-            new_user = User(email=email, role='mitglied', verein_id=verein.id)
-            new_user.password = generate_password_hash(password)
-            db.session.add(new_user)
+            user = User(
+                username=unique_member_username(email, verein.id),
+                email=email,
+                role="mitglied",
+                verein_id=verein.id,
+            )
+            user.set_password(form.password.data)
+            db.session.add(user)
             db.session.commit()
+            session.pop("tmp_member_email", None)
+            session.pop("tmp_member_verein_id", None)
 
-            # Automatisches Login
-            login_user(new_user)
-            flash("Registrierung erfolgreich! Du bist nun eingeloggt.", "success")
+            login_user(user)
+            flash("Registrierung erfolgreich.", "success")
+            return redirect(url_for("user_dashboard"))
 
-            # Session aufräumen
-            session.pop('tmp_email', None)
-            session.pop('tmp_verein_id', None)
+        return render_template("register_member_Verein_set_password.html", form=form, email=email, verein_name=verein.name)
 
-            return redirect(url_for('user_dashboard'))
-
-        # GET => Template mit Password-Feld anzeigen
-        return render_template(
-            'register_member_verein_set_password.html',
-            email=email,
-            verein_name=verein.name
-        )
-
-    # Fallback
-    return redirect(url_for('register_member_verein', step='choose'))
+    return redirect(url_for("register_member_verein", step="choose"))
 
 
-@app.route('/login_member_verein', methods=['GET', 'POST'])
+@app.route("/login_member_verein", methods=["GET", "POST"])
 def login_member_verein():
-    if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
-        verein_name = request.form.get('verein', '').strip()
-        password = request.form.get('password', '')
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        verein_name = request.form.get("verein", "").strip()
+        password = request.form.get("password", "")
 
-        # 1) Suche in der globalen DB nach dem Verein
         verein = Verein.query.filter_by(name=verein_name).first()
-        if not verein:
-            flash("Diesen Verein gibt es nicht.", "danger")
-            return redirect(url_for('login_member_verein'))
+        user = User.query.filter_by(email=email, verein_id=verein.id).first() if verein else None
+        if not user or user.is_admin or not user.check_password(password):
+            flash("Login fehlgeschlagen. Bitte pruefe Verein, E-Mail und Passwort.", "danger")
+            return redirect(url_for("login_member_verein"))
 
-        # 2) Suche in 'User' nach passendem Email + verein_id
-        user = User.query.filter_by(email=email, verein_id=verein.id).first()
-        if not user:
-            flash("Kein Account für diese E-Mail / diesen Verein gefunden.", "danger")
-            return redirect(url_for('login_member_verein'))
-
-        # 3) Prüfe das Passwort
-        if not user.check_password(password):
-            flash("Passwort ist falsch.", "danger")
-            return redirect(url_for('login_member_verein'))
-
-        # 4) Prüfen, ob er Admin ist
-        if user.role == 'admin':
-            flash("Dies ist ein Admin-Konto, bitte nutze den normalen Login.", "warning")
-            return redirect(url_for('login'))
-
-        # 5) Alles ok => einloggen
         login_user(user)
-        flash("Willkommen im Mitglieder-Dashboard!", "success")
-        return redirect(url_for('user_dashboard'))
+        return redirect(url_for("user_dashboard"))
 
-    # GET => Zeige Template
-    return render_template('login_member_verein.html')
+    return render_template("login_member_verein.html")
 
 
-# ----------------------------------
-# User Loader für Flask-Login
-# ----------------------------------
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-
-# ----------------------------------
-# Login
-# ----------------------------------
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    # 1) Falls der User bereits eingeloggt ist, leite ihn direkt
-    #    zum passenden Dashboard weiter (Admin oder Mitglied).
     if current_user.is_authenticated:
-        if current_user.role == 'admin':
-            return redirect(url_for('index'))            # Admin-Dashboard
-        else:
-            return redirect(url_for('user_dashboard'))  # Mitglieder-Dashboard
+        return redirect(url_for("index"))
 
-    # 2) User ist noch nicht eingeloggt: Zeige das Formular
     form = LoginForm()
     if form.validate_on_submit():
-        # E-Mail suchen und Passwort prüfen
-        user = User.query.filter_by(email=form.email.data).first()
+        user = User.query.filter_by(email=form.email.data.strip().lower()).first()
         if user and user.check_password(form.password.data):
-            # Login-Sitzung starten
             login_user(user)
             flash("Erfolgreich eingeloggt.", "success")
+            return redirect(url_for("index" if user.is_admin else "user_dashboard"))
 
-            # 3) Nach erfolgreichem Login unterscheiden wir die Rolle
-            if user.role == 'admin':
-                return redirect(url_for('index'))            # Admin-Dashboard
-            else:
-                return redirect(url_for('user_dashboard'))  # Mitglieder-Dashboard
-        else:
-            flash("Falsche E-Mail oder falsches Passwort.", "danger")
-            return redirect(url_for('login'))
-
-    # 4) GET oder ungültiges Formular => Template rendern
-    return render_template('login.html', form=form)
+        flash("Falsche E-Mail oder falsches Passwort.", "danger")
+    return render_template("login.html", form=form)
 
 
-# ----------------------------------
-# Logout
-# ----------------------------------
-@app.route('/logout')
+@app.route("/logout")
 @login_required
 def logout():
     logout_user()
     flash("Erfolgreich ausgeloggt.", "success")
-    return redirect(url_for('login'))
+    return redirect(url_for("login"))
 
-# ----------------------------------
-# Startseite / Dashboard
-# ----------------------------------
-@app.route('/')
+
+@app.route("/setup", methods=["GET", "POST"])
+@login_required
+def setup():
+    if not current_user.is_admin:
+        return redirect(url_for("user_dashboard"))
+    if not current_user.verein:
+        flash("Kein Verein mit deinem Benutzerkonto verknuepft.", "danger")
+        return redirect(url_for("register_user"))
+
+    verein = current_user.verein
+    if request.method == "POST":
+        verein.name = request.form.get("verein_name", verein.name).strip() or verein.name
+        logo_file = request.files.get("logo")
+        if logo_file and logo_file.filename:
+            if not logo_file.filename.lower().endswith((".png", ".jpg", ".jpeg")):
+                flash("Nur PNG- oder JPG-Dateien sind erlaubt.", "danger")
+            else:
+                ext = os.path.splitext(secure_filename(logo_file.filename))[1].lower()
+                filename = f"logo_{verein.id}_{uuid.uuid4().hex}{ext}"
+                logo_file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+                verein.logo_path = filename
+
+        selected_features = request.form.getlist("features") or DEFAULT_FEATURES
+        VereinFeature.query.filter_by(verein_id=verein.id).delete()
+        for feature in selected_features:
+            if feature in FEATURE_CHOICES:
+                db.session.add(VereinFeature(verein_id=verein.id, feature=feature))
+        db.session.commit()
+
+        flash("Setup gespeichert.", "success")
+        return redirect(url_for("index"))
+
+    active = {feature.feature for feature in verein.features}
+    features = [{"name": name, "checked": "checked" if name in active else ""} for name in FEATURE_CHOICES]
+    return render_template("setup.html", verein=verein, features=features)
+
+
+@app.route("/user_dashboard")
+@login_required
+def user_dashboard():
+    mitglied = Mitglied.query.filter_by(email=current_user.email, verein_id=current_user.verein_id).first()
+    if not mitglied:
+        flash("Keine Mitgliedsdaten gefunden.", "warning")
+        return redirect(url_for("logout"))
+    return render_template("user_templates/user-dashboard.html", user=current_user, mitglied=mitglied)
+
+
+@app.route("/")
 @login_required
 def index():
-    if not current_user.verein_id:
-        flash("Bitte richte deinen Verein ein.", "info")
-        return redirect(url_for('setup'))
+    if not current_user.is_admin:
+        return redirect(url_for("user_dashboard"))
 
-    # Berechnung für Einnahmen und Ausgaben
-    sum_einnahmen = db.session.query(db.func.sum(Finanzbuchung.betrag))\
-        .filter(Finanzbuchung.typ == 'Einnahme').scalar() or 0
-    sum_ausgaben = db.session.query(db.func.sum(Finanzbuchung.betrag))\
-        .filter(Finanzbuchung.typ == 'Ausgabe').scalar() or 0
-    
-    # Rundung auf 2 Nachkommastellen
-    sum_einnahmen = round(sum_einnahmen, 2)
-    sum_ausgaben = round(sum_ausgaben, 2)
-
-    # Mitgliederstatus
-    mitglieder_aktiv = Mitglied.query.filter_by(status='aktiv').count()
-    mitglieder_inaktiv = Mitglied.query.filter_by(status='inaktiv').count()
-
-    # Events pro Monat
-    events = Event.query.all()
+    verein_id = current_verein_id()
+    sum_einnahmen = (
+        db.session.query(db.func.sum(Finanzbuchung.betrag))
+        .filter(Finanzbuchung.verein_id == verein_id, Finanzbuchung.typ == "Einnahme")
+        .scalar()
+        or 0
+    )
+    sum_ausgaben = (
+        db.session.query(db.func.sum(Finanzbuchung.betrag))
+        .filter(Finanzbuchung.verein_id == verein_id, Finanzbuchung.typ == "Ausgabe")
+        .scalar()
+        or 0
+    )
+    mitglieder_aktiv = Mitglied.query.filter_by(verein_id=verein_id, status="aktiv").count()
+    mitglieder_inaktiv = Mitglied.query.filter_by(verein_id=verein_id, status="inaktiv").count()
+    events = Event.query.filter_by(verein_id=verein_id).all()
     events_monate = [0] * 12
     for event in events:
         if event.datum:
             events_monate[event.datum.month - 1] += 1
 
-    # Anzahlen und Saldo
-    anzahl_mitglieder = Mitglied.query.count()
-    anzahl_events = Event.query.count()
-    anzahl_notizen = Notiz.query.count()
-    anfangsbestand = current_user.anfangsbestand
-    saldo = anfangsbestand + sum_einnahmen - sum_ausgaben
+    saldo = round((current_user.anfangsbestand or 0) + sum_einnahmen - sum_ausgaben, 2)
+    return render_template(
+        "index.html",
+        anzahl_mitglieder=Mitglied.query.filter_by(verein_id=verein_id).count(),
+        anzahl_events=len(events),
+        anzahl_notizen=Notiz.query.filter_by(verein_id=verein_id).count(),
+        saldo=saldo,
+        sum_einnahmen=round(sum_einnahmen, 2),
+        sum_ausgaben=round(sum_ausgaben, 2),
+        mitglieder_aktiv=mitglieder_aktiv,
+        mitglieder_inaktiv=mitglieder_inaktiv,
+        events_monate=[str(month) for month in range(1, 13)],
+        events_anzahl=events_monate,
+    )
 
-    saldo = round(saldo, 2)
 
-    return render_template('index.html',
-                           anzahl_mitglieder=anzahl_mitglieder,
-                           anzahl_events=anzahl_events,
-                           anzahl_notizen=anzahl_notizen,
-                           saldo=saldo,
-                           sum_einnahmen=sum_einnahmen,
-                           sum_ausgaben=sum_ausgaben,
-                           mitglieder_aktiv=mitglieder_aktiv,
-                           mitglieder_inaktiv=mitglieder_inaktiv,
-                           events_monate=[str(month) for month in range(1, 13)],
-                           events_anzahl=events_monate)
-
-# ----------------------------------
-# Mitglieder
-# ----------------------------------
-@app.route('/mitglieder')
-@login_required
+@app.route("/mitglieder")
+@admin_required
 def mitglieder_liste():
-    form = ToggleBeitragForm()
-
-    # Nur Mitglieder des aktuellen Vereins laden
-    if not current_user.verein_id:
-        flash("Kein Verein verknüpft.", "danger")
-        return redirect(url_for('setup'))
-
-    search_query = request.args.get('search', '').strip()
-    if search_query:
-        mitglieder = Mitglied.query.filter(
-            db.and_(
-                Mitglied.verein_id == current_user.verein_id,  # Filter auf aktuellen Verein
-                db.or_(
-                    Mitglied.vorname.ilike(f"%{search_query}%"),
-                    Mitglied.nachname.ilike(f"%{search_query}%"),
-                    Mitglied.email.ilike(f"%{search_query}%"),
-                    Mitglied.plz.ilike(f"%{search_query}%"),
-                    Mitglied.ort.ilike(f"%{search_query}%")
-                )
+    verein_id = current_verein_id()
+    query = Mitglied.query.filter_by(verein_id=verein_id)
+    search = request.args.get("search", "").strip()
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            db.or_(
+                Mitglied.vorname.ilike(like),
+                Mitglied.nachname.ilike(like),
+                Mitglied.email.ilike(like),
+                Mitglied.plz.ilike(like),
+                Mitglied.ort.ilike(like),
             )
-        ).all()
-    else:
-        mitglieder = Mitglied.query.filter_by(verein_id=current_user.verein_id).all()  # Filter auf aktuellen Verein
-
-    return render_template('mitglieder.html', mitglieder=mitglieder, form=form)
+        )
+    return render_template("mitglieder.html", mitglieder=query.order_by(Mitglied.nachname, Mitglied.vorname).all(), form=ToggleBeitragForm())
 
 
-
-import logging
-
-# Logging konfigurieren
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-@app.route('/mitglied/new', methods=['GET', 'POST'])
-@login_required
+@app.route("/mitglied/new", methods=["GET", "POST"])
+@admin_required
 def mitglied_new():
     form = MitgliedForm()
     if form.validate_on_submit():
+        mitglied = Mitglied(
+            verein_id=current_verein_id(),
+            vorname=form.vorname.data.strip(),
+            nachname=form.nachname.data.strip(),
+            email=form.email.data.strip().lower(),
+            eintrittsdatum=form.eintrittsdatum.data or date.today(),
+            austritt_datum=form.austritt_datum.data if form.status.data == "inaktiv" else None,
+            status=form.status.data,
+            funktion=form.funktion.data,
+            telefonnummer=form.telefonnummer.data,
+            geburtstag=form.geburtstag.data,
+            adresse=form.adresse.data,
+            plz=form.plz.data,
+            ort=form.ort.data,
+            mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
+            beitrag_bezahlt=form.beitrag_bezahlt.data == "ja",
+        )
+        db.session.add(mitglied)
         try:
-            # Sicherstellen, dass der aktuelle Benutzer einen Verein hat
-            if not current_user.verein_id:
-                flash("Es ist kein Verein mit Ihrem Benutzerkonto verknüpft.", "danger")
-                return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied", mitglied=None)
-            
-            beitrag_bezahlt = form.beitrag_bezahlt.data.lower() == 'ja'
-
-            # Neues Mitglied erstellen
-            neues_mitglied = Mitglied(
-                vorname=form.vorname.data,
-                nachname=form.nachname.data,
-                email=form.email.data,
-                eintrittsdatum=form.eintrittsdatum.data or date.today(),
-                status=form.status.data,
-                funktion=form.funktion.data,
-                telefonnummer=form.telefonnummer.data,
-                geburtstag=form.geburtstag.data,
-                adresse=form.adresse.data,
-                plz=form.plz.data,
-                ort=form.ort.data,
-                mitgliedsbeitrag=form.mitgliedsbeitrag.data or 0.0,
-                beitrag_bezahlt=beitrag_bezahlt,
-                austritt_datum=form.austritt_datum.data if form.status.data == 'inaktiv' else None,
-                verein_id=current_user.verein_id  # Verknüpfung mit dem Verein des Benutzers
-            )
-            db.session.add(neues_mitglied)
             db.session.flush()
-
-            # Falls bereits bezahlt, Finanzbuchung anlegen
-            if neues_mitglied.beitrag_bezahlt and neues_mitglied.mitgliedsbeitrag > 0:
-                finanzbuchung = Finanzbuchung(
-                    typ='Einnahme',
-                    kategorie='Mitgliedsbeitrag',
-                    betrag=neues_mitglied.mitgliedsbeitrag,
-                    datum=date.today(),
-                    beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
-                    mitglied_id=neues_mitglied.id
-                )
-                db.session.add(finanzbuchung)
-            
+            if mitglied.beitrag_bezahlt:
+                create_member_fee_booking(mitglied)
             db.session.commit()
-            flash("Neues Mitglied erfolgreich erstellt.", "success")
-            return redirect(url_for('mitglieder_liste'))
-        except Exception as e:
+            flash("Mitglied erfolgreich erstellt.", "success")
+            return redirect(url_for("mitglieder_liste"))
+        except IntegrityError:
             db.session.rollback()
-            flash(f"Fehler beim Erstellen des Mitglieds: {e}", "danger")
-    
-    return render_template('mitglied_edit.html', form=form, titel="Neues Mitglied", mitglied=None)
+            flash("Diese E-Mail-Adresse ist in diesem Verein bereits vorhanden.", "danger")
+
+    return render_template("mitglied_edit.html", form=form, titel="Neues Mitglied", mitglied=None)
 
 
-@app.route('/mitglied/<int:mitglied_id>/edit', methods=['GET', 'POST'])
-@login_required
+@app.route("/mitglied/<int:mitglied_id>/edit", methods=["GET", "POST"])
+@admin_required
 def mitglied_edit(mitglied_id):
-    mitglied = Mitglied.query.get_or_404(mitglied_id)
+    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_verein_id()).first_or_404()
     form = MitgliedForm(obj=mitglied)
-    
+    if request.method == "GET":
+        form.beitrag_bezahlt.data = "ja" if mitglied.beitrag_bezahlt else "nein"
+
     if form.validate_on_submit():
+        vorheriger_status = mitglied.beitrag_bezahlt
+        mitglied.vorname = form.vorname.data.strip()
+        mitglied.nachname = form.nachname.data.strip()
+        mitglied.email = form.email.data.strip().lower()
+        mitglied.eintrittsdatum = form.eintrittsdatum.data
+        mitglied.status = form.status.data
+        mitglied.funktion = form.funktion.data
+        mitglied.telefonnummer = form.telefonnummer.data
+        mitglied.geburtstag = form.geburtstag.data
+        mitglied.adresse = form.adresse.data
+        mitglied.plz = form.plz.data
+        mitglied.ort = form.ort.data
+        mitglied.austritt_datum = form.austritt_datum.data if form.status.data == "inaktiv" else None
+        mitglied.mitgliedsbeitrag = form.mitgliedsbeitrag.data or 0.0
+        mitglied.beitrag_bezahlt = form.beitrag_bezahlt.data == "ja"
+
         try:
-            # Aktualisierung der Mitgliedsdaten
-            mitglied.vorname = form.vorname.data
-            mitglied.nachname = form.nachname.data
-            mitglied.email = form.email.data
-            mitglied.eintrittsdatum = form.eintrittsdatum.data
-            mitglied.status = form.status.data
-            mitglied.funktion = form.funktion.data
-            mitglied.telefonnummer = form.telefonnummer.data
-            mitglied.geburtstag = form.geburtstag.data
-            mitglied.adresse = form.adresse.data
-            mitglied.plz = form.plz.data
-            mitglied.ort = form.ort.data
-            mitglied.austritt_datum = form.austritt_datum.data if form.status.data == 'inaktiv' else None
-            mitglied.mitgliedsbeitrag = form.mitgliedsbeitrag.data or 0.0
-
-            # Korrekte Zuweisung von beitrag_bezahlt
-            beitrag_bezahlt = form.beitrag_bezahlt.data.lower() == 'ja'
-            vorheriger_status = mitglied.beitrag_bezahlt
-            mitglied.beitrag_bezahlt = beitrag_bezahlt
-
+            if mitglied.beitrag_bezahlt and not vorheriger_status:
+                create_member_fee_booking(mitglied)
             db.session.commit()
-            logger.info(f"Mitglied ID {mitglied.id} erfolgreich aktualisiert.")
-
-            # Finanzbuchung hinzufügen, wenn beitrag_bezahlt von False auf True geändert wurde
-            if beitrag_bezahlt and not vorheriger_status and mitglied.mitgliedsbeitrag > 0:
-                finanzbuchung = Finanzbuchung(
-                    typ='Einnahme',
-                    kategorie='Mitgliedsbeitrag',
-                    betrag=mitglied.mitgliedsbeitrag,
-                    datum=date.today(),
-                    beschreibung=f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
-                    mitglied_id=mitglied.id
-                )
-                db.session.add(finanzbuchung)
-                db.session.commit()
-                logger.info(f"Finanzbuchung für Mitglied ID {mitglied.id} erstellt.")
-
             flash("Mitglied erfolgreich bearbeitet.", "success")
-            return redirect(url_for('mitglieder_liste'))
-        
-        except Exception as e:
+            return redirect(url_for("mitglieder_liste"))
+        except IntegrityError:
             db.session.rollback()
-            logger.error(f"Fehler beim Bearbeiten des Mitglieds ID {mitglied.id}: {e}")
-            flash("Fehler beim Bearbeiten des Mitglieds.", "danger")
-    else:
-        if form.errors:
-            logger.warning(f"Formularfehler beim Bearbeiten von Mitglied ID {mitglied.id}: {form.errors}")
-    
-    return render_template('mitglied_edit.html', form=form, titel="Mitglied bearbeiten", mitglied=mitglied)
+            flash("Diese E-Mail-Adresse ist in diesem Verein bereits vorhanden.", "danger")
+
+    return render_template("mitglied_edit.html", form=form, titel="Mitglied bearbeiten", mitglied=mitglied)
 
 
-@app.route('/mitglied/<int:mitglied_id>/delete', methods=['POST'])
-@login_required
+@app.route("/mitglied/<int:mitglied_id>/delete", methods=["POST"])
+@admin_required
 def mitglied_delete(mitglied_id):
-    # Nur Mitglieder des aktuellen Vereins abrufen
-    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_user.verein_id).first_or_404()
+    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_verein_id()).first_or_404()
     db.session.delete(mitglied)
     db.session.commit()
-    flash("Mitglied erfolgreich gelöscht.", "success")
-    return redirect(url_for('mitglieder_liste'))
+    flash("Mitglied geloescht.", "success")
+    return redirect(url_for("mitglieder_liste"))
 
 
-
-
-@app.route('/mitglieder/import', methods=['GET', 'POST'])
-@login_required
+@app.route("/mitglieder/import", methods=["POST"])
+@admin_required
 def mitglieder_import():
-    form = ImportMitgliedForm()
-    if request.method == 'POST':
-        file = request.files.get('file')
-        if not file or file.filename == '':
-            flash('Keine Datei ausgewählt.', 'danger')
-            return redirect(url_for('mitglieder_import'))
+    file = request.files.get("file")
+    if not file or not file.filename:
+        flash("Keine Datei ausgewaehlt.", "danger")
+        return redirect(url_for("mitglieder_liste"))
+    if not file.filename.lower().endswith(".csv"):
+        flash("Bitte eine CSV-Datei hochladen.", "danger")
+        return redirect(url_for("mitglieder_liste"))
 
-        if not file.filename.lower().endswith('.csv'):
-            flash('Bitte laden Sie eine gültige CSV-Datei hoch.', 'danger')
-            return redirect(url_for('mitglieder_import'))
+    try:
+        stream = io.StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
+        csv_reader = csv.DictReader(stream)
+    except UnicodeDecodeError:
+        flash("Die CSV-Datei muss im UTF-8-Format vorliegen.", "danger")
+        return redirect(url_for("mitglieder_liste"))
 
-        try:
-            # Verarbeite Dateiinhalt als CSV
-            try:
-                stream = io.StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
+    required = {"Vorname", "Nachname", "Email"}
+    if not required.issubset(csv_reader.fieldnames or []):
+        flash(f"Die CSV-Datei muss folgende Spalten enthalten: {', '.join(sorted(required))}.", "danger")
+        return redirect(url_for("mitglieder_liste"))
 
-            except UnicodeDecodeError:
-                flash('Die CSV-Datei muss im UTF-8-Format vorliegen.', 'danger')
-                return redirect(url_for('mitglieder_import'))
+    imported = 0
+    skipped = 0
+    verein_id = current_verein_id()
+    for row in csv_reader:
+        email = row.get("Email", "").strip().lower()
+        if not email or Mitglied.query.filter_by(verein_id=verein_id, email=email).first():
+            skipped += 1
+            continue
 
-            csv_reader = csv.DictReader(stream)
-
-            # Erwartete Felder prüfen
-            required_fields = {'Vorname', 'Nachname', 'Email', 'Mitgliedsbeitrag', 'Beitrag_Bezahlt'}
-            if not required_fields.issubset(csv_reader.fieldnames or []):
-                flash(f'Die CSV-Datei muss folgende Spalten enthalten: {", ".join(required_fields)}', 'danger')
-                return redirect(url_for('mitglieder_import'))
-
-            # Beginne Datenbanktransaktion
-            with db.session.begin_nested():
-                for row in csv_reader:
-                    # Validierung und Konvertierung der Felder
-                    try:
-                        eintrittsdatum = datetime.strptime(row.get('Eintrittsdatum', ''), '%Y-%m-%d').date() \
-                            if row.get('Eintrittsdatum') else None
-                    except ValueError:
-                        flash(f"Ungültiges Eintrittsdatum: {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
-                        eintrittsdatum = None
-
-                    try:
-                        geburtstag = datetime.strptime(row.get('Geburtstag', ''), '%Y-%m-%d').date() \
-                            if row.get('Geburtstag') else None
-                    except ValueError:
-                        flash(f"Ungültiges Geburtsdatum: {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
-                        geburtstag = None
-
-                    beitrag_bezahlt = row.get('Beitrag_Bezahlt', '').strip().lower() in ['true', 'ja', '1']
-                    try:
-                        mitgliedsbeitrag = float(row.get('Mitgliedsbeitrag', 0.0))
-                    except ValueError:
-                        flash(f"Ungültiger Mitgliedsbeitrag: {row.get('Vorname', 'Unbekannt')} {row.get('Nachname', 'Unbekannt')}.", 'warning')
-                        mitgliedsbeitrag = 0.0
-
-                    # Neues Mitglied erstellen
-                    neues_mitglied = Mitglied(
-                        vorname=row.get('Vorname', '').strip(),
-                        nachname=row.get('Nachname', '').strip(),
-                        email=row.get('Email', '').strip(),
-                        eintrittsdatum=eintrittsdatum or date.today(),
-                        status=row.get('Status', 'aktiv').strip(),
-                        funktion=row.get('Funktion', 'Mitglied').strip(),
-                        telefonnummer=row.get('Telefonnummer', '').strip(),
-                        geburtstag=geburtstag,
-                        adresse=row.get('Adresse', '').strip(),
-                        plz=row.get('PLZ', '').strip(),
-                        ort=row.get('Ort', '').strip(),
-                        mitgliedsbeitrag=mitgliedsbeitrag,
-                        beitrag_bezahlt=beitrag_bezahlt
-                    )
-                    db.session.add(neues_mitglied)
-
-                    # Finanzbuchung erstellen, falls erforderlich
-                    if beitrag_bezahlt and mitgliedsbeitrag > 0:
-                        finanzbuchung = Finanzbuchung(
-                            typ='Einnahme',
-                            kategorie='Mitgliedsbeitrag',
-                            betrag=mitgliedsbeitrag,
-                            datum=date.today(),
-                            beschreibung=f"Mitgliedsbeitrag von {neues_mitglied.vorname} {neues_mitglied.nachname}",
-                            mitglied_id=neues_mitglied.id
-                        )
-                        db.session.add(finanzbuchung)
-
-            # Änderungen bestätigen
-            db.session.commit()
-            flash('Mitglieder erfolgreich importiert.', 'success')
-        except UnicodeDecodeError:
-            flash('Fehler beim Lesen der CSV-Datei. Überprüfen Sie die Kodierung (UTF-8 erforderlich).', 'danger')
-        except Exception as e:
-            app.logger.error(f"Fehler beim Importieren der CSV: {e}")
-            flash('Fehler beim Importieren der CSV.', 'danger')
-
-    return redirect(url_for('mitglieder_liste'))
-
-
-
-
-@app.route('/mitglied/<int:mitglied_id>/update_beitrag', methods=['POST'])
-@login_required
-def mitglied_update_beitrag(mitglied_id):
-    mitglied = Mitglied.query.get_or_404(mitglied_id)
-
-    # Prüfe, ob der Beitrag bereits bezahlt war
-    if mitglied.beitrag_bezahlt:
-        # Beitrag zurücksetzen: Von bezahlt → nicht bezahlt
-        mitglied.beitrag_bezahlt = False
-
-        # Finanzbuchung anlegen: Ausgabe (Rückerstattung/Storno)
-        db.session.add(
-            Finanzbuchung(
-                typ='Ausgabe',  # Hier auf Ausgabe setzen
-                kategorie='Mitgliedsbeitrag Storno',  # Oder eine andere passende Kategorie
-                betrag=mitglied.mitgliedsbeitrag,
-                datum=date.today(),
-                beschreibung=f"Rückerstattung Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
-                mitglied_id=mitglied.id
-            )
+        mitglied = Mitglied(
+            verein_id=verein_id,
+            vorname=row.get("Vorname", "").strip(),
+            nachname=row.get("Nachname", "").strip(),
+            email=email,
+            eintrittsdatum=safe_date(row.get("Eintrittsdatum"), date.today()),
+            geburtstag=safe_date(row.get("Geburtstag")),
+            status=row.get("Status", "aktiv").strip() or "aktiv",
+            funktion=row.get("Funktion", "normal").strip() or "normal",
+            telefonnummer=row.get("Telefonnummer", "").strip(),
+            adresse=row.get("Adresse", "").strip(),
+            plz=row.get("PLZ", "").strip(),
+            ort=row.get("Ort", "").strip(),
+            mitgliedsbeitrag=safe_float(row.get("Mitgliedsbeitrag"), 0.0),
+            beitrag_bezahlt=row.get("Beitrag_Bezahlt", "").strip().lower() in {"true", "ja", "1", "x"},
         )
-        flash(f"Der Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname} wurde zurückgesetzt.", "warning")
-
-    else:
-        # Beitrag wird bezahlt: Von nicht bezahlt → bezahlt
-        mitglied.beitrag_bezahlt = True
-
-        # Finanzbuchung anlegen: Einnahme
-        db.session.add(
-            Finanzbuchung(
-                typ='Einnahme',
-                kategorie='Mitgliedsbeitrag',
-                betrag=mitglied.mitgliedsbeitrag,
-                datum=date.today(),
-                beschreibung=f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
-                mitglied_id=mitglied.id
-            )
-        )
-        flash(f"Der Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname} wurde als bezahlt markiert.", "success")
+        db.session.add(mitglied)
+        db.session.flush()
+        if mitglied.beitrag_bezahlt:
+            create_member_fee_booking(mitglied)
+        imported += 1
 
     db.session.commit()
-    return redirect(url_for('mitglieder_liste'))
+    flash(f"{imported} Mitglieder importiert, {skipped} uebersprungen.", "success")
+    return redirect(url_for("mitglieder_liste"))
 
 
-@app.route('/mitglied/<int:mitglied_id>')
-@login_required
+@app.route("/mitglied/<int:mitglied_id>/update_beitrag", methods=["POST"])
+@admin_required
+def mitglied_update_beitrag(mitglied_id):
+    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_verein_id()).first_or_404()
+    if mitglied.beitrag_bezahlt:
+        mitglied.beitrag_bezahlt = False
+        create_member_fee_booking(
+            mitglied,
+            typ="Ausgabe",
+            kategorie="Mitgliedsbeitrag Storno",
+            beschreibung=f"Rueckerstattung Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}",
+        )
+        flash("Mitgliedsbeitrag zurueckgesetzt.", "warning")
+    else:
+        mitglied.beitrag_bezahlt = True
+        create_member_fee_booking(mitglied)
+        flash("Mitgliedsbeitrag als bezahlt markiert.", "success")
+    db.session.commit()
+    return redirect(url_for("mitglieder_liste"))
+
+
+@app.route("/mitglied/<int:mitglied_id>")
+@admin_required
 def mitglied_detail(mitglied_id):
-    # Filter auf das Mitglied des aktuellen Vereins
-    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_user.verein_id).first_or_404()
-
+    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_verein_id()).first_or_404()
     alter = None
     if mitglied.geburtstag:
-        heute = date.today()
-        alter = (
-            heute.year - mitglied.geburtstag.year -
-            ((heute.month, heute.day) < (mitglied.geburtstag.month, mitglied.geburtstag.day))
-        )
-
-    # Zahlungen über die Beziehung abrufen
-    zahlungen = mitglied.finanzbuchungen
-    return render_template('mitglied_detail.html', mitglied=mitglied, alter=alter, zahlungen=zahlungen)
+        today = date.today()
+        alter = today.year - mitglied.geburtstag.year - ((today.month, today.day) < (mitglied.geburtstag.month, mitglied.geburtstag.day))
+    return render_template("mitglied_detail.html", mitglied=mitglied, alter=alter, zahlungen=mitglied.finanzbuchungen)
 
 
-
-@app.route('/mitglied/<int:mitglied_id>/zahlung_hinzufuegen', methods=['POST'])
-@login_required
+@app.route("/mitglied/<int:mitglied_id>/zahlung_hinzufuegen", methods=["POST"])
+@admin_required
 def zahlung_hinzufuegen(mitglied_id):
+    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_verein_id()).first_or_404()
     try:
-        zahlung_erstellen(
-            mitglied_id=mitglied_id,
-            typ='Einnahme',
-            kategorie='Mitgliedsbeitrag',
-            betrag=50.00,
-            beschreibung=f'Mitgliedsbeitrag von Mitglied {mitglied_id}'
-        )
-        flash('Zahlung erfolgreich hinzugefügt.', 'success')
-    except ValueError as e:
-        flash(str(e), 'danger')
-    return redirect(url_for('mitglied_detail', mitglied_id=mitglied_id))
+        zahlung_erstellen(mitglied.id, "Einnahme", "Mitgliedsbeitrag", mitglied.mitgliedsbeitrag or 0.0, f"Mitgliedsbeitrag von {mitglied.vorname} {mitglied.nachname}")
+        flash("Zahlung hinzugefuegt.", "success")
+    except ValueError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("mitglied_detail", mitglied_id=mitglied.id))
 
-@app.route('/mitglied/<int:mitglied_id>/send_message', methods=['GET', 'POST'])
-@login_required
+
+@app.route("/mitglied/<int:mitglied_id>/send_message", methods=["GET", "POST"])
+@admin_required
 def send_message_member(mitglied_id):
-    mitglied = Mitglied.query.get_or_404(mitglied_id)
-    vorlagen = Nachrichtenvorlage.query.all()
-    vorlagen_json = json.dumps([{'id': v.id, 'betreff': v.betreff, 'inhalt': v.inhalt} for v in vorlagen])
-
-    BREVO_API_KEY = os.getenv('BREVO_API_KEY')
-    if not BREVO_API_KEY:
-        flash("Fehler: Kein Brevo API-Schlüssel gefunden.", "danger")
-        return redirect(url_for('mitglied_detail', mitglied_id=mitglied_id))
-
-    if request.method == 'POST':
-        subject = request.form['subject']
-        body = request.form['body']
-
-        headers = {
-            "api-key": BREVO_API_KEY,
-            "Content-Type": "application/json",
-        }
-        data = {
-            "sender": {"name": "Vereinsverwaltung", "email": "info@memberworks.at"},
-            "to": [{"email": mitglied.email}],
-            "subject": subject,
-            "htmlContent": body
-        }
-
+    mitglied = Mitglied.query.filter_by(id=mitglied_id, verein_id=current_verein_id()).first_or_404()
+    vorlagen = Nachrichtenvorlage.query.filter_by(verein_id=current_verein_id()).all()
+    vorlagen_json = json.dumps([{"id": v.id, "betreff": v.betreff, "inhalt": v.inhalt} for v in vorlagen])
+    form = SendMessageForm()
+    if form.validate_on_submit():
         try:
-            response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data)
-            if response.status_code == 201:
-                flash("Nachricht erfolgreich gesendet.", "success")
-            else:
-                flash(f"Fehler beim Senden der Nachricht: {response.status_code} - {response.text}", "danger")
-        except Exception as e:
-            flash(f"Fehler beim Senden der Nachricht: {e}", "danger")
-
-        return redirect(url_for('mitglied_detail', mitglied_id=mitglied_id))
-
-    return render_template('send_email_member.html', mitglied=mitglied, vorlagen=vorlagen, vorlagen_json=vorlagen_json)
+            send_brevo_email(form.subject.data, form.body.data, [mitglied.email])
+            flash("Nachricht gesendet.", "success")
+        except RuntimeError as exc:
+            flash(str(exc), "danger")
+        return redirect(url_for("mitglied_detail", mitglied_id=mitglied.id))
+    return render_template("send_email_member.html", mitglied=mitglied, vorlagen=vorlagen, vorlagen_json=vorlagen_json, form=form)
 
 
-
-# ----------------------------------
-# Events
-# ----------------------------------
-@app.route('/events')
-@login_required
+@app.route("/events")
+@admin_required
 def events_liste():
-    events = Event.query.all()
-    delete_form = DeleteEventForm()
-    return render_template('events.html', events=events, form=delete_form)
+    events = Event.query.filter_by(verein_id=current_verein_id()).order_by(Event.datum.desc()).all()
+    return render_template("events.html", events=events, form=DeleteEventForm())
 
-@app.route('/event/new', methods=['GET', 'POST'])
-@login_required
+
+@app.route("/event/new", methods=["GET", "POST"])
+@admin_required
 def event_new():
     form = EventForm()
     if form.validate_on_submit():
-        # Neues Event erstellen
-        neues_event = Event(
-            titel=form.titel.data,
+        event = Event(
+            verein_id=current_verein_id(),
+            titel=form.titel.data.strip(),
             beschreibung=form.beschreibung.data,
             datum=form.datum.data,
             ort=form.ort.data,
-            preis=form.preis.data  # Eventpreis
+            preis=form.preis.data,
         )
-        db.session.add(neues_event)
-        db.session.commit()
-
-        # Automatische Finanzbuchung für Eventkosten
-        if neues_event.preis and neues_event.preis > 0:
-            finanzbuchung = Finanzbuchung(
-                typ='Ausgabe',
-                kategorie='Eventkosten',
-                betrag=neues_event.preis,
-                datum=neues_event.datum or date.today(),
-                beschreibung=f"Kosten für Event: {neues_event.titel}"
+        db.session.add(event)
+        db.session.flush()
+        if event.preis and event.preis > 0:
+            db.session.add(
+                Finanzbuchung(
+                    verein_id=current_verein_id(),
+                    typ="Ausgabe",
+                    kategorie="Eventkosten",
+                    betrag=event.preis,
+                    datum=event.datum,
+                    beschreibung=f"Kosten fuer Event: {event.titel}",
+                )
             )
-            db.session.add(finanzbuchung)
-            db.session.commit()
+        try:
+            add_event_to_google_calendar(event, current_user)
+        except Exception as exc:
+            flash(f"Kalendersynchronisierung fehlgeschlagen: {exc}", "warning")
+        db.session.commit()
+        flash("Event erstellt.", "success")
+        return redirect(url_for("events_liste"))
+    return render_template("event_edit.html", form=form, titel="Neues Event")
 
-        # Event mit Google Kalender synchronisieren
-        add_event_to_google_calendar(neues_event, current_user)
 
-        flash('Neues Event erfolgreich erstellt, Kosten wurden in Finanzen erfasst.', 'success')
-        return redirect(url_for('events_liste'))
-    return render_template('event_edit.html', form=form, titel="Neues Event")
-
-
-@app.route('/event/<int:event_id>/edit', methods=['GET', 'POST'])
-@login_required
+@app.route("/event/<int:event_id>/edit", methods=["GET", "POST"])
+@admin_required
 def event_edit(event_id):
-    event = Event.query.get_or_404(event_id)
+    event = Event.query.filter_by(id=event_id, verein_id=current_verein_id()).first_or_404()
     form = EventForm(obj=event)
     if form.validate_on_submit():
-        # Update des Events
-        event.titel = form.titel.data
+        old_title = event.titel
+        event.titel = form.titel.data.strip()
         event.beschreibung = form.beschreibung.data
         event.datum = form.datum.data
         event.ort = form.ort.data
         event.preis = form.preis.data
-        db.session.commit()
 
-        # Finanzbuchung aktualisieren
-        finanzbuchung = Finanzbuchung.query.filter_by(
-            beschreibung=f"Kosten für Event: {event.titel}"
+        buchung = Finanzbuchung.query.filter(
+            Finanzbuchung.verein_id == current_verein_id(),
+            Finanzbuchung.kategorie == "Eventkosten",
+            Finanzbuchung.beschreibung == f"Kosten fuer Event: {old_title}",
         ).first()
-
-        if finanzbuchung:
-            finanzbuchung.betrag = event.preis
-            finanzbuchung.datum = event.datum
-        else:
-            # Falls keine Buchung existiert, neu erstellen
-            finanzbuchung = Finanzbuchung(
-                typ='Ausgabe',
-                kategorie='Eventkosten',
-                betrag=event.preis,
-                datum=event.datum or date.today(),
-                beschreibung=f"Kosten für Event: {event.titel}"
-            )
-            db.session.add(finanzbuchung)
+        if event.preis and event.preis > 0:
+            if not buchung:
+                buchung = Finanzbuchung(verein_id=current_verein_id(), typ="Ausgabe", kategorie="Eventkosten")
+                db.session.add(buchung)
+            buchung.betrag = event.preis
+            buchung.datum = event.datum
+            buchung.beschreibung = f"Kosten fuer Event: {event.titel}"
+        elif buchung:
+            db.session.delete(buchung)
 
         db.session.commit()
-        flash('Event und zugehörige Finanzbuchung erfolgreich aktualisiert.', 'success')
-        return redirect(url_for('events_liste'))
-    return render_template('event_edit.html', form=form, titel="Event bearbeiten")
+        flash("Event aktualisiert.", "success")
+        return redirect(url_for("events_liste"))
+    return render_template("event_edit.html", form=form, titel="Event bearbeiten")
 
 
-
-@app.route('/event/<int:event_id>/delete', methods=['POST'])
-@login_required
+@app.route("/event/<int:event_id>/delete", methods=["POST"])
+@admin_required
 def event_delete(event_id):
-    delete_form = DeleteEventForm()
-    event = Event.query.get_or_404(event_id)
+    event = Event.query.filter_by(id=event_id, verein_id=current_verein_id()).first_or_404()
     db.session.delete(event)
     db.session.commit()
-    return redirect(url_for('events_liste'))
+    flash("Event geloescht.", "success")
+    return redirect(url_for("events_liste"))
 
-@app.route('/event/<int:event_id>/send_email', methods=['GET', 'POST'])
-@login_required
+
+@app.route("/event/<int:event_id>/send_email", methods=["GET", "POST"])
+@admin_required
 def send_email_event(event_id):
-    event = Event.query.get_or_404(event_id)  # Hole das Event aus der Datenbank
-    mitglieder = Mitglied.query.filter_by(status='aktiv').all()  # Nur aktive Mitglieder
-
-    if request.method == 'POST':
-        subject = request.form['subject']
-        body = request.form['body']
-        selected_ids = request.form.getlist('member_ids')
-
-        BREVO_API_KEY = os.getenv('BREVO_API_KEY')
-        if not BREVO_API_KEY:
-            flash("Fehler: Kein Brevo API-Schlüssel gefunden.", "danger")
-            return redirect(url_for('events_liste'))
-
-        # Bestimme die Empfänger
-        if "all" in selected_ids:
-            recipient_emails = [mitglied.email for mitglied in mitglieder]
-        else:
-            recipient_emails = [mitglied.email for mitglied in mitglieder if str(mitglied.id) in selected_ids]
-
-        if not recipient_emails:
-            flash('Keine Mitglieder ausgewählt.', 'danger')
-            return redirect(url_for('send_email_event', event_id=event_id))
-
-        # Sende E-Mails über die Brevo API
-        headers = {
-            "api-key": BREVO_API_KEY,
-            "Content-Type": "application/json",
-        }
-        data = {
-            "sender": {"name": "Vereinsverwaltung", "email": "info@memberworks.at"},
-            "to": [{"email": email} for email in recipient_emails],
-            "subject": subject,
-            "htmlContent": body
-        }
-
+    event = Event.query.filter_by(id=event_id, verein_id=current_verein_id()).first_or_404()
+    mitglieder = Mitglied.query.filter_by(verein_id=current_verein_id(), status="aktiv").order_by(Mitglied.nachname).all()
+    form = SendMessageForm()
+    if form.validate_on_submit():
+        selected = request.form.getlist("member_ids")
+        recipients = [m.email for m in mitglieder if "all" in selected or str(m.id) in selected]
+        if not recipients:
+            flash("Keine Mitglieder ausgewaehlt.", "danger")
+            return redirect(url_for("send_email_event", event_id=event.id))
         try:
-            response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data)
-            if response.status_code == 201:
-                flash("E-Mails erfolgreich gesendet.", "success")
-            else:
-                flash(f"Fehler beim Senden der E-Mails: {response.status_code} - {response.text}", "danger")
-        except Exception as e:
-            flash(f"Fehler beim Senden der E-Mails: {e}", "danger")
-
-        return redirect(url_for('events_liste'))
-
-    return render_template('send_email_event.html', event=event, mitglieder=mitglieder)
+            send_brevo_email(form.subject.data, form.body.data, recipients)
+            flash("E-Mails gesendet.", "success")
+        except RuntimeError as exc:
+            flash(str(exc), "danger")
+        return redirect(url_for("events_liste"))
+    return render_template("send_email_event.html", event=event, mitglieder=mitglieder, form=form)
 
 
-
-# ----------------------------------
-# Finanzen
-# ----------------------------------
-@app.route('/finanzen')
-@login_required
+@app.route("/finanzen")
+@admin_required
 def finanzen_liste():
-    buchungen = Finanzbuchung.query.all()
-    sum_einnahmen = db.session.query(db.func.sum(Finanzbuchung.betrag))\
-        .filter(Finanzbuchung.typ == 'Einnahme').scalar() or 0
-    sum_ausgaben = db.session.query(db.func.sum(Finanzbuchung.betrag))\
-        .filter(Finanzbuchung.typ == 'Ausgabe').scalar() or 0
-    saldo = current_user.anfangsbestand + sum_einnahmen - sum_ausgaben
+    verein_id = current_verein_id()
+    buchungen = Finanzbuchung.query.filter_by(verein_id=verein_id).order_by(Finanzbuchung.datum.desc(), Finanzbuchung.id.desc()).all()
+    einnahmen = sum(b.betrag for b in buchungen if b.typ == "Einnahme")
+    ausgaben = sum(b.betrag for b in buchungen if b.typ == "Ausgabe")
+    saldo = (current_user.anfangsbestand or 0.0) + einnahmen - ausgaben
+    return render_template("finanzen.html", buchungen=buchungen, saldo=round(saldo, 2), current_year=datetime.now().year, form=DeleteFinanzForm())
 
-    current_year = datetime.now().year  # Aktuelles Jahr
 
-    delete_form = DeleteFinanzForm()
-
-    return render_template('finanzen.html',
-                           buchungen=buchungen,
-                           saldo=saldo,
-                           current_year=current_year,
-                           form=delete_form)
-
-@app.route('/finanzen/export')
-@login_required
+@app.route("/finanzen/export")
+@admin_required
 def finanzen_export():
-    buchungen = Finanzbuchung.query.all()
-    output = []
-    output.append(['ID', 'Typ', 'Kategorie', 'Betrag', 'Datum', 'Beschreibung'])
+    buchungen = Finanzbuchung.query.filter_by(verein_id=current_verein_id()).order_by(Finanzbuchung.datum).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Typ", "Kategorie", "Betrag", "Datum", "Beschreibung"])
     for b in buchungen:
-        output.append([b.id, b.typ, b.kategorie, b.betrag, b.datum, b.beschreibung])
+        writer.writerow([b.id, b.typ, b.kategorie, b.betrag, b.datum, b.beschreibung])
 
-    si = io.StringIO()
-    writer = csv.writer(si)
-    writer.writerows(output)
-
-    response = make_response(si.getvalue())
-    response.headers['Content-Disposition'] = 'attachment; filename=finanzen.csv'
-    response.headers['Content-type'] = 'text/csv'
+    response = make_response(output.getvalue())
+    response.headers["Content-Disposition"] = "attachment; filename=finanzen.csv"
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
     return response
 
 
-@app.route('/finanzen/jahresabschluss/<int:jahr>/download', methods=['GET'])
-@login_required
-def jahresabschluss_pdf(jahr):
-    # Buchungen des Jahres filtern
-    buchungen = Finanzbuchung.query.filter(db.extract('year', Finanzbuchung.datum) == jahr).all()
-
-    # Summen berechnen
-    einnahmen = sum(b.betrag for b in buchungen if b.typ == 'Einnahme')
-    ausgaben = sum(b.betrag for b in buchungen if b.typ == 'Ausgabe')
-    anfangsbestand = current_user.anfangsbestand
-    saldo = anfangsbestand + einnahmen - ausgaben
-
-    # PDF erstellen
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-
-    # Titel
-    pdf.cell(200, 10, f"Jahresabschluss {jahr}", ln=True, align="C")
-    pdf.ln(10)
-
-    # Kontonummer
-    pdf.set_font("Arial", size=10)
-    if current_user.konto_nummer:
-        pdf.cell(200, 10, f"Kontonummer: {current_user.konto_nummer}", ln=True)
-    pdf.ln(10)
-
-    # Summen
-    pdf.cell(200, 10, f"Einnahmen: {einnahmen:.2f} EUR", ln=True)
-    pdf.cell(200, 10, f"Ausgaben: {ausgaben:.2f} EUR", ln=True)
-    pdf.cell(200, 10, f"Saldo: {saldo:.2f} EUR", ln=True)
-
-    # Tabellenüberschrift
-    pdf.ln(10)
-    pdf.cell(30, 10, "ID", border=1)
-    pdf.cell(30, 10, "Typ", border=1)
-    pdf.cell(50, 10, "Kategorie", border=1)
-    pdf.cell(40, 10, "Betrag", border=1)
-    pdf.cell(40, 10, "Datum", border=1)
-    pdf.ln(10)
-
-    # Tabelleninhalt
-    for b in buchungen:
-        pdf.cell(30, 10, str(b.id), border=1)
-        pdf.cell(30, 10, b.typ, border=1)
-        pdf.cell(50, 10, b.kategorie, border=1)
-        pdf.cell(40, 10, f"{b.betrag:.2f}", border=1)
-        pdf.cell(40, 10, b.datum.strftime('%d.%m.%Y'), border=1)
-        pdf.ln(10)
-
-    # PDF als Antwort zurückgeben
-    response = make_response(pdf.output(dest='S').encode('latin1'))
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=jahresabschluss_{jahr}.pdf'
-    return response
-
-
-@app.route('/finanzen/new', methods=['GET', 'POST'])
-@login_required
+@app.route("/finanzen/new", methods=["GET", "POST"])
+@admin_required
 def finanzen_new():
     form = FinanzForm()
     if form.validate_on_submit():
         buchung = Finanzbuchung(
+            verein_id=current_verein_id(),
             typ=form.typ.data,
-            kategorie=form.kategorie.data,
+            kategorie=form.kategorie.data.strip(),
             betrag=form.betrag.data,
             datum=form.datum.data or date.today(),
-            beschreibung=form.beschreibung.data
+            beschreibung=form.beschreibung.data,
         )
         db.session.add(buchung)
         db.session.commit()
-        flash('Neue Buchung erfolgreich hinzugefügt.')
-        return redirect(url_for('finanzen_liste'))
-    return render_template('finanzen_edit.html', form=form, titel="Neue Buchung")
+        flash("Buchung hinzugefuegt.", "success")
+        return redirect(url_for("finanzen_liste"))
+    return render_template("finanzen_edit.html", form=form, titel="Neue Buchung")
 
-@app.route('/finanzen/<int:buchung_id>/edit', methods=['GET', 'POST'])
-@login_required
+
+@app.route("/finanzen/<int:buchung_id>/edit", methods=["GET", "POST"])
+@admin_required
 def finanzen_edit(buchung_id):
-    buchung = Finanzbuchung.query.get_or_404(buchung_id)
+    buchung = Finanzbuchung.query.filter_by(id=buchung_id, verein_id=current_verein_id()).first_or_404()
     form = FinanzForm(obj=buchung)
     if form.validate_on_submit():
         buchung.typ = form.typ.data
-        buchung.kategorie = form.kategorie.data
+        buchung.kategorie = form.kategorie.data.strip()
         buchung.betrag = form.betrag.data
-        buchung.datum = form.datum.data
+        buchung.datum = form.datum.data or date.today()
         buchung.beschreibung = form.beschreibung.data
         db.session.commit()
-        flash('Buchung erfolgreich aktualisiert.', 'success')
-        return redirect(url_for('finanzen_liste'))
-    return render_template('finanzen_edit.html', form=form, titel="Buchung bearbeiten")
+        flash("Buchung aktualisiert.", "success")
+        return redirect(url_for("finanzen_liste"))
+    return render_template("finanzen_edit.html", form=form, titel="Buchung bearbeiten")
 
-@app.route('/finanzen/<int:buchung_id>/delete', methods=['POST'])
-@login_required
+
+@app.route("/finanzen/<int:buchung_id>/delete", methods=["POST"])
+@admin_required
 def finanzen_delete(buchung_id):
-    # Abrufen der Buchung aus der Datenbank
-    buchung = Finanzbuchung.query.get_or_404(buchung_id)
-
-    # Die Buchung aus der Datenbank entfernen
+    buchung = Finanzbuchung.query.filter_by(id=buchung_id, verein_id=current_verein_id()).first_or_404()
     db.session.delete(buchung)
     db.session.commit()
+    flash("Buchung geloescht.", "success")
+    return redirect(url_for("finanzen_liste"))
 
-    # Erfolgsnachricht und Weiterleitung zur Finanzübersicht
-    flash('Buchung erfolgreich gelöscht.', 'success')
-    return redirect(url_for('finanzen_liste'))
 
-@app.route('/finanzen/summenliste/pdf', methods=['GET'])
-@login_required
-def summenliste_pdf():
-    # Finanzbuchungen nach Kategorien gruppieren und Summen berechnen
-    kategorien = db.session.query(
-        Finanzbuchung.kategorie,
-        Finanzbuchung.typ,
-        db.func.sum(Finanzbuchung.betrag).label('summe')
-    ).group_by(Finanzbuchung.kategorie, Finanzbuchung.typ).all()
+def finance_rows_for_current_verein():
+    return Finanzbuchung.query.filter_by(verein_id=current_verein_id()).order_by(Finanzbuchung.datum.asc()).all()
 
-    # Gesamtsummen berechnen
-    sum_einnahmen = sum(k.summe for k in kategorien if k.typ == 'Einnahme')
-    sum_ausgaben = sum(k.summe for k in kategorien if k.typ == 'Ausgabe')
 
-    # PDF-Erstellung
+@app.route("/finanzen/jahresabschluss/<int:jahr>/download")
+@admin_required
+def jahresabschluss_pdf(jahr):
+    buchungen = [
+        b for b in finance_rows_for_current_verein()
+        if b.datum and b.datum.year == jahr
+    ]
+    einnahmen = sum(b.betrag for b in buchungen if b.typ == "Einnahme")
+    ausgaben = sum(b.betrag for b in buchungen if b.typ == "Ausgabe")
+    saldo = (current_user.anfangsbestand or 0) + einnahmen - ausgaben
+
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
+    pdf.cell(190, 10, f"Jahresabschluss {jahr}", ln=True, align="C")
+    pdf.ln(8)
+    pdf.cell(190, 8, f"Einnahmen: {einnahmen:.2f} EUR", ln=True)
+    pdf.cell(190, 8, f"Ausgaben: {ausgaben:.2f} EUR", ln=True)
+    pdf.cell(190, 8, f"Saldo: {saldo:.2f} EUR", ln=True)
+    pdf.ln(8)
+    pdf.set_font("Arial", size=9)
+    for b in buchungen:
+        pdf.cell(30, 8, b.datum.strftime("%d.%m.%Y"), border=1)
+        pdf.cell(25, 8, b.typ, border=1)
+        pdf.cell(55, 8, b.kategorie, border=1)
+        pdf.cell(30, 8, f"{b.betrag:.2f}", border=1)
+        pdf.cell(50, 8, (b.beschreibung or "")[:32], border=1)
+        pdf.ln(8)
+    return pdf_response(pdf, f"jahresabschluss_{jahr}.pdf")
 
-    # Titel
-    pdf.cell(200, 10, "Summenliste - Finanzen", ln=True, align="C")
-    pdf.ln(10)
 
-    # Kontonummer hinzufügen, falls vorhanden
-    if current_user.konto_nummer:
-        pdf.set_font("Arial", size=10)
-        pdf.cell(200, 10, f"Kontonummer: {current_user.konto_nummer}", ln=True)
-        pdf.ln(10)
-
-    # Tabellenüberschrift
-    pdf.set_font("Arial", size=10, style="B")
-    pdf.cell(80, 10, "Kategorie", border=1)
-    pdf.cell(40, 10, "Typ", border=1)
-    pdf.cell(40, 10, "Summe (EUR)", border=1)
-    pdf.ln(10)
-
-    # Tabelleninhalt
+@app.route("/finanzen/summenliste/pdf")
+@admin_required
+def summenliste_pdf():
+    kategorien = (
+        db.session.query(Finanzbuchung.kategorie, Finanzbuchung.typ, db.func.sum(Finanzbuchung.betrag).label("summe"))
+        .filter(Finanzbuchung.verein_id == current_verein_id())
+        .group_by(Finanzbuchung.kategorie, Finanzbuchung.typ)
+        .all()
+    )
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(190, 10, "Summenliste - Finanzen", ln=True, align="C")
+    pdf.ln(8)
     pdf.set_font("Arial", size=10)
     for kategorie, typ, summe in kategorien:
-        if typ == 'Ausgabe':
-            pdf.set_text_color(255, 0, 0)  # Rot für Ausgaben
-        else:
-            pdf.set_text_color(0, 0, 0)    # Schwarz für Einnahmen
+        pdf.cell(90, 8, kategorie, border=1)
+        pdf.cell(40, 8, typ, border=1)
+        pdf.cell(40, 8, f"{summe:.2f}", border=1)
+        pdf.ln(8)
+    return pdf_response(pdf, "summenliste.pdf")
 
-        pdf.cell(80, 10, kategorie, border=1)
-        pdf.cell(40, 10, typ, border=1)
-        pdf.cell(40, 10, f"{summe:.2f}", border=1)
-        pdf.ln(10)
 
-    # Gesamtsummen hinzufügen
-    pdf.set_text_color(0, 0, 0)  # Zurücksetzen auf Schwarz
-    pdf.set_font("Arial", size=10, style="B")
-    pdf.cell(80, 10, "Gesamtsumme", border=1)
-    pdf.cell(40, 10, "Einnahmen", border=1)
-    pdf.cell(40, 10, f"{sum_einnahmen:.2f}", border=1)
-    pdf.ln(10)
-
-    pdf.cell(80, 10, "", border=0)
-    pdf.cell(40, 10, "Ausgaben", border=1)
-    pdf.cell(40, 10, f"{sum_ausgaben:.2f}", border=1, ln=1)
-    pdf.ln(10)
-
-    # PDF als Antwort zurückgeben
-    response = make_response(pdf.output(dest='S').encode('latin1'))
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = 'attachment; filename=summenliste.pdf'
-    return response
-
-@app.route('/finanzen/journal/pdf', methods=['GET'])
-@login_required
+@app.route("/finanzen/journal/pdf")
+@admin_required
 def buchungsjournal_pdf():
-    # Alle Finanzbuchungen sortiert nach Datum abrufen
-    buchungen = Finanzbuchung.query.order_by(Finanzbuchung.datum.asc()).all()
-
-    # PDF erstellen
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
+    pdf.cell(190, 10, "Buchungsjournal", ln=True, align="C")
+    pdf.ln(8)
+    pdf.set_font("Arial", size=9)
+    for b in finance_rows_for_current_verein():
+        pdf.cell(28, 8, b.datum.strftime("%d.%m.%Y"), border=1)
+        pdf.cell(25, 8, b.typ, border=1)
+        pdf.cell(50, 8, b.kategorie, border=1)
+        pdf.cell(25, 8, f"{b.betrag:.2f}", border=1)
+        pdf.cell(62, 8, (b.beschreibung or "")[:42], border=1)
+        pdf.ln(8)
+    return pdf_response(pdf, "buchungsjournal.pdf")
 
-    # Titel
-    pdf.cell(200, 10, "Buchungsjournal", ln=True, align="C")
-    pdf.ln(10)
 
-    # Kontonummer hinzufügen, falls vorhanden
-    if current_user.konto_nummer:
-        pdf.set_font("Arial", size=10)
-        pdf.cell(200, 10, f"Kontonummer: {current_user.konto_nummer}", ln=True)
-        pdf.ln(10)
-
-    # Tabellenüberschrift
-    pdf.set_font("Arial", size=10, style="B")
-    col_widths = [10, 25, 20, 35, 20, 80]  # Spaltenbreiten
-    headers = ["ID", "Datum", "Typ", "Kategorie", "Betrag", "Beschreibung"]
-
-    # Überschriften ausgeben
-    for header, width in zip(headers, col_widths):
-        pdf.cell(width, 10, header, border=1, align="C")
-    pdf.ln(10)
-
-    # Tabelleninhalt mit angepasster Höhe
-    pdf.set_font("Arial", size=10)
-    for buchung in buchungen:
-        # Für Ausgaben rot markieren
-        if buchung.typ == 'Ausgabe':
-            pdf.set_text_color(255, 0, 0)
-        else:
-            pdf.set_text_color(0, 0, 0)
-
-        # Daten der Zeile vorbereiten
-        row_data = [
-            str(buchung.id),
-            buchung.datum.strftime('%d.%m.%Y'),
-            buchung.typ,
-            buchung.kategorie,
-            f"{buchung.betrag:.2f}",
-            buchung.beschreibung
-        ]
-
-        # Ermitteln der maximalen Zeilenhöhe
-        line_heights = []
-        for data, width in zip(row_data, col_widths):
-            # Höhe für die jeweilige Zelle berechnen
-            line_height = pdf.get_string_width(data) // width + 1
-            line_heights.append(line_height * 10)
-
-        max_height = max(line_heights)
-
-        # Daten in Zellen mit einheitlicher Höhe schreiben
-        x_start = pdf.get_x()
-        for i, (data, width) in enumerate(zip(row_data, col_widths)):
-            y_start = pdf.get_y()
-            pdf.multi_cell(width, 10, data, border=1, align="L" if i in [3, 5] else "C")
-            pdf.set_xy(x_start + width, y_start)
-            x_start += width
-
-        pdf.ln(max_height)
-
-    # PDF als Antwort zurückgeben
-    response = make_response(pdf.output(dest='S').encode('latin1'))
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = 'attachment; filename=buchungsjournal.pdf'
-    return response
-
-@app.route('/finanzen/jahressaldo/pdf', methods=['GET'])
-@login_required
+@app.route("/finanzen/jahressaldo/pdf")
+@admin_required
 def jahressaldo_pdf():
-    # Gruppierung der Buchungen nach Jahr
-    salden = db.session.query(
-        db.extract('year', Finanzbuchung.datum).label('jahr'),
-        db.func.sum(db.case(
-            (Finanzbuchung.typ == 'Einnahme', Finanzbuchung.betrag),
-            else_=0
-        )).label('einnahmen'),
-        db.func.sum(db.case(
-            (Finanzbuchung.typ == 'Ausgabe', Finanzbuchung.betrag),
-            else_=0
-        )).label('ausgaben')
-    ).group_by(db.extract('year', Finanzbuchung.datum)).order_by(db.extract('year', Finanzbuchung.datum)).all()
-
-    # PDF erstellen
+    salden = (
+        db.session.query(
+            extract("year", Finanzbuchung.datum).label("jahr"),
+            db.func.sum(case((Finanzbuchung.typ == "Einnahme", Finanzbuchung.betrag), else_=0)).label("einnahmen"),
+            db.func.sum(case((Finanzbuchung.typ == "Ausgabe", Finanzbuchung.betrag), else_=0)).label("ausgaben"),
+        )
+        .filter(Finanzbuchung.verein_id == current_verein_id())
+        .group_by(extract("year", Finanzbuchung.datum))
+        .order_by(extract("year", Finanzbuchung.datum))
+        .all()
+    )
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-
-    # Titel
     pdf.cell(190, 10, "Jahressaldo", ln=True, align="C")
-    pdf.ln(10)
-
-    # Tabellenüberschrift
-    pdf.set_font("Arial", size=10, style="B")
-    headers = ["Jahr", "Kontonummer", "Kontobezeichnung", "Anfangsbestand", "Einnahmen", "Ausgaben", "Endbestand"]
-    col_widths = [20, 40, 50, 25, 20, 20, 25]  # Angepasste Spaltenbreiten
-
-    # Überschriften drucken
-    for header, width in zip(headers, col_widths):
-        pdf.cell(width, 10, header, border=1, align="C")
-    pdf.ln()
-
-    # Tabelleninhalt
+    pdf.ln(8)
     pdf.set_font("Arial", size=10)
     for jahr, einnahmen, ausgaben in salden:
-        anfangsbestand = current_user.anfangsbestand
-        endbestand = anfangsbestand + einnahmen - ausgaben
+        anfang = current_user.anfangsbestand or 0.0
+        endbestand = anfang + (einnahmen or 0) - (ausgaben or 0)
+        pdf.cell(30, 8, str(int(jahr)), border=1)
+        pdf.cell(45, 8, f"Start {anfang:.2f}", border=1)
+        pdf.cell(45, 8, f"Ein {einnahmen:.2f}", border=1)
+        pdf.cell(45, 8, f"Aus {ausgaben:.2f}", border=1)
+        pdf.cell(25, 8, f"{endbestand:.2f}", border=1)
+        pdf.ln(8)
+    return pdf_response(pdf, "jahressaldo.pdf")
 
-        # Daten für die Zeile vorbereiten
-        row_data = [
-            str(int(jahr)),
-            current_user.konto_nummer or "Keine Kontonummer",
-            current_user.konto_bezeichnung or "Keine Bezeichnung",
-            f"{anfangsbestand:.2f}",
-            f"{einnahmen:.2f}",
-            f"{ausgaben:.2f}",
-            f"{endbestand:.2f}",
-        ]
 
-        # Maximale Zeilenhöhe berechnen
-        max_height = 10  # Standardhöhe
-        line_heights = [
-            pdf.get_string_width(data) // (width - 2) * 6 + 10 for data, width in zip(row_data, col_widths)
-        ]
-        max_height = max(line_heights)
-
-        # Manuelle Zellenpositionierung
-        x_start = pdf.get_x()
-        y_start = pdf.get_y()
-        for i, (data, width) in enumerate(zip(row_data, col_widths)):
-            if i == 1:  # Schriftgröße für Kontonummer anpassen
-                pdf.set_font("Arial", size=8)
-            pdf.multi_cell(width, 6, data, border=1, align="C")
-            pdf.set_xy(x_start + width, y_start)
-            x_start += width
-            pdf.set_font("Arial", size=10)  # Schriftgröße zurücksetzen
-
-        pdf.ln(max_height)
-
-    # PDF als Antwort zurückgeben
-    response = make_response(pdf.output(dest='S').encode('latin1'))
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = 'attachment; filename=jahressaldo.pdf'
-    return response
-
-@app.route('/finanzen/kategorie/pdf', methods=['GET'])
-@login_required
+@app.route("/finanzen/kategorie/pdf")
+@admin_required
 def finanzen_kategorie_pdf():
-    # Finanzbuchungen gruppiert nach Kategorie abrufen
-    kategorien = db.session.query(Finanzbuchung.kategorie).distinct().all()
-
-    # PDF erstellen
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
-
-    for kategorie_row in kategorien:
-        kategorie = kategorie_row[0]
-        buchungen = Finanzbuchung.query.filter_by(kategorie=kategorie).all()
-
-        # Neue Seite für jede Kategorie
+    kategorien = (
+        db.session.query(Finanzbuchung.kategorie)
+        .filter(Finanzbuchung.verein_id == current_verein_id())
+        .distinct()
+        .order_by(Finanzbuchung.kategorie)
+        .all()
+    )
+    for (kategorie,) in kategorien:
         pdf.add_page()
         pdf.set_font("Arial", size=12)
-
-        # Kategorie-Titel
         pdf.cell(190, 10, f"Kategorie: {kategorie}", ln=True, align="C")
-        pdf.ln(10)
-
-        # Tabellenüberschriften
-        pdf.set_font("Arial", size=10, style="B")
-        headers = ["Datum", "Typ", "Betrag (EUR)", "Beschreibung"]
-        col_widths = [40, 30, 40, 80]  # Angepasste Spaltenbreiten
-
-        for header, width in zip(headers, col_widths):
-            pdf.cell(width, 10, header, border=1, align="C")
-        pdf.ln()
-
-        # Tabelleninhalt
-        pdf.set_font("Arial", size=10)
-        for buchung in buchungen:
-            row_data = [
-                buchung.datum.strftime('%d.%m.%Y') if buchung.datum else "-",
-                buchung.typ,
-                f"{buchung.betrag:.2f}",
-                buchung.beschreibung
-            ]
-
-            for data, width in zip(row_data, col_widths):
-                pdf.cell(width, 10, data, border=1, align="L")
-            pdf.ln()
-
-    # PDF als Antwort zurückgeben
-    response = make_response(pdf.output(dest='S').encode('latin1'))
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = 'attachment; filename=finanzen_kategorien.pdf'
-    return response
+        pdf.ln(8)
+        pdf.set_font("Arial", size=9)
+        for b in Finanzbuchung.query.filter_by(verein_id=current_verein_id(), kategorie=kategorie).order_by(Finanzbuchung.datum).all():
+            pdf.cell(30, 8, b.datum.strftime("%d.%m.%Y"), border=1)
+            pdf.cell(25, 8, b.typ, border=1)
+            pdf.cell(25, 8, f"{b.betrag:.2f}", border=1)
+            pdf.cell(110, 8, (b.beschreibung or "")[:75], border=1)
+            pdf.ln(8)
+    if not kategorien:
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(190, 10, "Keine Buchungen vorhanden", ln=True, align="C")
+    return pdf_response(pdf, "finanzen_kategorien.pdf")
 
 
-# ----------------------------------
-# Notizen
-# ----------------------------------
-@app.route('/notizen')
-@login_required
+@app.route("/notizen")
+@admin_required
 def notizen_liste():
-    notizen = Notiz.query.all()
-    return render_template('notizen.html', notizen=notizen)
+    notizen = Notiz.query.filter_by(verein_id=current_verein_id()).order_by(Notiz.id.desc()).all()
+    return render_template("notizen.html", notizen=notizen, form=DeleteNotizForm())
 
-@app.route('/notiz/new', methods=['GET', 'POST'])
-@login_required
+
+@app.route("/notiz/new", methods=["GET", "POST"])
+@admin_required
 def notiz_new():
     form = NotizForm()
     if form.validate_on_submit():
-        notiz = Notiz(
-            titel=form.titel.data,
-            inhalt=form.inhalt.data
-        )
-        db.session.add(notiz)
+        db.session.add(Notiz(verein_id=current_verein_id(), titel=form.titel.data.strip(), inhalt=form.inhalt.data))
         db.session.commit()
-        return redirect(url_for('notizen_liste'))
-    return render_template('notiz_edit.html', form=form, titel="Neue Notiz")
+        flash("Notiz erstellt.", "success")
+        return redirect(url_for("notizen_liste"))
+    return render_template("notiz_edit.html", form=form, titel="Neue Notiz")
 
-@app.route('/notiz/<int:notiz_id>/edit', methods=['GET', 'POST'])
-@login_required
+
+@app.route("/notiz/<int:notiz_id>/edit", methods=["GET", "POST"])
+@admin_required
 def notiz_edit(notiz_id):
-    notiz = Notiz.query.get_or_404(notiz_id)
+    notiz = Notiz.query.filter_by(id=notiz_id, verein_id=current_verein_id()).first_or_404()
     form = NotizForm(obj=notiz)
     if form.validate_on_submit():
-        notiz.titel = form.titel.data
+        notiz.titel = form.titel.data.strip()
         notiz.inhalt = form.inhalt.data
         db.session.commit()
-        return redirect(url_for('notizen_liste'))
-    return render_template('notiz_edit.html', form=form, titel="Notiz bearbeiten")
+        flash("Notiz aktualisiert.", "success")
+        return redirect(url_for("notizen_liste"))
+    return render_template("notiz_edit.html", form=form, titel="Notiz bearbeiten")
 
-@app.route('/notiz/<int:notiz_id>/delete', methods=['POST'])
-@login_required
+
+@app.route("/notiz/<int:notiz_id>/delete", methods=["POST"])
+@admin_required
 def notiz_delete(notiz_id):
-    notiz = Notiz.query.get_or_404(notiz_id)
+    notiz = Notiz.query.filter_by(id=notiz_id, verein_id=current_verein_id()).first_or_404()
     db.session.delete(notiz)
     db.session.commit()
-    return redirect(url_for('notizen_liste'))
+    flash("Notiz geloescht.", "success")
+    return redirect(url_for("notizen_liste"))
 
 
-# ----------------------------------
-# Jahresabschluss (Beispiel)
-# ----------------------------------
-@app.route('/jahresabschluss/<int:jahr>')
-@login_required
+@app.route("/jahresabschluss/<int:jahr>")
+@admin_required
 def jahresabschluss(jahr):
-    # Filtere Finanzbuchungen nach Jahr
-    buchungen_jahr = Finanzbuchung.query.filter(
-        db.extract('year', Finanzbuchung.datum) == jahr
-    ).all()
-
-    sum_einnahmen = 0
-    sum_ausgaben = 0
-    anfangsbestand = current_user.anfangsbestand
-    for b in buchungen_jahr:
-        if b.typ == 'Einnahme':
-            sum_einnahmen += b.betrag
-        else:
-            sum_ausgaben += b.betrag
-
-    saldo = anfangsbestand + sum_einnahmen - sum_ausgaben
-
-    return render_template('jahresabschluss.html',
-                           jahr=jahr,
-                           buchungen=buchungen_jahr,
-                           einnahmen=sum_einnahmen,
-                           ausgaben=sum_ausgaben,
-                           saldo=saldo)
-
-# ----------------------------------
-# Dokumente auflisten
-# ----------------------------------
-@app.route('/documents')
-@login_required
-def documents_list():
-    documents = Document.query.order_by(Document.uploaded_at.desc()).all()
-    return render_template('documents.html', documents=documents)
-
-# ----------------------------------
-# Hochladen
-# ----------------------------------
-@app.route('/documents/new', methods=['GET', 'POST'])
-@login_required
-def documents_new():
-    # Initialisierung des Formulars
-    form = DocumentForm()
-
-    # Validierung des Formulars bei POST-Request
-    if form.validate_on_submit():
-        # Datei aus dem Formular holen
-        file = form.file.data
-        if not file:
-            flash('Fehler: Keine Datei ausgewählt.', 'danger')
-            return render_template('documents_new.html', form=form)
-
-        try:
-            # Original- und einzigartigen Dateinamen erstellen
-            original_filename = secure_filename(file.filename)
-            ext = os.path.splitext(original_filename)[1]  # Dateierweiterung
-            unique_name = str(uuid.uuid4()) + ext
-
-            # Datei speichern
-            save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
-            file.save(save_path)
-
-            # Dokument in der Datenbank speichern
-            document = Document(
-                filename=unique_name,
-                original_filename=original_filename,
-                description=form.description.data,
-                user_id=current_user.id
-            )
-            db.session.add(document)
-            db.session.commit()
-
-            # Erfolgsnachricht und Weiterleitung
-            flash('Dokument erfolgreich hochgeladen.', 'success')
-            return redirect(url_for('documents_list'))
-
-        except Exception as e:
-            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
-
-    # Bei GET-Request oder ungültigem Formular
-    return render_template('documents_new.html', form=form)
-# ----------------------------------
-# Download
-# ----------------------------------
-@app.route('/documents/<int:doc_id>/download')
-@login_required
-def documents_download(doc_id):
-    # Dokument aus der Datenbank abrufen
-    document = Document.query.get_or_404(doc_id)
-    
-    # Absoluter Pfad zur Datei
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], document.filename)
-    
-    # Überprüfen, ob die Datei existiert
-    if not os.path.isfile(file_path):
-        flash('Die Datei wurde nicht gefunden.', 'danger')
-        return redirect(url_for('documents_list'))
-    
-    try:
-        # Datei als Download bereitstellen
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=document.original_filename  # Originaldateiname im Download-Dialog anzeigen
-        )
-    except Exception as e:
-        # Fehler behandeln
-        flash(f'Fehler beim Herunterladen: {str(e)}', 'danger')
-        return redirect(url_for('documents_list'))
-
-# ----------------------------------
-# Löschen
-# ----------------------------------
-@app.route('/documents/<int:doc_id>/delete', methods=['POST'])
-@login_required
-def documents_delete(doc_id):
-    document = Document.query.get_or_404(doc_id)
-
-    # Optional: Falls nur Admin oder Uploader löschen darf, checken:
-    # if not current_user.is_admin and document.user_id != current_user.id:
-    #     abort(403)
-
-    # Datei vom Server löschen
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], document.filename)
-    if os.path.exists(file_path):
-        os.remove(file_path)
-
-    # DB-Eintrag entfernen
-    db.session.delete(document)
-    db.session.commit()
-
-    flash('Dokument gelöscht.')
-    return redirect(url_for('documents_list'))
-
-# ----------------------------------
-# Einstellungen-Seite
-# ----------------------------------
-@app.route('/einstellungen', methods=['GET', 'POST'])
-@login_required
-def einstellungen():
-    form = UpdateKontoForm()
-
-    if request.method == 'GET':
-        # Die in current_user gespeicherte Kontonummer
-        form.konto_nummer.data = current_user.konto_nummer
-
-    if request.method == 'POST':
-        # Verarbeitung von Theme- und Benachrichtigungseinstellungen
-        email_notifikationen = request.form.get('email_notifikationen', 'aus')
-        theme = request.form.get('theme', 'light')
-
-        # Benutzerdaten aktualisieren (Annahmen: entsprechende Felder im User-Modell vorhanden)
-        current_user.email_notifikationen = (email_notifikationen == 'an')
-        current_user.theme = theme
-
-        # Verarbeitung der Kalendereinstellungen
-        calendar_integration = request.form.get('calendar_integration', 'disabled')
-        calendar_api_key = request.form.get('calendar_api_key', '').strip()
-
-        current_user.calendar_integration = calendar_integration
-        current_user.calendar_api_key = calendar_api_key
-
-        # Änderungen in der Datenbank speichern
-        db.session.commit()
-
-        flash("Einstellungen wurden gespeichert.", "success")
-        return redirect(url_for('einstellungen'))
-
-    # Bestehende Einstellungen abrufen und an das Template übergeben
+    buchungen = [b for b in finance_rows_for_current_verein() if b.datum and b.datum.year == jahr]
+    einnahmen = sum(b.betrag for b in buchungen if b.typ == "Einnahme")
+    ausgaben = sum(b.betrag for b in buchungen if b.typ == "Ausgabe")
+    mitgliedsbeitraege_summe = sum(b.betrag for b in buchungen if b.kategorie == "Mitgliedsbeitrag")
+    saldo = (current_user.anfangsbestand or 0.0) + einnahmen - ausgaben
     return render_template(
-        'einstellungen.html',
-        titel="Einstellungen",
-        theme=current_user.theme or 'light',
-        calendar_enabled=current_user.calendar_integration or 'disabled',
-        calendar_api_key=current_user.calendar_api_key or '',
-        form=form
+        "jahresabschluss.html",
+        jahr=jahr,
+        buchungen=buchungen,
+        mitgliedsbeitraege_summe=mitgliedsbeitraege_summe,
+        einnahmen=einnahmen,
+        ausgaben=ausgaben,
+        saldo=saldo,
     )
 
 
-@app.route('/einstellungen/logo', methods=['POST'])
-@login_required
-def logo_upload():
-    if 'logo' not in request.files:
-        flash('Keine Datei hochgeladen.', 'danger')
-        return redirect(url_for('einstellungen'))
+@app.route("/documents")
+@admin_required
+def documents_list():
+    documents = Document.query.filter_by(verein_id=current_verein_id()).order_by(Document.uploaded_at.desc()).all()
+    return render_template("documents.html", documents=documents, form=DeleteDocumentForm())
 
-    file = request.files['logo']
-    if file.filename == '':
-        flash('Keine Datei ausgewählt.', 'danger')
-        return redirect(url_for('einstellungen'))
 
-    # Sicherstellen, dass nur Bilddateien hochgeladen werden
-    if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-        flash('Ungültiges Dateiformat. Bitte nur PNG- oder JPG-Dateien hochladen.', 'danger')
-        return redirect(url_for('einstellungen'))
-
-    try:
-        # Speichern der Datei im static-Ordner als "logo.png"
-        save_path = os.path.join(app.static_folder, 'logo.png')
-        file.save(save_path)
-        flash('Vereinslogo erfolgreich aktualisiert.', 'success')
-    except Exception as e:
-        flash(f'Fehler beim Hochladen des Logos: {e}', 'danger')
-
-    return redirect(url_for('einstellungen'))
-
-@app.route('/update_calendar_settings', methods=['POST'])
-@login_required
-def update_calendar_settings():
-    # Kalenderintegration speichern
-    calendar_integration = request.form.get('calendar_integration', 'disabled')
-    calendar_api_key = request.form.get('calendar_api_key', '').strip()
-
-    # Speichern der Einstellungen in der Datenbank (oder einer Konfigurationsdatei)
-    current_user.calendar_integration = calendar_integration
-    current_user.calendar_api_key = calendar_api_key
-    db.session.commit()
-
-    flash('Kalendereinstellungen wurden aktualisiert.', 'success')
-    return redirect(url_for('einstellungen'))
-
-def add_event_to_google_calendar(event, user):
-    if user.calendar_integration != 'google' or not user.calendar_api_key:
-        return
-
-    # API-Zugriff konfigurieren
-    credentials = Credentials(token=user.calendar_api_key)
-    service = build('calendar', 'v3', credentials=credentials)
-
-    # Event-Daten vorbereiten
-    event_body = {
-        'summary': event.titel,
-        'location': event.ort,
-        'description': event.beschreibung,
-        'start': {
-            'dateTime': event.datum.isoformat(),
-            'timeZone': 'Europe/Vienna',
-        },
-        'end': {
-            'dateTime': (event.datum + timedelta(hours=1)).isoformat(),
-            'timeZone': 'Europe/Vienna',
-        },
-    }
-
-    try:
-        service.events().insert(calendarId='primary', body=event_body).execute()
-    except Exception as e:
-        print(f"Fehler bei der Kalenderintegration: {e}")
-
-@app.route('/update_konto_settings', methods=['GET', 'POST'])
-@login_required
-def update_konto_settings():
-    form = UpdateKontoForm()
+@app.route("/documents/new", methods=["GET", "POST"])
+@admin_required
+def documents_new():
+    form = DocumentForm()
     if form.validate_on_submit():
-        current_user.konto_nummer = form.konto_nummer.data.strip()
+        uploaded = form.file.data
+        original_filename = secure_filename(uploaded.filename)
+        ext = os.path.splitext(original_filename)[1]
+        unique_name = f"{uuid.uuid4().hex}{ext}"
+        uploaded.save(os.path.join(app.config["UPLOAD_FOLDER"], unique_name))
+        db.session.add(
+            Document(
+                verein_id=current_verein_id(),
+                user_id=current_user.id,
+                filename=unique_name,
+                original_filename=original_filename,
+                description=form.description.data,
+            )
+        )
         db.session.commit()
-        flash("Kontonummer wurde gespeichert.", "success")
-        return redirect(url_for('einstellungen'))
-
-    # GET-Request oder ungültiges Formular
-    # => Template erneut rendern (z.B. mit bereits vorhandenem Konto-Wert)
-    # form.konto_nummer.data = current_user.konto_nummer
-    return render_template('einstellungen.html', form=form)
+        flash("Dokument hochgeladen.", "success")
+        return redirect(url_for("documents_list"))
+    return render_template("documents_new.html", form=form)
 
 
-@app.route('/update_konto_details', methods=['POST'])
-@login_required
-def update_konto_details():
+@app.route("/documents/<int:doc_id>/download")
+@admin_required
+def documents_download(doc_id):
+    document = Document.query.filter_by(id=doc_id, verein_id=current_verein_id()).first_or_404()
+    path = os.path.join(app.config["UPLOAD_FOLDER"], document.filename)
+    if not os.path.isfile(path):
+        flash("Die Datei wurde nicht gefunden.", "danger")
+        return redirect(url_for("documents_list"))
+    return send_file(path, as_attachment=True, download_name=document.original_filename)
+
+
+@app.route("/documents/<int:doc_id>/delete", methods=["POST"])
+@admin_required
+def documents_delete(doc_id):
+    document = Document.query.filter_by(id=doc_id, verein_id=current_verein_id()).first_or_404()
+    path = os.path.join(app.config["UPLOAD_FOLDER"], document.filename)
+    if os.path.exists(path):
+        os.remove(path)
+    db.session.delete(document)
+    db.session.commit()
+    flash("Dokument geloescht.", "success")
+    return redirect(url_for("documents_list"))
+
+
+@app.route("/einstellungen", methods=["GET", "POST"])
+@admin_required
+def einstellungen():
     form = UpdateKontoForm()
-    # Daten aus dem Formular abrufen
-    konto_bezeichnung = request.form.get('konto_bezeichnung', '').strip()
-    anfangsbestand = request.form.get('anfangsbestand', 0.0)
+    if request.method == "GET":
+        form.konto_nummer.data = current_user.konto_nummer
 
-    # Aktuelle Benutzerinformationen aktualisieren
-    current_user.konto_bezeichnung = konto_bezeichnung
-    current_user.anfangsbestand = float(anfangsbestand)
-    db.session.commit()  # Änderungen speichern
+    if request.method == "POST":
+        current_user.theme = request.form.get("theme", "light")
+        current_user.email_notifikationen = request.form.get("email_notifikationen") == "an"
+        db.session.commit()
+        flash("Einstellungen gespeichert.", "success")
+        return redirect(url_for("einstellungen"))
 
-    flash("Kontoeinstellungen wurden erfolgreich gespeichert.", "success")
-    return redirect(url_for('einstellungen'))
+    logo_url = url_for("uploaded_file", filename=current_user.verein.logo_path) if current_user.verein and current_user.verein.logo_path else None
+    return render_template(
+        "einstellungen.html",
+        titel="Einstellungen",
+        theme=current_user.theme or "light",
+        calendar_enabled=current_user.calendar_integration or "disabled",
+        calendar_api_key=current_user.calendar_api_key or "",
+        logo_url=logo_url,
+        form=form,
+    )
 
-@app.route('/about')
+
+@app.route("/einstellungen/logo", methods=["POST"])
+@admin_required
+def logo_upload():
+    file = request.files.get("logo")
+    if not file or not file.filename:
+        flash("Keine Datei ausgewaehlt.", "danger")
+        return redirect(url_for("einstellungen"))
+    if not file.filename.lower().endswith((".png", ".jpg", ".jpeg")):
+        flash("Ungueltiges Dateiformat.", "danger")
+        return redirect(url_for("einstellungen"))
+
+    ext = os.path.splitext(secure_filename(file.filename))[1].lower()
+    filename = f"logo_{current_verein_id()}_{uuid.uuid4().hex}{ext}"
+    file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+    current_user.verein.logo_path = filename
+    db.session.commit()
+    flash("Vereinslogo aktualisiert.", "success")
+    return redirect(url_for("einstellungen"))
+
+
+@app.route("/update_calendar_settings", methods=["POST"])
+@admin_required
+def update_calendar_settings():
+    current_user.calendar_integration = request.form.get("calendar_integration", "disabled")
+    current_user.calendar_api_key = request.form.get("calendar_api_key", "").strip() or None
+    db.session.commit()
+    flash("Kalendereinstellungen gespeichert.", "success")
+    return redirect(url_for("einstellungen"))
+
+
+@app.route("/update_konto_settings", methods=["POST"])
+@admin_required
+def update_konto_settings():
+    current_user.konto_nummer = request.form.get("konto_nummer", "").strip() or None
+    db.session.commit()
+    flash("Kontonummer gespeichert.", "success")
+    return redirect(url_for("einstellungen"))
+
+
+@app.route("/update_konto_details", methods=["POST"])
+@admin_required
+def update_konto_details():
+    current_user.konto_bezeichnung = request.form.get("konto_bezeichnung", "").strip() or None
+    current_user.anfangsbestand = safe_float(request.form.get("anfangsbestand"), 0.0)
+    db.session.commit()
+    flash("Kontoeinstellungen gespeichert.", "success")
+    return redirect(url_for("einstellungen"))
+
+
+@app.route("/about")
 def about():
-    return render_template('about.html')
+    return render_template("about.html")
 
-# ----------------------------------
-# Mailversand aus der App
-# ----------------------------------
-@app.route('/feedback', methods=['GET', 'POST'])
+
+@app.route("/feedback", methods=["GET", "POST"])
 def send_feedback():
     form = FeedbackForm()
     if form.validate_on_submit():
-        # Daten aus dem Formular
-        sender_name = form.name.data
-        sender_email = form.email.data
-        message_content = form.message.data
-
-        # Anfrage-Daten für Brevo
-        BREVO_API_KEY = os.getenv('BREVO_API_KEY')
-        if not BREVO_API_KEY:
-            flash("Fehler: Kein Brevo API-Schlüssel gefunden.", "danger")
-            return redirect(url_for('send_feedback'))
-
-        headers = {
-            "api-key": BREVO_API_KEY,
-            "Content-Type": "application/json",
-        }
-        data = {
-            "sender": {"name": "Feedback Bot", "email": "feedback@memberworks.at"},  # Muss bei Brevo verifiziert sein
-            "to": [{"email": "feedback@memberworks.at"}],  # Zieladresse
-            "subject": f"Feedback von {sender_name}",
-            "htmlContent": f"""
-            <h3>Neues Feedback erhalten</h3>
-            <p><strong>Name:</strong> {sender_name}</p>
-            <p><strong>E-Mail:</strong> {sender_email}</p>
-            <p><strong>Nachricht:</strong></p>
-            <p>{message_content}</p>
-            """
-        }
-
-        # Anfrage an die Brevo API senden
         try:
-            response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data)
-            if response.status_code == 201:
-                flash("Vielen Dank für Ihr Feedback! Ihre Nachricht wurde erfolgreich gesendet.", "success")
-            else:
-                flash(f"Fehler beim Senden der Nachricht: {response.status_code} - {response.text}", "danger")
-        except Exception as e:
-            flash(f"Es gab ein Problem beim Senden der Nachricht: {e}", "danger")
-        return redirect(url_for('send_feedback'))
+            send_brevo_email(
+                f"Feedback von {form.name.data}",
+                f"<h3>Neues Feedback</h3><p><strong>Name:</strong> {form.name.data}</p><p><strong>E-Mail:</strong> {form.email.data}</p><p>{form.message.data}</p>",
+                ["feedback@memberworks.at"],
+            )
+            flash("Vielen Dank fuer Ihr Feedback.", "success")
+        except RuntimeError as exc:
+            flash(str(exc), "danger")
+        return redirect(url_for("send_feedback"))
+    return render_template("feedback.html", form=form)
 
-    return render_template('feedback.html', form=form)
 
-
-# ----------------------------------
-# Mailversand an Mitglieder
-# ----------------------------------
-@app.route('/send_email', methods=['GET', 'POST'])
-@login_required
+@app.route("/send_email", methods=["GET", "POST"])
+@admin_required
 def send_email():
-    mitglieder = Mitglied.query.all()
-    vorlagen = Nachrichtenvorlage.query.all()
-    vorlagen_json = json.dumps([{'id': v.id, 'betreff': v.betreff, 'inhalt': v.inhalt} for v in vorlagen])
-
-    if request.method == 'POST':
-        subject = request.form['subject']
-        body = request.form['body']
-        selected_ids = request.form.getlist('member_ids')
-
-        BREVO_API_KEY = os.getenv('BREVO_API_KEY')
-        if not BREVO_API_KEY:
-            flash("Fehler: Kein Brevo API-Schlüssel gefunden.", "danger")
-            return redirect(url_for('send_email'))
-
-        headers = {
-            "api-key": BREVO_API_KEY,
-            "Content-Type": "application/json",
-        }
-
-        # Ziel-E-Mails abrufen
-        if "all" in selected_ids:
-            recipient_emails = [mitglied.email for mitglied in mitglieder]
-        else:
-            recipient_emails = [mitglied.email for mitglied in mitglieder if str(mitglied.id) in selected_ids]
-
-        if not recipient_emails:
-            flash('Keine Mitglieder ausgewählt.', 'danger')
-            return redirect(url_for('send_email'))
-
-        data = {
-            "sender": {"name": "Vereinsverwaltung", "email": "info@memberworks.at"},  # Muss bei Brevo verifiziert sein
-            "to": [{"email": email} for email in recipient_emails],
-            "subject": subject,
-            "htmlContent": body
-        }
-
-        # Anfrage an die Brevo API senden
+    mitglieder = Mitglied.query.filter_by(verein_id=current_verein_id(), status="aktiv").order_by(Mitglied.nachname).all()
+    vorlagen = Nachrichtenvorlage.query.filter_by(verein_id=current_verein_id()).order_by(Nachrichtenvorlage.titel).all()
+    vorlagen_json = json.dumps([{"id": v.id, "betreff": v.betreff, "inhalt": v.inhalt} for v in vorlagen])
+    form = SendMessageForm()
+    if form.validate_on_submit():
+        selected = request.form.getlist("member_ids")
+        recipients = [m.email for m in mitglieder if "all" in selected or str(m.id) in selected]
+        if not recipients:
+            flash("Keine Mitglieder ausgewaehlt.", "danger")
+            return redirect(url_for("send_email"))
         try:
-            response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data)
-            if response.status_code == 201:
-                flash('E-Mails erfolgreich gesendet.', 'success')
-            else:
-                flash(f"Fehler beim Senden der E-Mails: {response.status_code} - {response.text}", "danger")
-        except Exception as e:
-            flash(f"Fehler beim Senden der E-Mails: {e}", "danger")
+            send_brevo_email(form.subject.data, form.body.data, recipients)
+            flash("E-Mails gesendet.", "success")
+        except RuntimeError as exc:
+            flash(str(exc), "danger")
+        return redirect(url_for("send_email"))
+    return render_template("send_email.html", mitglieder=mitglieder, vorlagen=vorlagen, vorlagen_json=vorlagen_json, form=form)
 
-        return redirect(url_for('send_email'))
 
-    return render_template('send_email.html', mitglieder=mitglieder, vorlagen=vorlagen, vorlagen_json=vorlagen_json)
+def populate_license_form_choices(form):
+    form.verein_id.choices = [(0, "Nicht zugeordnet")]
+    form.verein_id.choices.extend((verein.id, verein.name) for verein in Verein.query.order_by(Verein.name).all())
 
-# ----------------------------------
-# Vorlagen für Mailversand
-# ----------------------------------
-@app.route('/templates', methods=['GET', 'POST'])
-@login_required
+
+def build_license_usage_rows():
+    rows = []
+    licenses = License.query.order_by(License.created_at.desc()).all()
+    for license_obj in licenses:
+        verein_id = license_obj.verein_id
+        usage_count = LicenseUsageEvent.query.filter_by(license_id=license_obj.id).count()
+        last_event = (
+            LicenseUsageEvent.query.filter_by(license_id=license_obj.id)
+            .order_by(LicenseUsageEvent.occurred_at.desc())
+            .first()
+        )
+        rows.append(
+            {
+                "license": license_obj,
+                "usage_count": usage_count,
+                "last_used": last_event.occurred_at if last_event else None,
+                "users_count": User.query.filter_by(verein_id=verein_id).count() if verein_id else 0,
+                "members_count": Mitglied.query.filter_by(verein_id=verein_id).count() if verein_id else 0,
+                "events_count": Event.query.filter_by(verein_id=verein_id).count() if verein_id else 0,
+                "documents_count": Document.query.filter_by(verein_id=verein_id).count() if verein_id else 0,
+                "bookings_count": Finanzbuchung.query.filter_by(verein_id=verein_id).count() if verein_id else 0,
+            }
+        )
+    return rows
+
+
+@app.route("/platform-admin")
+@platform_admin_required
+def platform_admin_dashboard():
+    rows = build_license_usage_rows()
+    totals = {
+        "licenses": len(rows),
+        "active": sum(1 for row in rows if row["license"].is_active),
+        "assigned": sum(1 for row in rows if row["license"].verein_id),
+        "usage_events": sum(row["usage_count"] for row in rows),
+    }
+    return render_template("platform_admin.html", rows=rows, totals=totals, form=DeleteLicenseForm())
+
+
+@app.route("/platform-admin/licenses/new", methods=["GET", "POST"])
+@platform_admin_required
+def license_new():
+    form = LicenseForm()
+    populate_license_form_choices(form)
+    if form.validate_on_submit():
+        license_obj = License(
+            license_key=(form.license_key.data or generate_license_key()).strip(),
+            name=form.name.data.strip(),
+            verein_id=form.verein_id.data or None,
+            status=form.status.data,
+            max_users=form.max_users.data,
+            max_members=form.max_members.data,
+            valid_from=form.valid_from.data,
+            valid_until=form.valid_until.data,
+            notes=form.notes.data,
+        )
+        db.session.add(license_obj)
+        try:
+            db.session.commit()
+            flash("Lizenz erstellt.", "success")
+            return redirect(url_for("platform_admin_dashboard"))
+        except IntegrityError:
+            db.session.rollback()
+            flash("Dieser Lizenzschluessel existiert bereits.", "danger")
+    return render_template("license_edit.html", form=form, license_obj=None, titel="Neue Lizenz")
+
+
+@app.route("/platform-admin/licenses/<int:license_id>/edit", methods=["GET", "POST"])
+@platform_admin_required
+def license_edit(license_id):
+    license_obj = License.query.get_or_404(license_id)
+    form = LicenseForm(obj=license_obj)
+    populate_license_form_choices(form)
+    if request.method == "GET":
+        form.verein_id.data = license_obj.verein_id or 0
+
+    if form.validate_on_submit():
+        license_obj.license_key = (form.license_key.data or license_obj.license_key).strip()
+        license_obj.name = form.name.data.strip()
+        license_obj.verein_id = form.verein_id.data or None
+        license_obj.status = form.status.data
+        license_obj.max_users = form.max_users.data
+        license_obj.max_members = form.max_members.data
+        license_obj.valid_from = form.valid_from.data
+        license_obj.valid_until = form.valid_until.data
+        license_obj.notes = form.notes.data
+        try:
+            db.session.commit()
+            flash("Lizenz aktualisiert.", "success")
+            return redirect(url_for("platform_admin_dashboard"))
+        except IntegrityError:
+            db.session.rollback()
+            flash("Dieser Lizenzschluessel existiert bereits.", "danger")
+    return render_template("license_edit.html", form=form, license_obj=license_obj, titel="Lizenz bearbeiten")
+
+
+@app.route("/platform-admin/licenses/<int:license_id>/delete", methods=["POST"])
+@platform_admin_required
+def license_delete(license_id):
+    license_obj = License.query.get_or_404(license_id)
+    db.session.delete(license_obj)
+    db.session.commit()
+    flash("Lizenz geloescht.", "success")
+    return redirect(url_for("platform_admin_dashboard"))
+
+
+@app.route("/platform-admin/licenses/<int:license_id>/usage")
+@platform_admin_required
+def license_usage(license_id):
+    license_obj = License.query.get_or_404(license_id)
+    events = (
+        LicenseUsageEvent.query.filter_by(license_id=license_obj.id)
+        .order_by(LicenseUsageEvent.occurred_at.desc())
+        .limit(200)
+        .all()
+    )
+    by_type = (
+        db.session.query(LicenseUsageEvent.event_type, db.func.count(LicenseUsageEvent.id))
+        .filter(LicenseUsageEvent.license_id == license_obj.id)
+        .group_by(LicenseUsageEvent.event_type)
+        .order_by(db.func.count(LicenseUsageEvent.id).desc())
+        .all()
+    )
+    return render_template("license_usage.html", license_obj=license_obj, events=events, by_type=by_type)
+
+
+@app.route("/templates")
+@admin_required
 def templates_list():
-    templates = Nachrichtenvorlage.query.all()
-    return render_template('templates_list.html', templates=templates)
+    templates = Nachrichtenvorlage.query.filter_by(verein_id=current_verein_id()).order_by(Nachrichtenvorlage.titel).all()
+    return render_template("templates_list.html", templates=templates, form=DeleteTemplateForm())
 
-@app.route('/templates/new', methods=['GET', 'POST'])
-@login_required
+
+@app.route("/templates/new", methods=["GET", "POST"])
+@admin_required
 def templates_new():
-    if request.method == 'POST':
-        titel = request.form['titel']
-        betreff = request.form['betreff']
-        inhalt = request.form['inhalt']
-
-        neue_vorlage = Nachrichtenvorlage(titel=titel, betreff=betreff, inhalt=inhalt)
-        db.session.add(neue_vorlage)
+    if request.method == "POST":
+        db.session.add(
+            Nachrichtenvorlage(
+                verein_id=current_verein_id(),
+                titel=request.form["titel"].strip(),
+                betreff=request.form["betreff"].strip(),
+                inhalt=request.form["inhalt"],
+            )
+        )
         db.session.commit()
-        flash('Nachrichtenvorlage erfolgreich erstellt.', 'success')
-        return redirect(url_for('templates_list'))
+        flash("Nachrichtenvorlage erstellt.", "success")
+        return redirect(url_for("templates_list"))
+    return render_template("templates_edit.html", titel="Neue Vorlage", vorlage=None)
 
-    return render_template('templates_edit.html', titel="Neue Vorlage")
 
-@app.route('/templates/<int:template_id>/edit', methods=['GET', 'POST'])
-@login_required
+@app.route("/templates/<int:template_id>/edit", methods=["GET", "POST"])
+@admin_required
 def templates_edit(template_id):
-    vorlage = Nachrichtenvorlage.query.get_or_404(template_id)
-    if request.method == 'POST':
-        vorlage.titel = request.form['titel']
-        vorlage.betreff = request.form['betreff']
-        vorlage.inhalt = request.form['inhalt']
+    vorlage = Nachrichtenvorlage.query.filter_by(id=template_id, verein_id=current_verein_id()).first_or_404()
+    if request.method == "POST":
+        vorlage.titel = request.form["titel"].strip()
+        vorlage.betreff = request.form["betreff"].strip()
+        vorlage.inhalt = request.form["inhalt"]
         db.session.commit()
-        flash('Nachrichtenvorlage erfolgreich aktualisiert.', 'success')
-        return redirect(url_for('templates_list'))
+        flash("Nachrichtenvorlage aktualisiert.", "success")
+        return redirect(url_for("templates_list"))
+    return render_template("templates_edit.html", vorlage=vorlage, titel="Vorlage bearbeiten")
 
-    return render_template('templates_edit.html', vorlage=vorlage, titel="Vorlage bearbeiten")
 
-@app.route('/templates/<int:template_id>/delete', methods=['POST'])
-@login_required
+@app.route("/templates/<int:template_id>/delete", methods=["POST"])
+@admin_required
 def templates_delete(template_id):
-    vorlage = Nachrichtenvorlage.query.get_or_404(template_id)
+    vorlage = Nachrichtenvorlage.query.filter_by(id=template_id, verein_id=current_verein_id()).first_or_404()
     db.session.delete(vorlage)
     db.session.commit()
-    flash('Nachrichtenvorlage erfolgreich gelöscht.', 'success')
-    return redirect(url_for('templates_list'))
+    flash("Nachrichtenvorlage geloescht.", "success")
+    return redirect(url_for("templates_list"))
 
-# ----------------------------------
-# App starten
-# ----------------------------------
-if __name__ == '__main__':
+
+def init_database():
     with app.app_context():
-        DATABASE_FOLDER = '/app/databases'  # Sicherstellen, dass das Verzeichnis korrekt gesetzt ist
-        db_path = os.path.join(DATABASE_FOLDER, 'verein.db')
-        if not os.path.exists(db_path):
-            if not os.path.exists(DATABASE_FOLDER):
-                os.makedirs(DATABASE_FOLDER)
-            db.create_all()  # Erstellt die Tabellen nur, wenn die Datenbank nicht existiert
-            print("Datenbank wurde erfolgreich erstellt.")
-        else:
-            print("Datenbank existiert bereits.")
+        db.create_all()
 
-        app.run(host='0.0.0.0', port='5000', debug=True) # Für Testzwecke auf 127.0.0.1 umstellen, Live immer 0.0.0.0, dass auch Docker funktioniert. 
+
+init_database()
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Admin - Lizenzen{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-1">Lizenzverwaltung</h1>
+    <p class="text-muted mb-0">Plattformweite Lizenzen, Zuordnung zu Vereinen und Nutzung.</p>
+  </div>
+  <a href="{{ url_for('license_new') }}" class="btn btn-primary">+ Neue Lizenz</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-muted">Lizenzen</div>
+      <div class="display-6">{{ totals.licenses }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-muted">Aktiv</div>
+      <div class="display-6">{{ totals.active }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-muted">Zugeordnet</div>
+      <div class="display-6">{{ totals.assigned }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-muted">Nutzungsereignisse</div>
+      <div class="display-6">{{ totals.usage_events }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-bordered table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Lizenz</th>
+        <th>Status</th>
+        <th>Verein</th>
+        <th>Limits</th>
+        <th>Nutzung</th>
+        <th>Letzte Nutzung</th>
+        <th>Aktionen</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set license = row.license %}
+      <tr>
+        <td>
+          <strong>{{ license.name }}</strong><br>
+          <code>{{ license.license_key }}</code>
+        </td>
+        <td>
+          <span class="badge bg-{{ 'success' if license.is_active else 'secondary' }}">{{ license.status }}</span>
+          {% if license.valid_until %}<br><small>bis {{ license.valid_until.strftime('%d.%m.%Y') }}</small>{% endif %}
+        </td>
+        <td>{{ license.verein.name if license.verein else "Nicht zugeordnet" }}</td>
+        <td>
+          Benutzer: {{ row.users_count }}{% if license.max_users %} / {{ license.max_users }}{% endif %}<br>
+          Mitglieder: {{ row.members_count }}{% if license.max_members %} / {{ license.max_members }}{% endif %}
+        </td>
+        <td>
+          {{ row.usage_count }} Ereignisse<br>
+          <small>{{ row.events_count }} Events, {{ row.documents_count }} Dokumente, {{ row.bookings_count }} Buchungen</small>
+        </td>
+        <td>{{ row.last_used.strftime('%d.%m.%Y %H:%M') if row.last_used else "-" }}</td>
+        <td class="d-flex gap-2 flex-wrap">
+          <a href="{{ url_for('license_usage', license_id=license.id) }}" class="btn btn-info btn-sm">Nutzung</a>
+          <a href="{{ url_for('license_edit', license_id=license.id) }}" class="btn btn-warning btn-sm">Bearbeiten</a>
+          <form action="{{ url_for('license_delete', license_id=license.id) }}" method="POST">
+            {{ form.hidden_tag() }}
+            <button type="submit" class="btn btn-danger btn-sm">Loeschen</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="text-center text-muted">Noch keine Lizenzen vorhanden.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

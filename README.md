@@ -94,3 +94,16 @@ Dokumente:
 Originalname, Beschreibung, Hochladedatum
 Lizenz
 Dieses Projekt ist lizenziert unter der MIT-Lizenz. Weitere Informationen finden Sie in der Datei LICENSE.
+
+Plattform-Admin und Lizenzen
+Die Lizenzverwaltung ist direkt in die Flask-App integriert. Es wird kein separater Lizenzserver benoetigt.
+
+Ein Plattform-Admin wird ueber die Rolle `system_admin` oder ueber die Umgebungsvariable
+`SYSTEM_ADMIN_EMAILS` freigeschaltet. Mehrere E-Mail-Adressen koennen kommasepariert hinterlegt werden.
+
+Beispiel:
+SYSTEM_ADMIN_EMAILS=admin@example.com,ops@example.com
+
+Nach dem Login erscheint fuer diese Benutzer der Navigationspunkt `Admin`. Dort koennen Lizenzen erstellt,
+Vereinen zugeordnet, bearbeitet und geloescht werden. Die Nutzung wird pro Lizenz aus den zugeordneten
+Vereinsdaten und protokollierten Schreib-/Login-Aktivitaeten dargestellt.

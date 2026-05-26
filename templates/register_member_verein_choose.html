@@ -9,7 +9,7 @@
   <h1>Mitglied-Registrierung: Schritt 1</h1>
 
   <form method="POST" action="{{ url_for('register_member_verein', step='choose') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ form.hidden_tag() }}
     <div>
       {{ form.email.label }}<br>
       {{ form.email(class="form-control") }}

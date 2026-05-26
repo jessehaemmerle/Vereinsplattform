@@ -3,6 +3,7 @@
 <div class="container mt-4">
     <h1>E-Mail für Event: {{ event.titel }}</h1>
     <form method="POST">
+        {{ form.hidden_tag() }}
         <div class="mb-3">
             <label for="subject" class="form-label">Betreff</label>
             <input type="text" class="form-control" id="subject" name="subject" placeholder="Betreff eingeben" required>

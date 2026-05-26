@@ -4,6 +4,7 @@
 <div class="container mt-4">
     <h1>E-Mail an {{ mitglied.vorname }} {{ mitglied.nachname }}</h1>
     <form method="POST">
+        {{ form.hidden_tag() }}
         <div class="mb-3">
             <label for="template" class="form-label">Vorlage auswählen</label>
             <div class="d-flex align-items-center gap-2">

@@ -7,6 +7,7 @@
 <body>
   <h1>Mitglieder-Login für einen Verein</h1>
   <form method="POST" action="{{ url_for('login_member_verein') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="email">E-Mail:</label>
     <input type="email" name="email" id="email" required>
 

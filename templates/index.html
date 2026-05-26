@@ -2,194 +2,79 @@
 {% block title %}Dashboard - Vereinsverwaltung{% endblock %}
 {% block content %}
 
-<h1 class="mb-4">Dashboard</h1>
-<h2>Das Dashboard ist aktuell noch in einem nicht-funktionalen Zustand. Ich arbeite bereits an einer Lösung der Probleme, bis dahin ist das Dashboard nicht brauchbar.</h2>
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h1 class="mb-0">Dashboard</h1>
+  <a href="{{ url_for('send_email') }}" class="btn btn-outline-primary">E-Mail senden</a>
+</div>
 
-<!-- Buttons / Menü -->
-<div class="mt-4 d-flex justify-content-between">
-  <button id="addWidgetButton" class="btn btn-primary">Widget hinzufügen</button>
-
-  <div id="widgetDropdown" class="dropdown" style="display: none;">
-    <select id="widgetSelect" class="form-select">
-      <option value="" disabled selected>Wählen Sie ein Widget</option>
-      <option value="mitglieder">Mitglieder</option>
-      <option value="events">Events</option>
-      <option value="notizen">Notizen</option>
-      <option value="saldo">Saldo</option>
-      <option value="einnahmen-ausgaben">Einnahmen vs. Ausgaben</option>
-      <option value="mitgliederstatus">Mitgliederstatus</option>
-      <option value="bevorstehende-events">Bevorstehende Events</option>
-      <option value="neueste-mitglieder">Neueste Mitglieder</option>
-      <option value="events-pro-monat">Events pro Monat</option>
-    </select>
-    <button id="confirmWidgetButton" class="btn btn-success mt-2">Hinzufügen</button>
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">Mitglieder</div>
+        <div class="display-6">{{ anzahl_mitglieder }}</div>
+        <small>{{ mitglieder_aktiv }} aktiv, {{ mitglieder_inaktiv }} inaktiv</small>
+      </div>
+    </div>
   </div>
-
-  <button class="btn btn-danger" id="toggleRemoveMode">Widget Entfernen</button>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">Events</div>
+        <div class="display-6">{{ anzahl_events }}</div>
+        <small>Veranstaltungen im Verein</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">Notizen</div>
+        <div class="display-6">{{ anzahl_notizen }}</div>
+        <small>Interne Vereinsnotizen</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">Saldo</div>
+        <div class="display-6">{{ "%.2f"|format(saldo) }} EUR</div>
+        <small>{{ "%.2f"|format(sum_einnahmen) }} EUR Einnahmen, {{ "%.2f"|format(sum_ausgaben) }} EUR Ausgaben</small>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- Dashboard-Container -->
-<div id="dashboardContainer" style="position: relative; width: 100%; min-height: 100vh; border: 1px solid #ccc;">
-  <!-- Widgets will be dynamically added here -->
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Schnellzugriff</div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="{{ url_for('mitglied_new') }}">Neues Mitglied anlegen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('finanzen_new') }}">Neue Buchung erfassen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('event_new') }}">Neues Event planen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('documents_new') }}">Dokument hochladen</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Events pro Monat</div>
+      <div class="card-body">
+        {% for monat in events_monate %}
+          {% set count = events_anzahl[loop.index0] %}
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <div style="width: 2rem;">{{ monat }}</div>
+            <div class="progress flex-grow-1" style="height: 1rem;">
+              <div class="progress-bar" role="progressbar" style="width: {{ count * 15 if count * 15 < 100 else 100 }}%;"></div>
+            </div>
+            <div style="width: 2rem;" class="text-end">{{ count }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
 </div>
-
-<!-- SCRIPTS -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<!-- Inline CSS -->
-<style>
-  .dashboard-container {
-    position: relative;
-    width: 100%;
-    min-height: 100vh;
-    border: 1px solid #ccc;
-  }
-
-  .widget {
-    position: absolute;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  }
-
-  .widget-drag-handle {
-    cursor: move;
-    position: absolute;
-    top: 5px;
-    right: 5px;
-  }
-
-  .widget-remove-btn {
-    display: none;
-    position: absolute;
-    top: 5px;
-    left: 5px;
-  }
-</style>
-
-<!-- Inline JavaScript -->
-<script>
-  $(document).ready(function () {
-    let removeMode = false;
-
-    // Initialize the dashboard
-    initDashboard();
-
-    // Toggle widget dropdown
-    $('#addWidgetButton').on('click', function () {
-      $('#widgetDropdown').toggle();
-    });
-
-    // Add widget from dropdown
-    $('#confirmWidgetButton').on('click', function () {
-      const selectedWidget = $('#widgetSelect').val();
-      if (selectedWidget) {
-        addWidget(selectedWidget);
-        $('#widgetDropdown').hide();
-      } else {
-        alert('Bitte wählen Sie ein Widget aus.');
-      }
-    });
-
-    // Toggle remove mode
-    $('#toggleRemoveMode').on('click', function () {
-      removeMode = !removeMode;
-      $('.widget-remove-btn').toggle(removeMode);
-      $(this).text(removeMode ? 'Modus beenden' : 'Widget Entfernen');
-    });
-
-    // Remove widget
-    $(document).on('click', '.widget-remove-btn', function () {
-      $(this).closest('.widget').remove();
-      saveWidgetState();
-    });
-
-    // Initialize draggable and resizable widgets
-    function initDraggableResizable() {
-      $('.widget').draggable({
-        handle: '.widget-drag-handle',
-        containment: '#dashboardContainer',
-        stop: saveWidgetState,
-      }).resizable({
-        stop: saveWidgetState,
-        minWidth: 150,
-        minHeight: 100,
-      });
-    }
-
-    // Add a new widget
-    function addWidget(type) {
-      const widgetHtml = `
-        <div class="widget card" data-widget="${type}">
-          <div class="widget-drag-handle">
-            <span class="badge text-bg-secondary">Verschieben</span>
-          </div>
-          <div class="card-body">
-            <h5 class="card-title">${type.charAt(0).toUpperCase() + type.slice(1)}</h5>
-            <p class="card-text display-5">${getWidgetContent(type)}</p>
-            <button class="btn btn-sm btn-danger widget-remove-btn">X</button>
-          </div>
-        </div>
-      `;
-      $('#dashboardContainer').append(widgetHtml);
-      initDraggableResizable();
-      saveWidgetState();
-    }
-
-    // Get widget content based on type
-    function getWidgetContent(type) {
-      const data = {
-        mitglieder: '{{ anzahl_mitglieder }}',
-        events: '{{ anzahl_events }}',
-        notizen: '{{ anzahl_notizen }}',
-        saldo: '{{ saldo }} €',
-        'einnahmen-ausgaben': '<canvas id="einnahmenAusgabenChart"></canvas>',
-        mitgliederstatus: '<canvas id="mitgliederStatusChart"></canvas>',
-      };
-      return data[type] || 'No data available';
-    }
-
-    // Save widget state to localStorage
-    function saveWidgetState() {
-      const widgetStates = [];
-      $('.widget').each(function () {
-        const $widget = $(this);
-        const state = {
-          type: $widget.data('widget'),
-          top: ($widget.position().top / $('#dashboardContainer').height()) * 100,
-          left: ($widget.position().left / $('#dashboardContainer').width()) * 100,
-          width: ($widget.width() / $('#dashboardContainer').width()) * 100,
-          height: ($widget.height() / $('#dashboardContainer').height()) * 100,
-        };
-        widgetStates.push(state);
-      });
-      localStorage.setItem('widgetStates', JSON.stringify(widgetStates));
-    }
-
-    // Load widget state from localStorage
-    function loadWidgetState() {
-      const savedStates = JSON.parse(localStorage.getItem('widgetStates')) || [];
-      savedStates.forEach(state => {
-        addWidget(state.type);
-        const $widget = $(`[data-widget="${state.type}"]`);
-        $widget.css({
-          top: `${state.top}%`,
-          left: `${state.left}%`,
-          width: `${state.width}%`,
-          height: `${state.height}%`,
-        });
-      });
-    }
-
-    // Initialize the dashboard
-    function initDashboard() {
-      loadWidgetState();
-      initDraggableResizable();
-    }
-  });
-</script>
 
 {% endblock %}

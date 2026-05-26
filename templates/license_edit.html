@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ titel }}{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h1 class="mb-0">{{ titel }}</h1>
+  <a href="{{ url_for('platform_admin_dashboard') }}" class="btn btn-secondary">Zurueck</a>
+</div>
+
+<form method="POST" class="row g-3">
+  {{ form.hidden_tag() }}
+
+  <div class="col-md-6">
+    <label class="form-label" for="name">{{ form.name.label }}</label>
+    {{ form.name(class_="form-control", id="name") }}
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="license_key">{{ form.license_key.label }}</label>
+    {{ form.license_key(class_="form-control", id="license_key", placeholder="Automatisch generieren") }}
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="verein_id">{{ form.verein_id.label }}</label>
+    {{ form.verein_id(class_="form-select", id="verein_id") }}
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="status">{{ form.status.label }}</label>
+    {{ form.status(class_="form-select", id="status") }}
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="max_users">{{ form.max_users.label }}</label>
+    {{ form.max_users(class_="form-control", id="max_users") }}
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="max_members">{{ form.max_members.label }}</label>
+    {{ form.max_members(class_="form-control", id="max_members") }}
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="valid_from">{{ form.valid_from.label }}</label>
+    {{ form.valid_from(class_="form-control", id="valid_from") }}
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="valid_until">{{ form.valid_until.label }}</label>
+    {{ form.valid_until(class_="form-control", id="valid_until") }}
+  </div>
+  <div class="col-12">
+    <label class="form-label" for="notes">{{ form.notes.label }}</label>
+    {{ form.notes(class_="form-control", id="notes", rows="4") }}
+  </div>
+  <div class="col-12 d-flex gap-2">
+    {{ form.submit(class_="btn btn-success") }}
+    <a href="{{ url_for('platform_admin_dashboard') }}" class="btn btn-secondary">Abbrechen</a>
+  </div>
+</form>
+
+{% endblock %}

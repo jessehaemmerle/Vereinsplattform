@@ -6,6 +6,7 @@
         <h1 class="mb-0">{{ titel }}</h1>
     </div>
     <form method="POST" class="needs-validation" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="mb-3">
             <label for="titel" class="form-label">Titel</label>
             <input type="text" class="form-control" id="titel" name="titel" value="{{ vorlage.titel if vorlage else '' }}" required>

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Lizenznutzung{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-1">Nutzung: {{ license_obj.name }}</h1>
+    <code>{{ license_obj.license_key }}</code>
+  </div>
+  <a href="{{ url_for('platform_admin_dashboard') }}" class="btn btn-secondary">Zurueck</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">Lizenz</div>
+      <div class="card-body">
+        <p><strong>Status:</strong> {{ license_obj.status }}</p>
+        <p><strong>Verein:</strong> {{ license_obj.verein.name if license_obj.verein else "Nicht zugeordnet" }}</p>
+        <p><strong>Gueltig:</strong>
+          {{ license_obj.valid_from.strftime('%d.%m.%Y') if license_obj.valid_from else "-" }}
+          bis
+          {{ license_obj.valid_until.strftime('%d.%m.%Y') if license_obj.valid_until else "-" }}
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header">Ereignisse nach Typ</div>
+      <div class="card-body">
+        {% for event_type, count in by_type %}
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <div style="width: 10rem;">{{ event_type }}</div>
+            <div class="progress flex-grow-1" style="height: 1rem;">
+              <div class="progress-bar" role="progressbar" style="width: {{ count * 10 if count * 10 < 100 else 100 }}%;"></div>
+            </div>
+            <div style="width: 3rem;" class="text-end">{{ count }}</div>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Noch keine Nutzungsereignisse vorhanden.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-bordered table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Zeitpunkt</th>
+        <th>Typ</th>
+        <th>Benutzer</th>
+        <th>Endpoint</th>
+        <th>Pfad</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in events %}
+      <tr>
+        <td>{{ event.occurred_at.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+        <td>{{ event.event_type }}</td>
+        <td>{{ event.user.email if event.user else "-" }}</td>
+        <td>{{ event.endpoint or "-" }}</td>
+        <td><code>{{ event.path or "-" }}</code></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="text-center text-muted">Noch keine Ereignisse vorhanden.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

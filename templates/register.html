@@ -7,6 +7,14 @@
         {{ form.hidden_tag() }}
 
         <div class="mb-3">
+            <label for="verein_name" class="form-label">{{ form.verein_name.label }}</label>
+            {{ form.verein_name(class_="form-control", id="verein_name") }}
+            {% for error in form.verein_name.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
             <label for="username" class="form-label">{{ form.username.label }}</label>
             {{ form.username(class_="form-control", id="username") }}
             {% for error in form.username.errors %}

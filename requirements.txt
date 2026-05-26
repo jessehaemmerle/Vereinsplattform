@@ -13,3 +13,4 @@ google-auth-oauthlib
 flask-migrate
 sendgrid
 python-dotenv
+requests

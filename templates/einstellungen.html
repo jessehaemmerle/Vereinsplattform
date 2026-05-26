@@ -18,6 +18,7 @@
     <fieldset class="mb-4">
         <legend>Theme</legend>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-3">
                 <label for="theme" class="form-label">Theme</label>
                 <select class="form-select" id="theme" name="theme">
@@ -74,6 +75,7 @@
             </div>
         {% endif %}
         <form method="POST" enctype="multipart/form-data" action="{{ url_for('logo_upload') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-3">
                 <label for="logo" class="form-label">Vereinslogo hochladen</label>
                 <input type="file" class="form-control" id="logo" name="logo" accept=".png, .jpg, .jpeg">
@@ -88,6 +90,7 @@
     <fieldset class="mb-4">
         <legend>Kalenderintegration</legend>
         <form method="POST" action="{{ url_for('update_calendar_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-3">
                 <label for="calendar_integration" class="form-label">Kalenderintegration</label>
                 <select class="form-select" id="calendar_integration" name="calendar_integration">
