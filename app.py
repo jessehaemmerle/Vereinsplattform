@@ -1,8 +1,10 @@
 import csv
+import hashlib
 import io
 import json
 import os
 import re
+import secrets
 import uuid
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -30,6 +32,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from sqlalchemy import case, extract
 from sqlalchemy.exc import IntegrityError
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.utils import secure_filename
 
 from forms import (
@@ -256,22 +259,7 @@ def generate_license_key():
     return f"MW-{uuid.uuid4().hex[:8].upper()}-{uuid.uuid4().hex[:8].upper()}"
 
 
-def create_trial_license(verein):
-    db.session.add(
-        License(
-            license_key=generate_license_key(),
-            name=f"Testlizenz - {verein.name}",
-            status="trial",
-            max_users=5,
-            max_members=100,
-            valid_from=date.today(),
-            valid_until=date.today() + timedelta(days=30),
-            verein_id=verein.id,
-        )
-    )
-
-
-def create_verein_admin(verein_name, username, email, password, role=None):
+def create_verein_admin(verein_name, username, email, password=None, role=None):
     verein = Verein(name=verein_name)
     db.session.add(verein)
     db.session.flush()
@@ -282,11 +270,51 @@ def create_verein_admin(verein_name, username, email, password, role=None):
         role=role or ("system_admin" if email in configured_system_admin_emails() else "admin"),
         verein_id=verein.id,
     )
-    user.set_password(password)
+    user.set_password(password or secrets.token_urlsafe(48))
     db.session.add(user)
     add_default_features(verein.id)
-    create_trial_license(verein)
     return user
+
+
+def password_setup_serializer():
+    return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="password-setup")
+
+
+def password_setup_fingerprint(user):
+    return hashlib.sha256((user.password_hash or "").encode("utf-8")).hexdigest()
+
+
+def generate_password_setup_token(user):
+    return password_setup_serializer().dumps(
+        {
+            "user_id": user.id,
+            "email": user.email,
+            "fingerprint": password_setup_fingerprint(user),
+        }
+    )
+
+
+def password_setup_max_age():
+    try:
+        return int(os.getenv("PASSWORD_SETUP_TOKEN_MAX_AGE", str(7 * 24 * 60 * 60)))
+    except ValueError:
+        return 7 * 24 * 60 * 60
+
+
+def user_from_password_setup_token(token):
+    try:
+        data = password_setup_serializer().loads(token, max_age=password_setup_max_age())
+    except SignatureExpired:
+        return None, "Dieser Passwort-Link ist abgelaufen."
+    except BadSignature:
+        return None, "Dieser Passwort-Link ist ungueltig."
+
+    user = User.query.get(data.get("user_id"))
+    if not user or user.email != data.get("email"):
+        return None, "Dieser Passwort-Link passt zu keinem Benutzer."
+    if data.get("fingerprint") != password_setup_fingerprint(user):
+        return None, "Dieser Passwort-Link wurde bereits verwendet."
+    return user, None
 
 
 def slugify(value):
@@ -549,6 +577,24 @@ def login():
 
         flash("Falsche E-Mail oder falsches Passwort.", "danger")
     return render_template("login.html", form=form)
+
+
+@app.route("/set-password/<token>", methods=["GET", "POST"])
+def set_password(token):
+    user, error = user_from_password_setup_token(token)
+    if error:
+        flash(error, "danger")
+        return redirect(url_for("login"))
+
+    form = MemberPasswordForm()
+    if form.validate_on_submit():
+        user.set_password(form.password.data)
+        db.session.commit()
+        login_user(user)
+        flash("Passwort gespeichert. Du bist jetzt eingeloggt.", "success")
+        return redirect(url_for(post_login_endpoint(user)))
+
+    return render_template("set-password.html", form=form, user=user)
 
 
 @app.route("/logout")
@@ -1483,6 +1529,8 @@ def platform_admin_dashboard():
 @app.route("/platform-admin/admins/new", methods=["GET", "POST"])
 @platform_admin_required
 def platform_admin_user_new():
+    setup_url = session.pop("created_admin_setup_url", None)
+    created_admin_email = session.pop("created_admin_email", None)
     form = PlatformAdminUserForm()
     if form.validate_on_submit():
         verein_name = form.verein_name.data.strip()
@@ -1497,15 +1545,26 @@ def platform_admin_user_new():
             return redirect(url_for("platform_admin_user_new"))
 
         try:
-            create_verein_admin(verein_name, username, email, form.password.data, role="admin")
+            user = create_verein_admin(verein_name, username, email, role="admin")
             db.session.commit()
-            flash("Vereins-Admin wurde erstellt.", "success")
-            return redirect(url_for("platform_admin_dashboard"))
+            session["created_admin_setup_url"] = url_for(
+                "set_password",
+                token=generate_password_setup_token(user),
+                _external=True,
+            )
+            session["created_admin_email"] = user.email
+            flash("Vereins-Admin wurde erstellt. Teile den Passwort-Link mit der Person.", "success")
+            return redirect(url_for("platform_admin_user_new"))
         except IntegrityError:
             db.session.rollback()
             flash("Der Vereins-Admin konnte nicht erstellt werden.", "danger")
 
-    return render_template("platform_admin_user_new.html", form=form)
+    return render_template(
+        "platform_admin_user_new.html",
+        form=form,
+        setup_url=setup_url,
+        created_admin_email=created_admin_email,
+    )
 
 
 @app.route("/platform-admin/licenses/new", methods=["GET", "POST"])

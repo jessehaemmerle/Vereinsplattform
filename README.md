@@ -111,6 +111,13 @@ Wenn E-Mail, Benutzername oder Passwort in der `.env` geaendert werden, wird der
 naechsten App-Start entsprechend synchronisiert. Mit `DEFAULT_ADMIN_ENABLED=false` kann diese Synchronisierung
 deaktiviert werden.
 
+Neue Vereins-Admins erhalten beim Anlegen keinen fremd vergebenen Passwortwert. Die App erzeugt stattdessen
+einen Passwort-Link, ueber den die Person ihr Passwort selbst festlegt. Der Link ist standardmaessig sieben
+Tage gueltig; die Dauer kann mit `PASSWORD_SETUP_TOKEN_MAX_AGE` in Sekunden angepasst werden.
+
+Beim Erstellen eines Vereins wird keine Lizenz automatisch erzeugt. Lizenzschluessel werden separat im
+Plattform-Adminbereich erstellt und danach einem Verein zugewiesen.
+
 Ein Plattform-Admin wird ueber die Rolle `system_admin` oder ueber die Umgebungsvariable
 `SYSTEM_ADMIN_EMAILS` freigeschaltet. Mehrere E-Mail-Adressen koennen kommasepariert hinterlegt werden.
 

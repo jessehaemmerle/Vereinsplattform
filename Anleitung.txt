@@ -10,6 +10,8 @@ Standard-Admin:
 In der .env koennen DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_USERNAME und DEFAULT_ADMIN_PASSWORD gesetzt werden.
 Beim Start wird dieser Benutzer automatisch als system_admin erstellt oder aktualisiert. Nach dem Login kann
 im Admin-Bereich ein eigener Vereins-Admin inklusive Verein erstellt werden.
+Dieser neue Vereins-Admin bekommt einen Passwort-Link und legt das Passwort selbst fest. Beim Erstellen des
+Vereins wird keine Lizenz mehr automatisch erstellt; Lizenzen werden separat erzeugt und zugewiesen.
 
 Aktuell bekannte Fehler: 
 - Es muss noch über den Port 5000 Zugegriffen werden. Lösung mitels -p 80:5000 in Docker????

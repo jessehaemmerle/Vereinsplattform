@@ -95,17 +95,6 @@ class PlatformAdminUserForm(FlaskForm):
     verein_name = StringField("Vereinsname", validators=[DataRequired(), Length(max=100)])
     username = StringField("Nutzername", validators=[DataRequired(), Length(max=50)])
     email = EmailField("E-Mail", validators=[DataRequired(), Email()])
-    password = PasswordField(
-        "Passwort",
-        validators=[
-            DataRequired(),
-            Length(min=8, message="Das Passwort muss mindestens 8 Zeichen lang sein."),
-        ],
-    )
-    confirm_password = PasswordField(
-        "Passwort bestaetigen",
-        validators=[DataRequired(), EqualTo("password", message="Passwoerter stimmen nicht ueberein")],
-    )
     submit = SubmitField("Admin erstellen")
 
 
