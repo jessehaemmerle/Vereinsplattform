@@ -6,6 +6,11 @@ Danach mittels Befehl "sudo docker buildx build -t vereinsplanung_neu_v2 ." den 
 
 Wenn der Container erstellt ist kann mit dem Befehl "sudo docker run -d -p 80:5000 --name Vereinsplanung vereinsplanung_neu_v2" der Container gestartet werden.
 
+Standard-Admin:
+In der .env koennen DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_USERNAME und DEFAULT_ADMIN_PASSWORD gesetzt werden.
+Beim Start wird dieser Benutzer automatisch als system_admin erstellt oder aktualisiert. Nach dem Login kann
+im Admin-Bereich ein eigener Vereins-Admin inklusive Verein erstellt werden.
+
 Aktuell bekannte Fehler: 
 - Es muss noch über den Port 5000 Zugegriffen werden. Lösung mitels -p 80:5000 in Docker????
 - Reverse Proxy aktuell auch noch kaputt

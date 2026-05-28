@@ -98,6 +98,19 @@ Dieses Projekt ist lizenziert unter der MIT-Lizenz. Weitere Informationen finden
 Plattform-Admin und Lizenzen
 Die Lizenzverwaltung ist direkt in die Flask-App integriert. Es wird kein separater Lizenzserver benoetigt.
 
+Beim Start kann die App einen Standard-Admin aus der `.env` erstellen oder aktualisieren. Dieser Benutzer
+hat die Rolle `system_admin` und ist nicht an einen Verein gebunden. Nach dem Login landet er direkt im
+Plattform-Adminbereich und kann dort einen eigenen Vereins-Admin inklusive Verein anlegen.
+
+Beispiel:
+DEFAULT_ADMIN_EMAIL=admin@example.com
+DEFAULT_ADMIN_USERNAME=standard_admin
+DEFAULT_ADMIN_PASSWORD=ein-sicheres-passwort
+
+Wenn E-Mail, Benutzername oder Passwort in der `.env` geaendert werden, wird der Standard-Admin beim
+naechsten App-Start entsprechend synchronisiert. Mit `DEFAULT_ADMIN_ENABLED=false` kann diese Synchronisierung
+deaktiviert werden.
+
 Ein Plattform-Admin wird ueber die Rolle `system_admin` oder ueber die Umgebungsvariable
 `SYSTEM_ADMIN_EMAILS` freigeschaltet. Mehrere E-Mail-Adressen koennen kommasepariert hinterlegt werden.
 

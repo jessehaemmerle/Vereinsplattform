@@ -2,37 +2,46 @@
 {% block title %}Admin - Lizenzen{% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="page-header">
   <div>
-    <h1 class="mb-1">Lizenzverwaltung</h1>
-    <p class="text-muted mb-0">Plattformweite Lizenzen, Zuordnung zu Vereinen und Nutzung.</p>
+    <p class="eyebrow">Plattform</p>
+    <h1>Lizenzverwaltung</h1>
   </div>
-  <a href="{{ url_for('license_new') }}" class="btn btn-primary">+ Neue Lizenz</a>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('platform_admin_user_new') }}" class="btn btn-outline-primary">
+      <i class="bi bi-person-plus"></i>
+      Neuer Admin
+    </a>
+    <a href="{{ url_for('license_new') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i>
+      Neue Lizenz
+    </a>
+  </div>
 </div>
 
 <div class="row g-3 mb-4">
   <div class="col-md-3">
-    <div class="card h-100"><div class="card-body">
-      <div class="text-muted">Lizenzen</div>
-      <div class="display-6">{{ totals.licenses }}</div>
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="stat-label">Lizenzen</div>
+      <div class="stat-value">{{ totals.licenses }}</div>
     </div></div>
   </div>
   <div class="col-md-3">
-    <div class="card h-100"><div class="card-body">
-      <div class="text-muted">Aktiv</div>
-      <div class="display-6">{{ totals.active }}</div>
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="stat-label">Aktiv</div>
+      <div class="stat-value">{{ totals.active }}</div>
     </div></div>
   </div>
   <div class="col-md-3">
-    <div class="card h-100"><div class="card-body">
-      <div class="text-muted">Zugeordnet</div>
-      <div class="display-6">{{ totals.assigned }}</div>
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="stat-label">Admins</div>
+      <div class="stat-value">{{ totals.admins }}</div>
     </div></div>
   </div>
   <div class="col-md-3">
-    <div class="card h-100"><div class="card-body">
-      <div class="text-muted">Nutzungsereignisse</div>
-      <div class="display-6">{{ totals.usage_events }}</div>
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="stat-label">Nutzungsereignisse</div>
+      <div class="stat-value">{{ totals.usage_events }}</div>
     </div></div>
   </div>
 </div>

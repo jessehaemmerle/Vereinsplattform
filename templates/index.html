@@ -2,74 +2,84 @@
 {% block title %}Dashboard - Vereinsverwaltung{% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-4">
-  <h1 class="mb-0">Dashboard</h1>
-  <a href="{{ url_for('send_email') }}" class="btn btn-outline-primary">E-Mail senden</a>
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Dashboard</p>
+    <h1>{{ current_user.verein.name if current_user.verein else "Verein" }}</h1>
+  </div>
+  <a href="{{ url_for('send_email') }}" class="btn btn-primary">
+    <i class="bi bi-send"></i>
+    E-Mail senden
+  </a>
 </div>
 
 <div class="row g-3 mb-4">
-  <div class="col-md-3">
-    <div class="card h-100">
+  <div class="col-md-6 col-xl-3">
+    <div class="card stat-card h-100">
       <div class="card-body">
-        <div class="text-muted">Mitglieder</div>
-        <div class="display-6">{{ anzahl_mitglieder }}</div>
-        <small>{{ mitglieder_aktiv }} aktiv, {{ mitglieder_inaktiv }} inaktiv</small>
+        <div class="stat-icon text-bg-primary"><i class="bi bi-people"></i></div>
+        <div class="stat-label">Mitglieder</div>
+        <div class="stat-value">{{ anzahl_mitglieder }}</div>
+        <div class="stat-note">{{ mitglieder_aktiv }} aktiv, {{ mitglieder_inaktiv }} inaktiv</div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card h-100">
+  <div class="col-md-6 col-xl-3">
+    <div class="card stat-card h-100">
       <div class="card-body">
-        <div class="text-muted">Events</div>
-        <div class="display-6">{{ anzahl_events }}</div>
-        <small>Veranstaltungen im Verein</small>
+        <div class="stat-icon text-bg-success"><i class="bi bi-calendar-event"></i></div>
+        <div class="stat-label">Events</div>
+        <div class="stat-value">{{ anzahl_events }}</div>
+        <div class="stat-note">Veranstaltungen im Verein</div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card h-100">
+  <div class="col-md-6 col-xl-3">
+    <div class="card stat-card h-100">
       <div class="card-body">
-        <div class="text-muted">Notizen</div>
-        <div class="display-6">{{ anzahl_notizen }}</div>
-        <small>Interne Vereinsnotizen</small>
+        <div class="stat-icon text-bg-warning"><i class="bi bi-journal-text"></i></div>
+        <div class="stat-label">Notizen</div>
+        <div class="stat-value">{{ anzahl_notizen }}</div>
+        <div class="stat-note">Interne Vereinsnotizen</div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card h-100">
+  <div class="col-md-6 col-xl-3">
+    <div class="card stat-card h-100">
       <div class="card-body">
-        <div class="text-muted">Saldo</div>
-        <div class="display-6">{{ "%.2f"|format(saldo) }} EUR</div>
-        <small>{{ "%.2f"|format(sum_einnahmen) }} EUR Einnahmen, {{ "%.2f"|format(sum_ausgaben) }} EUR Ausgaben</small>
+        <div class="stat-icon text-bg-info"><i class="bi bi-cash-coin"></i></div>
+        <div class="stat-label">Saldo</div>
+        <div class="stat-value">{{ "%.2f"|format(saldo) }} EUR</div>
+        <div class="stat-note">{{ "%.2f"|format(sum_einnahmen) }} EUR Einnahmen, {{ "%.2f"|format(sum_ausgaben) }} EUR Ausgaben</div>
       </div>
     </div>
   </div>
 </div>
 
 <div class="row g-3">
-  <div class="col-lg-6">
+  <div class="col-lg-5">
     <div class="card h-100">
       <div class="card-header">Schnellzugriff</div>
-      <div class="list-group list-group-flush">
-        <a class="list-group-item list-group-item-action" href="{{ url_for('mitglied_new') }}">Neues Mitglied anlegen</a>
-        <a class="list-group-item list-group-item-action" href="{{ url_for('finanzen_new') }}">Neue Buchung erfassen</a>
-        <a class="list-group-item list-group-item-action" href="{{ url_for('event_new') }}">Neues Event planen</a>
-        <a class="list-group-item list-group-item-action" href="{{ url_for('documents_new') }}">Dokument hochladen</a>
+      <div class="list-group list-group-flush quick-list">
+        <a class="list-group-item list-group-item-action" href="{{ url_for('mitglied_new') }}"><i class="bi bi-person-plus"></i>Neues Mitglied anlegen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('finanzen_new') }}"><i class="bi bi-plus-circle"></i>Neue Buchung erfassen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('event_new') }}"><i class="bi bi-calendar-plus"></i>Neues Event planen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('documents_new') }}"><i class="bi bi-cloud-arrow-up"></i>Dokument hochladen</a>
       </div>
     </div>
   </div>
-  <div class="col-lg-6">
+  <div class="col-lg-7">
     <div class="card h-100">
       <div class="card-header">Events pro Monat</div>
       <div class="card-body">
         {% for monat in events_monate %}
           {% set count = events_anzahl[loop.index0] %}
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <div style="width: 2rem;">{{ monat }}</div>
-            <div class="progress flex-grow-1" style="height: 1rem;">
+          <div class="metric-row">
+            <div class="metric-label">{{ monat }}</div>
+            <div class="progress flex-grow-1">
               <div class="progress-bar" role="progressbar" style="width: {{ count * 15 if count * 15 < 100 else 100 }}%;"></div>
             </div>
-            <div style="width: 2rem;" class="text-end">{{ count }}</div>
+            <div class="metric-value">{{ count }}</div>
           </div>
         {% endfor %}
       </div>

@@ -51,6 +51,7 @@ from forms import (
     MemberPasswordForm,
     MitgliedForm,
     NotizForm,
+    PlatformAdminUserForm,
     RegisterForm,
     RegisterMemberVereinChooseForm,
     SendMessageForm,
@@ -128,6 +129,60 @@ def configured_system_admin_emails():
     return {email.strip().lower() for email in raw.split(",") if email.strip()}
 
 
+def default_admin_config():
+    if os.getenv("DEFAULT_ADMIN_ENABLED", "true").strip().lower() in {"0", "false", "no", "off"}:
+        return None
+
+    email = os.getenv("DEFAULT_ADMIN_EMAIL", "").strip().lower()
+    password = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
+    username = os.getenv("DEFAULT_ADMIN_USERNAME", "standard_admin").strip() or "standard_admin"
+    if not email or not password:
+        return None
+    return {"email": email, "password": password, "username": username}
+
+
+def bootstrap_default_admin():
+    config = default_admin_config()
+    if not config:
+        return
+
+    if len(config["password"]) < 8:
+        app.logger.warning("DEFAULT_ADMIN_PASSWORD muss mindestens 8 Zeichen lang sein.")
+        return
+    if "@" not in config["email"]:
+        app.logger.warning("DEFAULT_ADMIN_EMAIL ist keine gueltige E-Mail-Adresse.")
+        return
+
+    user = User.query.filter_by(username=config["username"]).first()
+    if not user:
+        user = User.query.filter_by(email=config["email"]).first()
+
+    email_owner = User.query.filter_by(email=config["email"]).first()
+    if email_owner and user and email_owner.id != user.id:
+        app.logger.warning("DEFAULT_ADMIN_EMAIL ist bereits einem anderen Benutzer zugeordnet.")
+        return
+
+    username_owner = User.query.filter_by(username=config["username"]).first()
+    if username_owner and user and username_owner.id != user.id:
+        app.logger.warning("DEFAULT_ADMIN_USERNAME ist bereits einem anderen Benutzer zugeordnet.")
+        return
+
+    if not user:
+        user = User(username=config["username"], email=config["email"], role="system_admin")
+        db.session.add(user)
+
+    user.username = config["username"]
+    user.email = config["email"]
+    user.role = "system_admin"
+    user.set_password(config["password"])
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        app.logger.warning("Standard-Admin konnte wegen eines Datenbankkonflikts nicht synchronisiert werden.")
+
+
 def is_platform_admin_user():
     if not current_user.is_authenticated:
         return False
@@ -199,6 +254,39 @@ def add_default_features(verein_id):
 
 def generate_license_key():
     return f"MW-{uuid.uuid4().hex[:8].upper()}-{uuid.uuid4().hex[:8].upper()}"
+
+
+def create_trial_license(verein):
+    db.session.add(
+        License(
+            license_key=generate_license_key(),
+            name=f"Testlizenz - {verein.name}",
+            status="trial",
+            max_users=5,
+            max_members=100,
+            valid_from=date.today(),
+            valid_until=date.today() + timedelta(days=30),
+            verein_id=verein.id,
+        )
+    )
+
+
+def create_verein_admin(verein_name, username, email, password, role=None):
+    verein = Verein(name=verein_name)
+    db.session.add(verein)
+    db.session.flush()
+
+    user = User(
+        username=username,
+        email=email,
+        role=role or ("system_admin" if email in configured_system_admin_emails() else "admin"),
+        verein_id=verein.id,
+    )
+    user.set_password(password)
+    db.session.add(user)
+    add_default_features(verein.id)
+    create_trial_license(verein)
+    return user
 
 
 def slugify(value):
@@ -305,6 +393,12 @@ def send_brevo_email(subject, html_content, recipient_emails):
         raise RuntimeError(f"Brevo meldet {response.status_code}: {response.text}")
 
 
+def post_login_endpoint(user):
+    if user.is_system_admin and not user.verein_id:
+        return "platform_admin_dashboard"
+    return "index" if user.is_admin else "user_dashboard"
+
+
 def add_event_to_google_calendar(event, user):
     if user.calendar_integration != "google" or not user.calendar_api_key:
         return
@@ -346,27 +440,7 @@ def register_user():
             flash("Ein Verein mit diesem Namen existiert bereits.", "danger")
             return redirect(url_for("register_user"))
 
-        verein = Verein(name=verein_name)
-        db.session.add(verein)
-        db.session.flush()
-
-        role = "system_admin" if email in configured_system_admin_emails() else "admin"
-        user = User(username=username, email=email, role=role, verein_id=verein.id)
-        user.set_password(form.password.data)
-        db.session.add(user)
-        add_default_features(verein.id)
-        db.session.add(
-            License(
-                license_key=generate_license_key(),
-                name=f"Testlizenz - {verein.name}",
-                status="trial",
-                max_users=5,
-                max_members=100,
-                valid_from=date.today(),
-                valid_until=date.today() + timedelta(days=30),
-                verein_id=verein.id,
-            )
-        )
+        user = create_verein_admin(verein_name, username, email, form.password.data)
         db.session.commit()
 
         login_user(user)
@@ -471,7 +545,7 @@ def login():
         if user and user.check_password(form.password.data):
             login_user(user)
             flash("Erfolgreich eingeloggt.", "success")
-            return redirect(url_for("index" if user.is_admin else "user_dashboard"))
+            return redirect(url_for(post_login_endpoint(user)))
 
         flash("Falsche E-Mail oder falsches Passwort.", "danger")
     return render_template("login.html", form=form)
@@ -537,6 +611,8 @@ def user_dashboard():
 def index():
     if not current_user.is_admin:
         return redirect(url_for("user_dashboard"))
+    if current_user.is_system_admin and not current_user.verein_id:
+        return redirect(url_for("platform_admin_dashboard"))
 
     verein_id = current_verein_id()
     sum_einnahmen = (
@@ -1399,8 +1475,37 @@ def platform_admin_dashboard():
         "active": sum(1 for row in rows if row["license"].is_active),
         "assigned": sum(1 for row in rows if row["license"].verein_id),
         "usage_events": sum(row["usage_count"] for row in rows),
+        "admins": User.query.filter(User.role.in_(["admin", "system_admin"])).count(),
     }
     return render_template("platform_admin.html", rows=rows, totals=totals, form=DeleteLicenseForm())
+
+
+@app.route("/platform-admin/admins/new", methods=["GET", "POST"])
+@platform_admin_required
+def platform_admin_user_new():
+    form = PlatformAdminUserForm()
+    if form.validate_on_submit():
+        verein_name = form.verein_name.data.strip()
+        username = form.username.data.strip()
+        email = form.email.data.strip().lower()
+
+        if User.query.filter((User.email == email) | (User.username == username)).first():
+            flash("Dieser Benutzername oder diese E-Mail-Adresse ist bereits vergeben.", "danger")
+            return redirect(url_for("platform_admin_user_new"))
+        if Verein.query.filter_by(name=verein_name).first():
+            flash("Ein Verein mit diesem Namen existiert bereits.", "danger")
+            return redirect(url_for("platform_admin_user_new"))
+
+        try:
+            create_verein_admin(verein_name, username, email, form.password.data, role="admin")
+            db.session.commit()
+            flash("Vereins-Admin wurde erstellt.", "success")
+            return redirect(url_for("platform_admin_dashboard"))
+        except IntegrityError:
+            db.session.rollback()
+            flash("Der Vereins-Admin konnte nicht erstellt werden.", "danger")
+
+    return render_template("platform_admin_user_new.html", form=form)
 
 
 @app.route("/platform-admin/licenses/new", methods=["GET", "POST"])
@@ -1542,6 +1647,7 @@ def templates_delete(template_id):
 def init_database():
     with app.app_context():
         db.create_all()
+        bootstrap_default_admin()
 
 
 init_database()
