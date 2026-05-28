@@ -40,11 +40,44 @@
   </div>
   <div class="col-md-3">
     <div class="card stat-card h-100"><div class="card-body">
-      <div class="stat-label">Nutzungsereignisse</div>
-      <div class="stat-value">{{ totals.usage_events }}</div>
+      <div class="stat-label">Admins ohne Verein</div>
+      <div class="stat-value">{{ totals.orphan_admins }}</div>
     </div></div>
   </div>
 </div>
+
+{% if orphan_admins %}
+<div class="card mb-4">
+  <div class="card-header">Admins ohne gueltigen Verein</div>
+  <div class="table-responsive shadow-none border-0">
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr>
+          <th>Nutzername</th>
+          <th>E-Mail</th>
+          <th>Verein-ID</th>
+          <th>Aktionen</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for admin in orphan_admins %}
+        <tr>
+          <td><strong>{{ admin.username }}</strong></td>
+          <td>{{ admin.email }}</td>
+          <td>{{ admin.verein_id if admin.verein_id else "-" }}</td>
+          <td>
+            <form action="{{ url_for('platform_admin_user_delete', user_id=admin.id) }}" method="POST" class="d-inline">
+              {{ form.hidden_tag() }}
+              <button type="submit" class="btn btn-danger btn-sm">Loeschen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 <div class="table-responsive">
   <table class="table table-bordered table-hover align-middle">

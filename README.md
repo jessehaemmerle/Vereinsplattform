@@ -118,6 +118,10 @@ Tage gueltig; die Dauer kann mit `PASSWORD_SETUP_TOKEN_MAX_AGE` in Sekunden ange
 Beim Erstellen eines Vereins wird keine Lizenz automatisch erzeugt. Lizenzschluessel werden separat im
 Plattform-Adminbereich erstellt und danach einem Verein zugewiesen.
 
+Wenn ein Verein geloescht wurde und dadurch ein Vereins-Admin ohne gueltigen Verein uebrig bleibt, erscheint
+dieser im Plattform-Adminbereich unter "Admins ohne gueltigen Verein" und kann dort geloescht werden.
+System-Admins ohne Verein bleiben erhalten, weil sie fuer die Plattformverwaltung vorgesehen sind.
+
 Ein Plattform-Admin wird ueber die Rolle `system_admin` oder ueber die Umgebungsvariable
 `SYSTEM_ADMIN_EMAILS` freigeschaltet. Mehrere E-Mail-Adressen koennen kommasepariert hinterlegt werden.
 

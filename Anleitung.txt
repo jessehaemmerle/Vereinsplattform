@@ -12,6 +12,8 @@ Beim Start wird dieser Benutzer automatisch als system_admin erstellt oder aktua
 im Admin-Bereich ein eigener Vereins-Admin inklusive Verein erstellt werden.
 Dieser neue Vereins-Admin bekommt einen Passwort-Link und legt das Passwort selbst fest. Beim Erstellen des
 Vereins wird keine Lizenz mehr automatisch erstellt; Lizenzen werden separat erzeugt und zugewiesen.
+Wenn nach dem Loeschen eines Vereins ein Admin ohne gueltigen Verein uebrig bleibt, kann er im
+Plattform-Adminbereich unter "Admins ohne gueltigen Verein" geloescht werden.
 
 Aktuell bekannte Fehler: 
 - Es muss noch über den Port 5000 Zugegriffen werden. Lösung mitels -p 80:5000 in Docker????

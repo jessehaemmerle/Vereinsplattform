@@ -1512,18 +1512,31 @@ def build_license_usage_rows():
     return rows
 
 
+def orphan_admins():
+    admins = User.query.filter_by(role="admin").order_by(User.username).all()
+    return [admin for admin in admins if not admin.verein]
+
+
 @app.route("/platform-admin")
 @platform_admin_required
 def platform_admin_dashboard():
     rows = build_license_usage_rows()
+    orphan_admin_rows = orphan_admins()
     totals = {
         "licenses": len(rows),
         "active": sum(1 for row in rows if row["license"].is_active),
         "assigned": sum(1 for row in rows if row["license"].verein_id),
         "usage_events": sum(row["usage_count"] for row in rows),
         "admins": User.query.filter(User.role.in_(["admin", "system_admin"])).count(),
+        "orphan_admins": len(orphan_admin_rows),
     }
-    return render_template("platform_admin.html", rows=rows, totals=totals, form=DeleteLicenseForm())
+    return render_template(
+        "platform_admin.html",
+        rows=rows,
+        orphan_admins=orphan_admin_rows,
+        totals=totals,
+        form=DeleteLicenseForm(),
+    )
 
 
 @app.route("/platform-admin/admins/new", methods=["GET", "POST"])
@@ -1565,6 +1578,23 @@ def platform_admin_user_new():
         setup_url=setup_url,
         created_admin_email=created_admin_email,
     )
+
+
+@app.route("/platform-admin/admins/<int:user_id>/delete", methods=["POST"])
+@platform_admin_required
+def platform_admin_user_delete(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("Du kannst deinen eigenen Admin-Benutzer nicht loeschen.", "warning")
+        return redirect(url_for("platform_admin_dashboard"))
+    if user.role != "admin" or user.verein:
+        flash("Nur Vereins-Admins ohne gueltigen Verein koennen hier geloescht werden.", "warning")
+        return redirect(url_for("platform_admin_dashboard"))
+
+    db.session.delete(user)
+    db.session.commit()
+    flash("Verwaister Vereins-Admin wurde geloescht.", "success")
+    return redirect(url_for("platform_admin_dashboard"))
 
 
 @app.route("/platform-admin/licenses/new", methods=["GET", "POST"])
