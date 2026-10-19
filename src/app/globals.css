@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --paper: #f4f6f2;
+  --surface: #ffffff;
+  --ink: #18211c;
+  --muted: #5d6a62;
+  --line: #dbe1da;
+  --loden: #2e5a44;
+  --loden-strong: #1f3f2f;
+  --loden-soft: #e3ece5;
+  --brass: #a87a1f;
+  --brass-soft: #f6ecd4;
+  --danger: #a3402f;
+  --danger-soft: #f7e4df;
+  --ok: #2d7a4c;
+  --ok-soft: #e0f0e5;
+  --rail: #1f3f2f;
+  --rail-ink: #e7efe9;
+  color-scheme: light;
+}
+
+.dark {
+  --paper: #111613;
+  --surface: #18201c;
+  --ink: #e5ece7;
+  --muted: #94a39a;
+  --line: #2a352f;
+  --loden: #7fbb98;
+  --loden-strong: #a6d4b8;
+  --loden-soft: #1f2e26;
+  --brass: #dcb35a;
+  --brass-soft: #33291a;
+  --danger: #e88b79;
+  --danger-soft: #3a211c;
+  --ok: #7cc79a;
+  --ok-soft: #1c3226;
+  --rail: #0c110e;
+  --rail-ink: #dbe6df;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-loden: var(--loden);
+  --color-loden-strong: var(--loden-strong);
+  --color-loden-soft: var(--loden-soft);
+  --color-brass: var(--brass);
+  --color-brass-soft: var(--brass-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-rail: var(--rail);
+  --color-rail-ink: var(--rail-ink);
+  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+table,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

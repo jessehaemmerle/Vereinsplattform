@@ -1,5 +1,0 @@
-Vorname,Nachname,Email,Mitgliedsbeitrag,Beitrag_Bezahlt,Eintrittsdatum,Geburtstag,Status,Funktion,Telefonnummer,Adresse,PLZ,Ort
-Max,Mustermann,max.mustermann@example.com,50.00,ja,2023-01-01,1990-05-15,aktiv,Mitglied,0123456789,Musterstraße 1,12345,Musterstadt
-Anna,Schmidt,anna.schmidt@example.com,75.50,nein,2022-06-15,1985-07-22,aktiv,Kassierer,0987654321,Schmidtweg 3,54321,Schmidtstadt
-Peter,Parker,peter.parker@example.com,0.00,nein,2021-03-10,2000-08-10,aktiv,Mitglied,0135792468,Spidermanstraße 5,10115,Berlin
-Clara,Meier,clara.meier@example.com,100.00,ja,2023-08-20,,aktiv,Vorsitzender,0154321876,Hauptstraße 12,20234,Hauptstadt
