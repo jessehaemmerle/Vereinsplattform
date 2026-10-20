@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: verein
+          POSTGRES_PASSWORD: verein
+          POSTGRES_DB: verein
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://verein:verein@localhost:5432/verein
+      APP_URL: http://localhost:3000
+      UPLOAD_DIR: ./data/uploads
+      DEFAULT_ADMIN_EMAIL: admin@example.com
+      DEFAULT_ADMIN_PASSWORD: admin-passwort-123
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx prisma migrate deploy
+      - run: npm run db:seed
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: E2E
+        run: |
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public
+          node .next/standalone/server.js &
+          npx wait-on -t 60000 http://localhost:3000/api/health
+          npm run test:e2e

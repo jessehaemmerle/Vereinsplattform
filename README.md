@@ -1,133 +1,95 @@
-Projektname: Vereinsverwaltung
-Inhaltsverzeichnis
-Überblick
-Funktionen
-Technologien
-Installation
-Verwendung
-Dateistruktur
-Datenbankmodell
-Lizenz
-Überblick
-Die Vereinsverwaltungssoftware bietet eine benutzerfreundliche Plattform zur Verwaltung von Mitgliedern, Finanzen, Events und Notizen. Ziel ist es, Vereinsarbeit effizient und zentralisiert zu organisieren.
+# Vereinsplattform
 
-Funktionen
-Mitgliederverwaltung:
-Hinzufügen, Bearbeiten und Löschen von Mitgliedern
-CSV-Import von Mitgliederdaten
-Finanzmanagement:
-Einnahmen und Ausgaben verwalten
-Jahresabschluss erstellen und als PDF exportieren
-Finanzdaten als CSV exportieren
-Eventmanagement:
-Erstellung und Verwaltung von Events
-Automatische Verknüpfung von Eventkosten mit Finanzen
-Notizen:
-Erstellen, Bearbeiten und Löschen von Vereinsnotizen
-Dokumentenmanagement:
-Hochladen und Verwalten von Dokumenten
-Benutzermanagement:
-Benutzerregistrierung und -authentifizierung
-Rollenbasierte Rechteverwaltung (z. B. Admin, Kassierer)
-Einstellungen:
-Anpassung von Themen und Integration mit Kalenderdiensten (Google, Outlook)
-Technologien
-Backend:
-Python (Flask)
-SQLite für Datenbankmanagement
-Frontend:
-HTML, CSS (Bootstrap 5), JavaScript
-Sonstiges:
-Flask-WTF für Formulare
-FPDF für PDF-Generierung
-Flask-Login für Benutzerverwaltung
-Installation
-Systemanforderungen:
+Mandantenfähige Vereinsverwaltung: Mitglieder, Beiträge, Kassabuch, Termine, Dokumente und Rundschreiben – für beliebig viele Vereine auf einer Installation, verwaltet über einen Plattform-Admin mit Lizenzen.
 
-Python 3.8 oder höher
-Pip (Python-Paketmanager)
-Schritte:
+**Stack:** Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CSS 4 · Prisma 6 · PostgreSQL 17 · Caddy (HTTPS) · Docker Compose
 
-Repository klonen:
-bash
-Copy code
-git clone <repository-url>
-cd vereinsverwaltung
-Abhängigkeiten installieren:
-bash
-Copy code
-pip install -r requirements.txt
-Datenbank initialisieren:
-bash
-Copy code
-flask db init
-flask db migrate
-flask db upgrade
-Anwendung starten:
-bash
-Copy code
-flask run
-Zugriff auf die Anwendung unter http://localhost:5000.
-Verwendung
-Registrieren Sie sich als Admin und richten Sie Ihre Vereinsdaten ein.
-Fügen Sie Mitglieder hinzu oder importieren Sie sie über die CSV-Importfunktion.
-Verwalten Sie Finanzen, Events und Notizen direkt im Dashboard.
-Exportieren Sie Berichte und Jahresabschlüsse für Ihre Unterlagen.
-Dateistruktur
-app.py: Hauptanwendung mit Routen und Logik
-models.py: Datenbankmodelle
-forms.py: Formulare für Benutzerinteraktionen
-templates/: HTML-Templates
-static/: Statische Dateien wie CSS, JS und Bilder
-Datenbankmodell
-Die Software verwendet eine relationale Datenbankstruktur:
+## Funktionen
 
-Mitglieder:
-Vorname, Nachname, E-Mail, Status, Funktion, Eintrittsdatum
-Finanzen:
-Typ (Einnahme/Ausgabe), Betrag, Kategorie, Datum, Beschreibung
-Events:
-Titel, Beschreibung, Datum, Ort, Preis
-Notizen:
-Titel, Inhalt
-Dokumente:
-Originalname, Beschreibung, Hochladedatum
-Lizenz
-Dieses Projekt ist lizenziert unter der MIT-Lizenz. Weitere Informationen finden Sie in der Datei LICENSE.
+| Bereich | Was es kann |
+|---|---|
+| **Mitglieder** | Anlegen, bearbeiten, Status (aktiv, passiv, Ehrenmitglied, ausgetreten), Suche und Filter, CSV-Import (Strichpunkt oder Komma, deutsche Datums- und Betragsformate) und CSV-Export, Geburtstagsliste |
+| **Beiträge** | Jahresbeitrag pro Mitglied, „bezahlt“ bucht automatisch eine Einnahme, Zurücknehmen entfernt sie wieder; Filter „Beitrag offen“ |
+| **Finanzen** | Kassabuch mit Einnahmen und Ausgaben, Kategorien, Jahresübertrag (Endbestand → Anfangsbestand des Folgejahres), CSV-Export, PDF-Berichte: Jahresabschluss, Buchungsjournal mit laufendem Stand, Summen nach Kategorie, Jahressalden |
+| **Termine** | Termine mit Ort und Kosten (Kosten werden als Ausgabe gebucht und synchron gehalten), Einladung per E-Mail an Mitgliedergruppen, **iCal-Abo** für Google/Outlook/Apple |
+| **Notizen** | Vorstandsnotizen, anheftbar |
+| **Dokumente** | Upload bis 20 MB, optional für Mitglieder freigeben |
+| **Nachrichten** | Rundschreiben an Gruppen oder nur an Mitglieder mit offenem Beitrag, Vorlagen mit Platzhaltern (`{{vorname}}`, `{{beitrag}}`, `{{iban}}` …), Versandprotokoll; jede Person erhält eine eigene E-Mail |
+| **Mitgliederbereich** | Mitglieder fordern selbst einen Zugang an (Link an die beim Verein hinterlegte Adresse) oder werden eingeladen; sehen Beitragsstatus mit Bankdaten, Termine, freigegebene Dokumente und pflegen ihre Kontaktdaten |
+| **Plattform** | Vereine samt erstem Vereins-Admin anlegen (Einladungslink statt Passwort), Module je Verein ein-/ausschalten, Lizenzen (Status, Laufzeit, max. Mitglieder, max. Zugänge) erstellen und zuweisen, Aktivitätsprotokoll, Verein löschen |
 
-Plattform-Admin und Lizenzen
-Die Lizenzverwaltung ist direkt in die Flask-App integriert. Es wird kein separater Lizenzserver benoetigt.
+### Rollen im Verein
 
-Beim Start kann die App einen Standard-Admin aus der `.env` erstellen oder aktualisieren. Dieser Benutzer
-hat die Rolle `system_admin` und ist nicht an einen Verein gebunden. Nach dem Login landet er direkt im
-Plattform-Adminbereich und kann dort einen eigenen Vereins-Admin inklusive Verein anlegen.
+| Rolle | Darf |
+|---|---|
+| Vereins-Admin | alles, inkl. Vereinsdaten, Logo, Zugänge |
+| Kassier | Finanzen und Beiträge bearbeiten, alles andere ansehen |
+| Schriftführer | Mitglieder, Termine, Notizen, Dokumente, Nachrichten bearbeiten; Finanzen ansehen |
+| Vorstand | alles ansehen, nichts ändern |
+| Mitglied | nur der eigene Mitgliederbereich |
 
-Beispiel:
-DEFAULT_ADMIN_EMAIL=admin@example.com
-DEFAULT_ADMIN_USERNAME=standard_admin
-DEFAULT_ADMIN_PASSWORD=ein-sicheres-passwort
+Ohne gültige Lizenz ist ein Verein schreibgeschützt; Limits der Lizenz werden beim Anlegen und Importieren geprüft.
 
-Wenn E-Mail, Benutzername oder Passwort in der `.env` geaendert werden, wird der Standard-Admin beim
-naechsten App-Start entsprechend synchronisiert. Mit `DEFAULT_ADMIN_ENABLED=false` kann diese Synchronisierung
-deaktiviert werden.
+## Betrieb mit Docker
 
-Neue Vereins-Admins erhalten beim Anlegen keinen fremd vergebenen Passwortwert. Die App erzeugt stattdessen
-einen Passwort-Link, ueber den die Person ihr Passwort selbst festlegt. Der Link ist standardmaessig sieben
-Tage gueltig; die Dauer kann mit `PASSWORD_SETUP_TOKEN_MAX_AGE` in Sekunden angepasst werden.
+```bash
+cp .env.example .env      # Werte anpassen – mindestens POSTGRES_PASSWORD, DEFAULT_ADMIN_*, APP_URL, DOMAIN, SMTP_*
+docker compose up -d --build
+```
 
-Beim Erstellen eines Vereins wird keine Lizenz automatisch erzeugt. Lizenzschluessel werden separat im
-Plattform-Adminbereich erstellt und danach einem Verein zugewiesen.
+- Caddy übernimmt Port 80/443. Mit `DOMAIN=verein.example.at` (DNS zeigt auf den Server) holt Caddy automatisch ein Let's-Encrypt-Zertifikat. Mit `DOMAIN=localhost` gibt es ein lokales, selbstsigniertes Zertifikat.
+- `APP_URL` muss die öffentliche Adresse sein (z. B. `https://verein.example.at`) – sie steht in Einladungslinks und im Kalender-Abo; bei `https://` werden Session-Cookies als `Secure` gesetzt.
+- Datenbank-Migrationen laufen beim Start des App-Containers automatisch.
+- Beim Start wird der Plattform-Admin aus `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` (mind. 12 Zeichen) angelegt bzw. sein Passwort aktualisiert.
+- Daten liegen in den Volumes `db_data` (PostgreSQL) und `uploads` (Dokumente, Logos) – beide sichern.
+- E-Mails testen ohne echten Mailserver: `docker compose --profile mailtest up -d` und `SMTP_HOST=mailpit`, `SMTP_PORT=1025`; Postfach unter http://localhost:8025.
 
-Wenn ein Verein geloescht wurde und dadurch ein Vereins-Admin ohne gueltigen Verein uebrig bleibt, erscheint
-dieser im Plattform-Adminbereich unter "Admins ohne gueltigen Verein" und kann dort geloescht werden.
-System-Admins ohne Verein bleiben erhalten, weil sie fuer die Plattformverwaltung vorgesehen sind.
+Backup-Beispiel:
 
-Ein Plattform-Admin wird ueber die Rolle `system_admin` oder ueber die Umgebungsvariable
-`SYSTEM_ADMIN_EMAILS` freigeschaltet. Mehrere E-Mail-Adressen koennen kommasepariert hinterlegt werden.
+```bash
+docker compose exec db pg_dump -U verein verein > backup.sql
+docker run --rm -v vereinsplattform_uploads:/data -v "$PWD":/backup alpine tar czf /backup/uploads.tgz -C /data .
+```
 
-Beispiel:
-SYSTEM_ADMIN_EMAILS=admin@example.com,ops@example.com
+### Erste Schritte
 
-Nach dem Login erscheint fuer diese Benutzer der Navigationspunkt `Admin`. Dort koennen Lizenzen erstellt,
-Vereinen zugeordnet, bearbeitet und geloescht werden. Die Nutzung wird pro Lizenz aus den zugeordneten
-Vereinsdaten und protokollierten Schreib-/Login-Aktivitaeten dargestellt.
+1. Als Plattform-Admin anmelden → **Plattform → Lizenzen → Lizenz erstellen**.
+2. **Vereine → Verein anlegen**, Vereins-Admin eintragen und Lizenz zuweisen. Der Vereins-Admin bekommt einen Link und legt sein Passwort fest.
+3. Der Vereins-Admin importiert die Mitgliederliste (Vorlage unter *Mitglieder → Importieren*), lädt weitere Vorstandsmitglieder unter *Einstellungen* ein und verteilt den Link zur Zugangsanforderung an die Mitglieder.
+
+## Entwicklung
+
+Voraussetzungen: Node.js 22, PostgreSQL 16+.
+
+```bash
+npm install
+cp .env.example .env      # DATABASE_URL auf die lokale Datenbank setzen, SMTP_HOST leer lassen = Mails landen im Log
+npm run db:migrate        # Schema anlegen
+npm run db:seed           # Demo-Verein „Musikverein Grünbach“
+npm run dev
+```
+
+Demo-Zugänge nach dem Seed (Passwort `demo-passwort-123`): `obfrau@demo.at` (Admin), `kassier@demo.at` (Kassier), `mitglied@demo.at` (Mitglied).
+
+| Befehl | Zweck |
+|---|---|
+| `npm run lint` / `npm run typecheck` | ESLint, TypeScript |
+| `npm test` | Unit-Tests (Vitest) |
+| `npm run test:e2e` | End-to-End-Tests (Playwright) gegen eine laufende App mit Seed-Daten; `E2E_BASE_URL` zum Umstellen |
+| `npm run db:migrate` | neue Migration aus Schemaänderungen erzeugen |
+
+### Aufbau
+
+```
+prisma/schema.prisma        Datenmodell
+src/lib/                    Auth, Rechte, Lizenzen, Finanzlogik, PDF, iCal, CSV, Mail, Uploads
+src/app/(auth)/             Anmelden, Passwort setzen/vergessen, Zugang anfordern
+src/app/(app)/              Vereinsbereich, Mitgliederbereich, Plattform (/admin)
+src/app/api/                Downloads: PDF/CSV, Dokumente, Logo, Kalender-Feed, Healthcheck
+docker/                     Caddyfile, Entrypoint
+e2e/                        Playwright-Tests
+```
+
+## Lizenz
+
+MIT

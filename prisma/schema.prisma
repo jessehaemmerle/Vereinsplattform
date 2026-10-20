@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  KASSIER
+  SCHRIFTFUEHRER
+  VORSTAND
+  MITGLIED
+}
+
+enum MemberStatus {
+  AKTIV
+  PASSIV
+  EHRENMITGLIED
+  AUSGETRETEN
+}
+
+enum TxType {
+  EINNAHME
+  AUSGABE
+}
+
+enum LicenseStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+  EXPIRED
+}
+
+enum TokenPurpose {
+  PASSWORD_SETUP
+  PASSWORD_RESET
+  MEMBER_ACTIVATION
+}
+
+enum Module {
+  MITGLIEDER
+  FINANZEN
+  EVENTS
+  NOTIZEN
+  DOKUMENTE
+  KOMMUNIKATION
+}
+
+model Club {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  slug           String   @unique
+  email          String?
+  address        String?
+  iban           String?
+  bankName       String?
+  logoPath       String?
+  openingBalance Decimal  @default(0) @db.Decimal(12, 2)
+  calendarToken  String   @unique @default(cuid())
+  modules        Module[] @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
+  createdAt      DateTime @default(now())
+
+  users        User[]
+  members      Member[]
+  transactions Transaction[]
+  events       Event[]
+  notes        Note[]
+  documents    Document[]
+  templates    EmailTemplate[]
+  licenses     License[]
+  activities   Activity[]
+  emails       EmailLog[]
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  passwordHash    String?
+  role            Role      @default(MITGLIED)
+  isPlatformAdmin Boolean   @default(false)
+  emailNotifications Boolean @default(true)
+  clubId          String?
+  club            Club?     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  member          Member?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  sessions   Session[]
+  tokens     Token[]
+  documents  Document[]
+  activities Activity[]
+
+  @@index([clubId])
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Token {
+  id        String       @id @default(cuid())
+  tokenHash String       @unique
+  purpose   TokenPurpose
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+}
+
+model Member {
+  id        String       @id @default(cuid())
+  clubId    String
+  club      Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId    String?      @unique
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+  birthday  DateTime?    @db.Date
+  street    String?
+  zip       String?
+  city      String?
+  joinedAt  DateTime?    @db.Date
+  leftAt    DateTime?    @db.Date
+  status    MemberStatus @default(AKTIV)
+  function  String?
+  fee       Decimal      @default(0) @db.Decimal(10, 2)
+  feePaidYear Int?
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  transactions Transaction[]
+
+  @@unique([clubId, email])
+  @@index([clubId, lastName])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  clubId      String
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  type        TxType
+  category    String
+  amount      Decimal  @db.Decimal(12, 2)
+  date        DateTime @db.Date
+  description String?
+  memberId    String?
+  member      Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  /// set for the automatic fee booking of a member for that year
+  feeYear     Int?
+  eventId     String?  @unique
+  event       Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@unique([memberId, feeYear])
+  @@index([clubId, date])
+}
+
+model Event {
+  id          String       @id @default(cuid())
+  clubId      String
+  club        Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  location    String?
+  cost        Decimal?     @db.Decimal(12, 2)
+  public      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  transaction Transaction?
+
+  @@index([clubId, startsAt])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Document {
+  id               String   @id @default(cuid())
+  clubId           String
+  club             Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  uploadedById     String?
+  uploadedBy       User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  storageName      String   @unique
+  originalName     String
+  mimeType         String
+  size             Int
+  description      String?
+  visibleToMembers Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model EmailTemplate {
+  id      String @id @default(cuid())
+  clubId  String
+  club    Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name    String
+  subject String
+  body    String
+}
+
+model EmailLog {
+  id         String   @id @default(cuid())
+  clubId     String
+  club       Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  subject    String
+  recipients Int
+  failed     Int      @default(0)
+  sentAt     DateTime @default(now())
+}
+
+model License {
+  id         String        @id @default(cuid())
+  key        String        @unique
+  name       String
+  status     LicenseStatus @default(ACTIVE)
+  maxUsers   Int?
+  maxMembers Int?
+  validFrom  DateTime?     @db.Date
+  validUntil DateTime?     @db.Date
+  notes      String?
+  clubId     String?
+  club       Club?         @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  clubId    String?
+  club      Club?    @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([clubId, createdAt])
+}

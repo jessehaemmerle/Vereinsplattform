@@ -1,15 +1,57 @@
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: verein_docker
-    ports:
-      - "5000:5000"
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-verein}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD in .env setzen}
+      POSTGRES_DB: ${POSTGRES_DB:-verein}
     volumes:
-      - databases_volume:/app/databases
-      - uploads_volume:/app/uploads
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-verein}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-verein}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-verein}
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+  # Fängt alle E-Mails ab (Weboberfläche auf Port 8025). Start mit: docker compose --profile mailtest up
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["mailtest"]
+    ports:
+      - "127.0.0.1:8025:8025"
 
 volumes:
-  databases_volume:
-  uploads_volume:
+  db_data:
+  uploads:
+  caddy_data:
+  caddy_config:
