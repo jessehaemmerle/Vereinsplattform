@@ -45,7 +45,8 @@ import { base32Decode, currentStep, hotp } from "../src/lib/totp";
 export const ADMIN_STATE = "e2e/.auth/admin.json";
 
 /** Sets up TOTP on the /sicherheit page and returns the secret. */
-export async function enrollTotp(page: Page) {
+export async function enrollTotp(page: Page, password: string = PASSWORD) {
+  await page.getByLabel("Dein Passwort").first().fill(password); // the app panel comes before the passkey panel
   await page.getByRole("button", { name: "Authenticator-App einrichten" }).click();
   await page.getByText("Schlüssel manuell eingeben").click();
   const secret = (await page.locator("details code").textContent())!.replace(/\s/g, "");

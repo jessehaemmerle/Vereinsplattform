@@ -26,7 +26,7 @@ export default async function globalSetup(config: FullConfig) {
   await page.getByLabel("Passwort").fill(ADMIN_PASSWORD);
   await page.getByRole("button", { name: "Anmelden" }).click();
   await page.waitForURL(`${ADMIN}/sicherheit`);
-  const secret = await enrollTotp(page);
+  const secret = await enrollTotp(page, ADMIN_PASSWORD);
   mkdirSync("e2e/.auth", { recursive: true });
   writeFileSync("e2e/.auth/admin-totp.txt", secret);
   await page.context().storageState({ path: ADMIN_STATE });

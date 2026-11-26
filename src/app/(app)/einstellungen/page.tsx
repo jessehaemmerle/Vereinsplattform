@@ -54,7 +54,7 @@ export default async function SettingsPage() {
                     </p>
                     <p className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                       {s.totpEnabledAt || s._count.passkeys ? <Badge tone="ok">2FA aktiv</Badge> : <Badge>ohne 2FA</Badge>}
-                      {s.id !== user.id && (s.totpEnabledAt || s._count.passkeys > 0) && (
+                      {s.id !== user.id && s.role !== "ADMIN" && (s.totpEnabledAt || s._count.passkeys > 0) && (
                         <ActionButton
                           action={resetUserMfa}
                           fields={{ id: s.id }}

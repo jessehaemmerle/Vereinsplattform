@@ -82,7 +82,7 @@ model Club {
   emailSenderName String?
   emailFooter    String?
   openingBalance Decimal  @default(0) @db.Decimal(12, 2)
-  calendarToken  String   @unique @default(cuid())
+  calendarToken  String   @unique @default(uuid())
   modules        Module[] @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
   createdAt      DateTime @default(now())
 

@@ -125,3 +125,19 @@ test("Neue Subdomain: alte Adresse leitet weiter", async ({ page }) => {
   const res = await browserFetch(page, "/api/health");
   expect(res.status).toBe(200);
 });
+
+test("Content-Security-Policy ist gesetzt und blockiert nichts von der App selbst", async ({ page }) => {
+  const violations: string[] = [];
+  page.on("console", (m) => m.text().includes("Content Security Policy") && violations.push(m.text()));
+  const res = await page.goto(`${CLUB}/login`);
+  const policy = res?.headers()["content-security-policy"] ?? "";
+  expect(policy).toContain("script-src 'self' 'nonce-");
+  expect(policy).toContain("frame-ancestors 'none'");
+  expect(policy).toContain("object-src 'none'");
+  await login(page, CLUB, "obfrau@demo.at");
+  await page.goto(`${CLUB}/einstellungen`);
+  await page.goto(`${CLUB}/finanzen`);
+  await page.goto(CLUB.replace("://", "://gibt-es-nicht-csp.") + "/");
+  await expect(page.getByText("Unter dieser Adresse gibt es keinen Verein.")).toBeVisible();
+  expect(violations).toEqual([]);
+});

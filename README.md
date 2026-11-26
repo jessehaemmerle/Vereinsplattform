@@ -50,6 +50,15 @@ Jeder Verein hat eine eigene Subdomain und ein eigenes Erscheinungsbild:
   - Ein dezentes „powered by Vereinsplattform“ bleibt sichtbar.
 - **Subdomain ändern** kann nur der Super-Admin. Die alte Adresse leitet 90 Tage weiter.
 
+### Zwei-Faktor-Anmeldung
+
+- **Verfahren:** Authenticator-App (TOTP) und Passkeys, dazu 10 Wiederherstellungscodes, die nur einmal angezeigt werden. Jede Person verwaltet das unter **Sicherheit** (Link in der Seitenleiste).
+- **Pflicht:** Für Super-Admins immer. Jeder Verein wählt unter *Einstellungen → Vorstand und Zugänge*, ob niemand, der Vorstand oder alle MFA verwenden müssen. Wer betroffen ist und noch keinen zweiten Faktor hat, kann bis zur Einrichtung nur die Seite „Sicherheit“ nutzen.
+- **Zurücksetzen bei verlorenem Handy:** Der Vereins-Admin (für seinen Verein) oder der Super-Admin setzt MFA zurück. Die Person wird abgemeldet und per E-Mail informiert, der Vorgang landet im Protokoll.
+- **Missbrauchsschutz:** Ein Passwort-Reset umgeht MFA nicht. Nach 5 Fehlversuchen pro Anmeldung bzw. 10 pro Zugang in 15 Minuten wird gesperrt.
+
+Das letzte Sicherheits-Audit liegt unter [docs/security-audit.md](docs/security-audit.md).
+
 ### Super-Admin-Panel
 
 - **Pakete** (z. B. Basis/Plus/Premium): Limits für Mitglieder und Zugänge, Laufzeit, enthaltene Module.
@@ -67,7 +76,8 @@ docker compose up -d --build
 **DNS:** zwei Einträge auf den Server, `<BASE_DOMAIN>` und `*.<BASE_DOMAIN>` (Wildcard). Zugang zur DNS-API ist nicht nötig. Caddy holt beim ersten Aufruf je Subdomain ein Let's-Encrypt-Zertifikat (On-Demand-TLS) und fragt vorher die App (`/api/tls-check`). Zertifikate gibt es also nur für die Startseite, `admin.` und existierende Vereine.
 
 - Migrationen laufen beim Start des App-Containers automatisch.
-- Der Super-Admin aus `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` (mind. 12 Zeichen) wird beim Start angelegt bzw. aktualisiert. Er meldet sich auf `admin.<BASE_DOMAIN>` an.
+- Der Super-Admin aus `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` (mind. 12 Zeichen) wird beim ersten Start angelegt. Er meldet sich auf `admin.<BASE_DOMAIN>` an und muss dort zuerst einen zweiten Faktor einrichten. Das Passwort aus `.env` gilt nur als Startwert. Zum Zurücksetzen einmalig `DEFAULT_ADMIN_RESET_PASSWORD=true` setzen und neu starten.
+- `APP_SECRET` (mind. 32 Zeichen, z. B. `openssl rand -base64 48`) verschlüsselt die Zwei-Faktor-Schlüssel. Nach dem ersten Start nicht mehr ändern.
 - Der App-Container hat keinen eigenen offenen Port. Er ist nur über Caddy erreichbar, das den `Host`/`X-Forwarded-Host` setzt, aus dem die App den Verein bestimmt. Den Port 3000 deshalb nie direkt veröffentlichen.
 - Daten liegen in den Volumes `db_data` (PostgreSQL) und `uploads` (Dokumente, Logos, Bilder). Beide sichern.
 - E-Mails ohne echten Mailserver testen: `docker compose --profile mailtest up -d` mit `SMTP_HOST=mailpit` und `SMTP_PORT=1025`; das Postfach liegt unter http://localhost:8025.

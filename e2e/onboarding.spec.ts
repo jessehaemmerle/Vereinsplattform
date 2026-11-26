@@ -26,7 +26,7 @@ test("Super-Admin legt Verein mit Subdomain an, Vereins-Admin startet auf seiner
   const adminMail = `obmann${stamp}@verein.at`;
   // fresh stack: the platform admin must set up MFA first (or confirm it, if a previous run did)
   await login(page, ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD);
-  if (page.url().endsWith("/sicherheit")) await enrollTotp(page);
+  if (page.url().endsWith("/sicherheit")) await enrollTotp(page, ADMIN_PASSWORD);
   else if (page.url().includes("/login/mfa")) test.skip(true, "Admin hat bereits MFA aus einem früheren Lauf – Stack neu aufsetzen");
 
   await page.goto(`${ADMIN}/admin/pakete/neu`);

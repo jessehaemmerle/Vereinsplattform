@@ -76,6 +76,8 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
 
 export function TotpSetup() {
   const [setup, setSetup] = useState<{ secret: string; qr: string } | null>(null);
+  const [password, setPassword] = useState("");
+  const [startError, setStartError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const [state, action, confirming] = useActionState(confirmTotpSetup, undefined);
   if (state?.ok)
@@ -87,9 +89,31 @@ export function TotpSetup() {
     );
   if (!setup)
     return (
-      <Button type="button" disabled={pending} onClick={() => start(async () => setSetup(await startTotpSetup()))}>
-        Authenticator-App einrichten
-      </Button>
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          start(async () => {
+            const result = await startTotpSetup(password);
+            if ("error" in result) setStartError(result.error);
+            else setSetup(result);
+          });
+        }}
+      >
+        <label className="block text-sm">
+          Dein Passwort
+          <input
+            type="password"
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={`${input} mt-1 max-w-72`}
+          />
+        </label>
+        {startError && <Messages state={{ error: startError }} />}
+        <Button disabled={pending}>Authenticator-App einrichten</Button>
+      </form>
     );
   return (
     <form action={action} className="space-y-4">
@@ -177,6 +201,7 @@ export function RecoveryCodesForm() {
 
 export function PasskeySetup() {
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [state, setState] = useState<SecurityState>(undefined);
   const [busy, setBusy] = useState(false);
   return (
@@ -186,6 +211,10 @@ export function PasskeySetup() {
           Bezeichnung
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. iPhone, YubiKey" maxLength={60} className={`${input} mt-1`} />
         </label>
+        <label className="min-w-48 flex-1 text-sm">
+          Dein Passwort
+          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={`${input} mt-1`} />
+        </label>
         <Button
           type="button"
           disabled={busy}
@@ -193,11 +222,15 @@ export function PasskeySetup() {
             setBusy(true);
             setState(undefined);
             try {
-              const options = await passkeyRegisterOptions();
-              if (!options) throw new Error("Bitte melde dich erneut an.");
+              const options = await passkeyRegisterOptions(password);
+              if ("error" in options) {
+                setState({ error: options.error });
+                return;
+              }
               const response = await startRegistration({ optionsJSON: options });
               setState(await passkeyRegisterVerify(response, name));
               setName("");
+              setPassword("");
             } catch (e) {
               const msg =
                 e instanceof Error && e.name === "NotAllowedError"

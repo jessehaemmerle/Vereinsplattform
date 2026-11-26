@@ -75,6 +75,7 @@ test("Passkey als zweiter Faktor (virtueller Authenticator)", async ({ page, con
   await login(page, CLUB, "kassier@demo.at");
   await page.goto("/sicherheit");
   await page.getByLabel("Bezeichnung").fill("Testgerät");
+  await page.getByLabel("Dein Passwort").nth(1).fill(PASSWORD);
   await page.getByRole("button", { name: "Passkey hinzufügen" }).click();
   await expect(page.getByText("Passkey gespeichert.")).toBeVisible();
   await page.reload();

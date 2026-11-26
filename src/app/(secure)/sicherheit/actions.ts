@@ -35,9 +35,15 @@ async function checkPassword(userId: string, hash: string | null, password: Form
   return null;
 }
 
-export async function startTotpSetup() {
+/**
+ * Adding a factor needs the password too: otherwise a stolen session could register the attacker's own
+ * authenticator and keep access even after the password was changed.
+ */
+export async function startTotpSetup(password: string): Promise<{ secret: string; qr: string } | { error: string }> {
   const user = await me();
-  if (user.totpEnabledAt) return null;
+  if (user.totpEnabledAt) return { error: "Die Authenticator-App ist bereits eingerichtet." };
+  const wrong = await checkPassword(user.id, user.passwordHash, password);
+  if (wrong) return { error: wrong };
   const secret = generateTotpSecret();
   await db.user.update({ where: { id: user.id }, data: { totpSecretEnc: seal(secret) } });
   const issuer = user.club?.name ?? "Vereinsplattform";
@@ -81,10 +87,12 @@ async function mustKeepMfa(user: Awaited<ReturnType<typeof me>>) {
 
 type AuthenticatorTransport = "ble" | "cable" | "hybrid" | "internal" | "nfc" | "smart-card" | "usb";
 
-export async function passkeyRegisterOptions() {
+export async function passkeyRegisterOptions(password: string) {
   const user = await me();
   const active = await getActiveSession();
-  if (!active) return null;
+  if (!active) return { error: "Bitte melde dich erneut an." };
+  const wrong = await checkPassword(user.id, user.passwordHash, password);
+  if (wrong) return { error: wrong };
   const { rpID, rpName } = await relyingParty();
   const existing = await db.passkey.findMany({ where: { userId: user.id, rpId: rpID } });
   const options = await generateRegistrationOptions({

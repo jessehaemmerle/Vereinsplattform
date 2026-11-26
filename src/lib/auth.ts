@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import bcrypt from "bcryptjs";
 import type { MfaPolicy, Role } from "@prisma/client";
@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { can, type Permission } from "@/lib/permissions";
 import { getTenant } from "@/lib/tenant";
-import { protocol } from "@/lib/hosts";
+import { protocol, requestHost } from "@/lib/hosts";
 
 const COOKIE = "vp_session";
 const SESSION_DAYS = 30;
@@ -64,12 +64,12 @@ const loadSession = cache(async () => {
   if (!token) return null;
   const session = await db.session.findUnique({
     where: { id: sha256(token) },
-    include: { user: { include: { club: true, member: true, _count: { select: { passkeys: true } } } } },
+    include: { user: { include: { club: true, member: true } } },
   });
   if (!session || session.expiresAt < new Date()) return null;
   const tenant = await getTenant();
   const base = session.user;
-  const mfaEnabled = !!base.totpEnabledAt || base._count.passkeys > 0;
+  const mfaEnabled = !!base.totpEnabledAt || (await usablePasskeys(base.id)) > 0;
 
   if (session.impersonatedClubId) {
     // platform admin acting as club admin – only valid on that club's host; MFA was done on the admin host
@@ -92,6 +92,13 @@ const loadSession = cache(async () => {
   const user = { ...base, impersonating: null as null | { until: Date }, mfaEnabled, mfaSetupRequired: !mfaEnabled && mfaRequired(base, base.club) };
   return { session, user };
 });
+
+/** Passkeys are bound to the host they were created on (WebAuthn RP ID); only those of this host can be used here. */
+export async function usablePasskeys(userId: string) {
+  const host = requestHost(await headers());
+  if (!host) return 0;
+  return db.passkey.count({ where: { userId, rpId: host.replace(/:\d+$/, "") } });
+}
 
 /** Platform admins always; club members according to the club's policy. */
 export function mfaRequired(user: { isPlatformAdmin: boolean; role: Role }, club: { mfaPolicy: MfaPolicy } | null) {

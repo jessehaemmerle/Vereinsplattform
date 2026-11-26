@@ -10,9 +10,13 @@ import { hashRecoveryCode } from "@/lib/recovery-codes";
 import { relyingParty } from "@/lib/webauthn";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
+import { isLimited, rateLimit } from "@/lib/rate-limit";
 import type { FormState } from "@/lib/form";
 
 const MAX_ATTEMPTS = 5;
+/** Failed second-factor attempts per account across all login attempts (an attacker who knows the password can start new ones). */
+const ACCOUNT_LIMIT = 10;
+const accountKey = (userId: string) => `mfa-fail:${userId}`;
 const SAFE_PATH = /^\/(?![\/\\])[^\\\s]*$/;
 
 function target(next: unknown) {
@@ -20,8 +24,9 @@ function target(next: unknown) {
 }
 
 /** Counts a failed attempt; after MAX_ATTEMPTS the pending session is dropped and the password is needed again. */
-async function failAttempt(sessionId: string, attempts: number): Promise<FormState> {
-  if (attempts + 1 >= MAX_ATTEMPTS) {
+async function failAttempt(sessionId: string, attempts: number, userId: string): Promise<FormState> {
+  rateLimit(accountKey(userId), ACCOUNT_LIMIT);
+  if (attempts + 1 >= MAX_ATTEMPTS || isLimited(accountKey(userId), ACCOUNT_LIMIT)) {
     await destroySession();
     await flash("Zu viele falsche Codes. Bitte melde dich erneut an.", "error");
     redirect("/login");
@@ -42,30 +47,36 @@ export async function verifyMfaCode(_: FormState, formData: FormData): Promise<F
   if (!pending) redirect("/login");
   const { session, user } = pending;
   const code = String(formData.get("code") ?? "").trim();
+  if (isLimited(accountKey(user.id), ACCOUNT_LIMIT)) return { error: "Zu viele falsche Codes für diesen Zugang. Bitte warte 15 Minuten." };
 
   if (/^\d{3}\s?\d{3}$/.test(code)) {
-    if (!user.totpEnabledAt || !user.totpSecretEnc) return failAttempt(session.id, session.mfaAttempts);
+    if (!user.totpEnabledAt || !user.totpSecretEnc) return failAttempt(session.id, session.mfaAttempts, user.id);
     const step = verifyTotp(open(user.totpSecretEnc), code, user.totpLastStep);
-    if (step === null) return failAttempt(session.id, session.mfaAttempts);
+    if (step === null) return failAttempt(session.id, session.mfaAttempts, user.id);
     // compare-and-set on the last step: a code can be redeemed only once, even by parallel requests
     const { count } = await db.user.updateMany({
       where: { id: user.id, OR: [{ totpLastStep: null }, { totpLastStep: { lt: step } }] },
       data: { totpLastStep: step },
     });
-    if (!count) return failAttempt(session.id, session.mfaAttempts);
+    if (!count) return failAttempt(session.id, session.mfaAttempts, user.id);
     return finish(session.id, user, "Authenticator-App", formData.get("next"));
   }
 
   const hash = hashRecoveryCode(code);
   if (code.length >= 8 && user.recoveryHashes.includes(hash)) {
-    await db.user.update({ where: { id: user.id }, data: { recoveryHashes: user.recoveryHashes.filter((h) => h !== hash) } });
+    // conditional update: of two parallel requests with the same code only one removes it
+    const { count } = await db.user.updateMany({
+      where: { id: user.id, recoveryHashes: { has: hash } },
+      data: { recoveryHashes: user.recoveryHashes.filter((h) => h !== hash) },
+    });
+    if (!count) return failAttempt(session.id, session.mfaAttempts, user.id);
     await flash(
       `Wiederherstellungscode verwendet. Noch ${user.recoveryHashes.length - 1} übrig – erzeuge unter „Sicherheit“ neue, wenn es knapp wird.`,
       "info",
     );
     return finish(session.id, user, "Wiederherstellungscode", formData.get("next"));
   }
-  return failAttempt(session.id, session.mfaAttempts);
+  return failAttempt(session.id, session.mfaAttempts, user.id);
 }
 
 export async function passkeyLoginOptions() {
@@ -89,6 +100,7 @@ export async function passkeyLoginVerify(response: AuthenticationResponseJSON, n
   const pending = await getPendingMfa();
   if (!pending) redirect("/login");
   const { session, user } = pending;
+  if (isLimited(accountKey(user.id), ACCOUNT_LIMIT)) return { error: "Zu viele Fehlversuche für diesen Zugang. Bitte warte 15 Minuten." };
   const passkey = await db.passkey.findFirst({ where: { id: response.id, userId: user.id } });
   if (!passkey || !session.webauthnChallenge) return { error: "Dieser Passkey gehört nicht zu deinem Zugang." };
   const { rpID, origin } = await relyingParty();
@@ -115,7 +127,7 @@ export async function passkeyLoginVerify(response: AuthenticationResponseJSON, n
   }
   await db.session.update({ where: { id: session.id }, data: { webauthnChallenge: null } }); // one challenge, one try
   if (!verified) {
-    const state = await failAttempt(session.id, session.mfaAttempts);
+    const state = await failAttempt(session.id, session.mfaAttempts, user.id);
     return { error: state?.error ?? "Passkey wurde nicht akzeptiert." };
   }
   await db.passkey.update({ where: { id: passkey.id }, data: { counter: newCounter, lastUsedAt: new Date() } });

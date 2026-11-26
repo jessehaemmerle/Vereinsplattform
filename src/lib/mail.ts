@@ -37,7 +37,9 @@ export function fromHeader(brand?: MailBrand | null) {
 
 export async function sendMail(mail: Mail) {
   if (!mailConfigured()) {
-    console.warn(`[mail] SMTP nicht konfiguriert – E-Mail an ${mail.to} nicht gesendet: ${mail.subject}\n${mail.text}`);
+    // the body may contain password links – only print it during local development
+    const body = process.env.NODE_ENV === "production" ? "" : `\n${mail.text}`;
+    console.warn(`[mail] SMTP nicht konfiguriert – E-Mail an ${mail.to} nicht gesendet: ${mail.subject}${body}`);
     return;
   }
   await getTransporter().sendMail({

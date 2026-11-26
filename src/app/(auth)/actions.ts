@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { User } from "@prisma/client";
 import { db } from "@/lib/db";
-import { createSession, destroySession, getCurrentUser, hashPassword, homeFor, verifyPassword } from "@/lib/auth";
+import { createSession, destroySession, getCurrentUser, hashPassword, homeFor, usablePasskeys, verifyPassword } from "@/lib/auth";
 import { fromZod, zf, type FormState } from "@/lib/form";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 import { findValidToken, issueToken } from "@/lib/tokens";
@@ -42,7 +42,7 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
   if (!rateLimit(limitKey, 8) || !rateLimit(`login-mail:${email}`, 30, 60 * 60_000)) {
     return { error: "Zu viele Anmeldeversuche. Bitte warte 15 Minuten." };
   }
-  const user = await db.user.findUnique({ where: { email }, include: { member: true, _count: { select: { passkeys: true } } } });
+  const user = await db.user.findUnique({ where: { email }, include: { member: true } });
   const valid = await verifyPassword(password, user?.passwordHash ?? null);
   // same message for "wrong password" and "account of another club" – no information about other tenants
   if (!user || !valid || !(await belongsHere(user))) return { error: "E-Mail oder Passwort stimmen nicht." };
@@ -50,7 +50,7 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
   resetRateLimit(limitKey); // only failed attempts count
   const next = formData.get("next");
   const target = typeof next === "string" && SAFE_PATH.test(next) ? next : homeFor(user);
-  if (user.totpEnabledAt || user._count.passkeys > 0) {
+  if (user.totpEnabledAt || (await usablePasskeys(user.id)) > 0) {
     await createSession(user.id, { mfaPending: true });
     redirect(`/login/mfa?next=${encodeURIComponent(target)}`);
   }
@@ -103,8 +103,7 @@ export async function setPassword(_: FormState, formData: FormData): Promise<For
   ]);
   await flash("Passwort gespeichert.");
   // a password reset must not bypass the second factor
-  const passkeys = await db.passkey.count({ where: { userId: token.userId } });
-  if (token.user.totpEnabledAt || passkeys > 0) {
+  if (token.user.totpEnabledAt || (await usablePasskeys(token.userId)) > 0) {
     await createSession(token.userId, { mfaPending: true });
     redirect(`/login/mfa?next=${encodeURIComponent(homeFor(token.user))}`);
   }
