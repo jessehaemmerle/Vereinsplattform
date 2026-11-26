@@ -12,6 +12,7 @@ import {
   Mail,
   NotebookPen,
   Package,
+  Receipt,
   Inbox,
   Scale,
   Settings,
@@ -42,6 +43,7 @@ export function ClubShell({ user, children }: { user: CurrentUser; children: Rea
     add(true, { href: "/admin", label: "Vereine", icon: <Building2 /> });
     add(true, { href: "/admin/lizenzen", label: "Lizenzen", icon: <KeyRound /> });
     add(true, { href: "/admin/pakete", label: "Pakete", icon: <Package /> });
+    add(true, { href: "/admin/rechnungen", label: "Rechnungen", icon: <Receipt /> });
     add(true, { href: "/admin/anfragen", label: "Anfragen", icon: <Inbox /> });
     add(true, { href: "/admin/rechtliches", label: "Rechtliches", icon: <Scale /> });
   } else {
@@ -50,6 +52,7 @@ export function ClubShell({ user, children }: { user: CurrentUser; children: Rea
       add(true, { href: "/dashboard", label: "Übersicht", icon: <Gauge /> });
       add(modules.has("MITGLIEDER") && can(user.role, "members:read"), { href: "/mitglieder", label: "Mitglieder", icon: <Users /> });
       add(modules.has("FINANZEN") && can(user.role, "finance:read"), { href: "/finanzen", label: "Finanzen", icon: <Landmark /> });
+      add(modules.has("FINANZEN") && can(user.role, "finance:read"), { href: "/rechnungen", label: "Rechnungen", icon: <Receipt /> });
       add(modules.has("EVENTS") && can(user.role, "events:read"), { href: "/events", label: "Termine", icon: <CalendarDays /> });
       add(modules.has("NOTIZEN") && can(user.role, "notes:read"), { href: "/notizen", label: "Notizen", icon: <NotebookPen /> });
       add(modules.has("DOKUMENTE") && can(user.role, "docs:read"), { href: "/dokumente", label: "Dokumente", icon: <FileText /> });

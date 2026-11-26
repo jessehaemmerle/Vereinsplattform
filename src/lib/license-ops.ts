@@ -34,6 +34,10 @@ export async function createLicenseFromPlan(plan: LicensePlan, opts: { clubId?: 
     },
   });
   await logLicense(license.id, opts.userId, "erstellt", `aus Paket „${plan.name}“`);
+  // invoice draft for the platform admin to review and issue
+  const { draftForLicense } = await import("@/lib/invoices");
+  const draft = await draftForLicense(license, plan);
+  if (draft) await logLicense(license.id, opts.userId, "Rechnungsentwurf erstellt");
   if (opts.clubId) await db.club.update({ where: { id: opts.clubId }, data: { modules: plan.modules } });
   return license;
 }

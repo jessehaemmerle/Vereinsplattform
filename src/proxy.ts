@@ -10,7 +10,7 @@ import { tenantCache, type TenantLookup } from "@/lib/tenant-cache";
  *  - platform pages only on admin.<domain>, club pages only on <club>.<domain>
  */
 const ALWAYS = /^\/(api\/health|api\/tls-check)(\/|$)/;
-const SHARED = /^\/(login|passwort|passwort-vergessen|sicherheit|api\/branding)(\/|$)/;
+const SHARED = /^\/(login|passwort|passwort-vergessen|sicherheit|api\/branding|api\/rechnungen)(\/|$)/;
 /** Public pages on the bare domain: landing page, legal pages and their static images. */
 const ROOT_PAGES = /^\/(|impressum|datenschutz|nutzungsbedingungen|auftragsverarbeitung|nicht-gefunden)$|^\/landing\//;
 const GRACE_MS = 90 * 86_400_000;

@@ -20,6 +20,7 @@ import { flash } from "@/lib/flash";
 import { deleteStoredFile } from "@/lib/storage";
 import { clearTenantCache } from "@/lib/tenant-cache";
 import { resetMfa } from "@/lib/mfa-reset";
+import { draftForLicense } from "@/lib/invoices";
 
 const MODULES = ["MITGLIEDER", "FINANZEN", "EVENTS", "NOTIZEN", "DOKUMENTE", "KOMMUNIKATION"] as const;
 const SLUG_GRACE_DAYS = 90;
@@ -296,7 +297,10 @@ export async function extendLicense(formData: FormData) {
     data: { validUntil, remindersSent: [], status: license.status === "EXPIRED" ? "ACTIVE" : license.status },
   });
   await logLicense(id, admin.id, "verlängert", describeChanges(license, { validUntil }) + ` (+${months} Monate)`);
-  await flash("Lizenz verlängert.");
+  const plan = license.planId ? await db.licensePlan.findUnique({ where: { id: license.planId } }) : null;
+  const draft = plan ? await draftForLicense({ ...license, validUntil }, plan, license.validUntil ?? undefined) : null;
+  if (draft) await logLicense(id, admin.id, "Rechnungsentwurf erstellt");
+  await flash(draft ? "Lizenz verlängert – ein Rechnungsentwurf liegt unter „Rechnungen“ bereit." : "Lizenz verlängert.");
   revalidatePath(`/admin/lizenzen/${id}`);
   redirect(`/admin/lizenzen/${id}`);
 }
