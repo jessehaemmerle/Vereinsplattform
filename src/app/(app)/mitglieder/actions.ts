@@ -11,7 +11,7 @@ import { assertMemberCapacity } from "@/lib/license";
 import { parseMemberCsv } from "@/lib/member-csv";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
-import { fillPlaceholders, sendMail } from "@/lib/mail";
+import { fillPlaceholders, trySendMail } from "@/lib/mail";
 import { issueToken } from "@/lib/tokens";
 import { clubUrl } from "@/lib/hosts";
 import { mailBrand } from "@/lib/branding";
@@ -179,13 +179,16 @@ export async function inviteMember(formData: FormData) {
           });
     }
     const token = await issueToken(account.id, "MEMBER_ACTIVATION");
-    await sendMail({
+    const sent = await trySendMail({
       to: member.email,
       subject: `Einladung in den Mitgliederbereich des ${member.club.name}`,
       text: `Hallo ${member.firstName},\n\ndu kannst ab sofort den Mitgliederbereich des ${member.club.name} nutzen. Lege über diesen Link dein Passwort fest:\n${clubUrl(member.club.slug, `/passwort/${token}`)}\n\nDer Link ist drei Tage gültig.`,
       brand: mailBrand(member.club),
     });
-    await flash(`Einladung an ${member.email} gesendet.`);
+    await flash(
+      sent ? `Einladung an ${member.email} gesendet.` : "Die E-Mail konnte nicht gesendet werden – bitte den Mailversand (SMTP) prüfen.",
+      sent ? "success" : "error",
+    );
   });
   redirect(`/mitglieder/${id}`);
 }
@@ -198,13 +201,14 @@ export async function messageMember(memberId: string, _: FormState, formData: Fo
     const member = await db.member.findFirst({ where: { id: memberId, clubId: user.clubId } });
     if (!member) return { error: "Mitglied nicht gefunden." };
     const values = { vorname: member.firstName, nachname: member.lastName, verein: user.club.name };
-    await sendMail({
+    const sent = await trySendMail({
       to: member.email,
       subject: fillPlaceholders(parsed.data.subject, values),
       text: fillPlaceholders(parsed.data.body, values),
       brand: mailBrand(user.club),
       replyTo: user.club.email ?? user.email,
     });
+    if (!sent) return { error: "Die E-Mail konnte nicht gesendet werden – bitte den Mailversand (SMTP) prüfen." };
     await db.emailLog.create({ data: { clubId: user.clubId, subject: parsed.data.subject, recipients: 1 } });
   } catch (e) {
     return handleError(e);
