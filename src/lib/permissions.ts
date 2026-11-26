@@ -6,6 +6,7 @@ export const PERMISSIONS = [
   "fees:write",
   "finance:read",
   "finance:write",
+  "invoices:write",
   "events:read",
   "events:write",
   "notes:read",
@@ -22,7 +23,7 @@ const READ_ALL: Permission[] = ["members:read", "finance:read", "events:read", "
 
 const MATRIX: Record<Role, Permission[]> = {
   ADMIN: [...PERMISSIONS],
-  KASSIER: [...READ_ALL, "finance:write", "fees:write"],
+  KASSIER: [...READ_ALL, "finance:write", "fees:write", "invoices:write"],
   SCHRIFTFUEHRER: [...READ_ALL, "members:write", "events:write", "notes:write", "docs:write", "mail:send"],
   VORSTAND: READ_ALL,
   MITGLIED: [],

@@ -24,7 +24,8 @@ export function formObject(formData: FormData) {
 }
 
 export function handleError(error: unknown): FormState {
-  if (error instanceof LicenseError || (error instanceof Error && error.name === "UploadError")) return { error: error.message };
+  if (error instanceof LicenseError || (error instanceof Error && (error.name === "UploadError" || error.name === "InvoiceError")))
+    return { error: error.message };
   if (isRedirect(error)) throw error;
   console.error(error);
   return { error: "Das hat nicht geklappt. Bitte versuche es erneut." };
@@ -35,7 +36,7 @@ function isRedirect(error: unknown) {
 }
 
 // Reusable zod helpers for form fields
-const emptyToNull = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : typeof v === "string" ? v.trim() : v);
+const emptyToNull = (v: unknown) => (v === undefined || (typeof v === "string" && v.trim() === "") ? null : typeof v === "string" ? v.trim() : v);
 
 export const zf = {
   text: (label: string, max = 200) =>

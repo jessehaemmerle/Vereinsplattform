@@ -72,6 +72,9 @@ async function main() {
       address: "Hauptplatz 1, 4264 Grünbach",
       iban: "AT611904300234573201",
       bankName: "Raiffeisenbank Grünbach",
+      bic: "RZOOAT2L",
+      taxMode: "NICHT_STEUERBAR",
+      invoiceFooter: "ZVR-Zahl 123456789",
       openingBalance: 1250,
     },
   });
@@ -289,6 +292,10 @@ async function main() {
       { clubId: club.id, title: "Vorstandssitzung", location: "Gasthaus Lindner", startsAt: soon(8, 19), public: false },
       { clubId: club.id, title: "Jahreshauptversammlung", description: "Tagesordnung folgt per E-Mail.", location: "Gasthaus Lindner", startsAt: soon(40, 19) },
     ],
+  });
+  await db.contact.create({ data: { clubId: club.id, name: "Marktgemeinde Grünbach", address: "Marktplatz 1\n4264 Grünbach", email: "gemeinde@demo.at" } });
+  await db.contact.create({
+    data: { clubId: club.id, name: "Raiffeisenbank Grünbach", address: "Hauptstraße 5\n4264 Grünbach", email: "sponsoring@demo.at", vatId: "ATU12345678" },
   });
   await db.note.create({
     data: {

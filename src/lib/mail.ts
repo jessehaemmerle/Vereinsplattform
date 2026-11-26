@@ -23,7 +23,14 @@ export function mailConfigured() {
 /** Per-club look of outgoing mail (white label). */
 export type MailBrand = { name: string; senderName: string; color: string; logoUrl: string | null; footer: string | null; replyTo: string | null };
 
-export type Mail = { to: string; subject: string; text: string; replyTo?: string | null; brand?: MailBrand | null };
+export type Mail = {
+  to: string;
+  subject: string;
+  text: string;
+  replyTo?: string | null;
+  brand?: MailBrand | null;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+};
 
 const PLATFORM_NAME = platformName();
 
@@ -50,6 +57,7 @@ export async function sendMail(mail: Mail) {
     text: mail.brand?.footer ? `${mail.text}\n\n--\n${mail.brand.footer}` : mail.text,
     html: renderHtml(mail.text, mail.brand),
     replyTo: mail.replyTo ?? mail.brand?.replyTo ?? undefined,
+    attachments: mail.attachments,
   });
 }
 

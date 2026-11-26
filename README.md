@@ -16,6 +16,7 @@ Mandantenfähige Vereinsverwaltung: Mitglieder, Beiträge, Kassabuch, Termine, D
 | **Dokumente** | Upload bis 20 MB, optional für Mitglieder freigeben |
 | **Nachrichten** | Rundschreiben an Gruppen oder nur an Mitglieder mit offenem Beitrag, Vorlagen mit Platzhaltern (`{{vorname}}`, `{{beitrag}}`, `{{iban}}` …), Versandprotokoll; jede Person erhält eine eigene E-Mail |
 | **Mitgliederbereich** | Mitglieder fordern selbst einen Zugang an (Link an die beim Verein hinterlegte Adresse) oder werden eingeladen; sehen Beitragsstatus mit Bankdaten, Termine, freigegebene Dokumente und pflegen ihre Kontaktdaten |
+| **Rechnungen** | Rechnungen an Dritte mit Empfänger-Adressbuch (oder an Mitglieder), fortlaufende Nummern `RE-2026-0001`, PDF mit SEPA-QR-Code, Versand per E-Mail, Zahlungserinnerung, Storno per Stornorechnung, „bezahlt“ bucht eine Einnahme ins Kassabuch |
 | **Plattform** | Vereine samt erstem Vereins-Admin anlegen (Einladungslink statt Passwort), Module je Verein ein-/ausschalten, Lizenzen (Status, Laufzeit, max. Mitglieder, max. Zugänge) erstellen und zuweisen, Aktivitätsprotokoll, Verein löschen |
 
 ### Rollen im Verein
@@ -82,6 +83,16 @@ Das letzte Sicherheits-Audit liegt unter [docs/security-audit.md](docs/security-
 - **Lizenzen:** aus Paket erzeugen oder individuell anlegen, mit einem Klick verlängern (ab dem bisherigen Ende, bei abgelaufenen ab heute). Ein Verlauf protokolliert jede Änderung.
 - **Ablauf-Erinnerungen:** 30, 7 und 1 Tag vor Ablauf an die Vereins-Admins und die Super-Admins. Ein Job im App-Container läuft alle 6 h und verschickt jede Erinnerung nur einmal. Abschalten mit `LICENSE_REMINDERS=off`.
 - **Als Verein einloggen:** Einmal-Link auf die Vereins-Subdomain, Sitzung 1 h. Ein rotes Banner zeigt den Modus an, Beginn und alle Aktionen stehen im Aktivitätsprotokoll des Vereins. „Zurück zur Plattform“ beendet die Sitzung.
+
+### Rechnungen
+
+Vereine (Admin und Kassier, Modul Finanzen) und der Super-Admin stellen Rechnungen aus.
+
+- **Ablauf:** Entwurf → Ausstellen (vergibt die Nummer, friert Aussteller- und Empfängerdaten ein) → Senden → Bezahlt. Ausgestellte Rechnungen werden nicht gelöscht, sondern per Stornorechnung storniert; nur Entwürfe lassen sich löschen.
+- **Nummern:** Präfix-Jahr-Laufnummer, je Aussteller und Jahr lückenlos. Das Präfix ist einstellbar.
+- **Umsatzsteuer:** je Aussteller unter *Rechnungen → Einstellungen*: Kleinunternehmer (§ 6 Abs. 1 Z 27 UStG), steuerpflichtig mit Steuersätzen je Position und UID oder nicht steuerbar (typisch für Vereine). Welche Variante zutrifft, mit der Steuerberatung klären.
+- **Zahlung:** IBAN/BIC und Verwendungszweck stehen auf der Rechnung, dazu ein SEPA-QR-Code (EPC) für Banking-Apps. Bezahlte Vereinsrechnungen landen als Einnahme „Rechnungen“ im Kassabuch.
+- **Abo-Rechnungen der Plattform:** Beim Erzeugen oder Verlängern einer Lizenz aus einem Paket entsteht automatisch ein Rechnungsentwurf an den Verein. Der Super-Admin prüft und stellt aus. Vor der ersten Rechnung unter *Plattform → Rechnungen → Einstellungen* Bankverbindung und Steuerstatus eintragen; die Anschrift kommt aus *Rechtliches*. Vereine sehen ihre Rechnungen unter *Einstellungen → Rechnungen der Plattform*.
 
 ## Betrieb mit Docker
 

@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
@@ -47,6 +47,25 @@ enum MfaPolicy {
   ALL
 }
 
+/// How an issuer handles VAT on its invoices
+enum TaxMode {
+  KLEINUNTERNEHMER // § 6 Abs. 1 Z 27 UStG – no VAT, mandatory note
+  STEUERPFLICHTIG // VAT per line (20/13/10/0 %)
+  NICHT_STEUERBAR // e.g. a non-profit club outside its business sphere – no VAT, note
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+}
+
+enum InvoiceKind {
+  INVOICE
+  CANCELLATION // Stornorechnung: negative amounts, references the cancelled invoice
+}
+
 enum Module {
   MITGLIEDER
   FINANZEN
@@ -57,65 +76,74 @@ enum Module {
 }
 
 model Club {
-  id             String   @id @default(cuid())
-  name           String   @unique
-  slug           String   @unique
-  email          String?
-  address        String?
-  iban           String?
-  bankName       String?
-  logoPath       String?
+  id               String    @id @default(cuid())
+  name             String    @unique
+  slug             String    @unique
+  email            String?
+  address          String?
+  iban             String?
+  bic              String?
+  bankName         String?
+  vatId            String? /// UID-Nummer, if the club has one
+  taxMode          TaxMode   @default(NICHT_STEUERBAR)
+  invoicePrefix    String    @default("RE")
+  paymentTermsDays Int       @default(14)
+  invoiceFooter    String?
+  logoPath         String?
   /// subdomain used before the last change; redirects until slugChangedAt + 90 days
-  previousSlug   String?  @unique
-  slugChangedAt  DateTime?
+  previousSlug     String?   @unique
+  slugChangedAt    DateTime?
   // White-label branding
   /// who in this club must use a second factor
-  mfaPolicy      MfaPolicy @default(OPTIONAL)
-  primaryColor   String   @default("#2e5a44")
-  accentColor    String   @default("#a87a1f")
-  fontKey        String   @default("schibsted")
-  logoDarkPath   String?
-  faviconPath    String?
-  loginTitle     String?
-  loginText      String?
-  loginImagePath String?
-  emailSenderName String?
-  emailFooter    String?
-  openingBalance Decimal  @default(0) @db.Decimal(12, 2)
-  calendarToken  String   @unique @default(uuid())
-  modules        Module[] @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
-  createdAt      DateTime @default(now())
+  mfaPolicy        MfaPolicy @default(OPTIONAL)
+  primaryColor     String    @default("#2e5a44")
+  accentColor      String    @default("#a87a1f")
+  fontKey          String    @default("schibsted")
+  logoDarkPath     String?
+  faviconPath      String?
+  loginTitle       String?
+  loginText        String?
+  loginImagePath   String?
+  emailSenderName  String?
+  emailFooter      String?
+  openingBalance   Decimal   @default(0) @db.Decimal(12, 2)
+  calendarToken    String    @unique @default(uuid())
+  modules          Module[]  @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
+  createdAt        DateTime  @default(now())
 
-  users        User[]
-  members      Member[]
-  transactions Transaction[]
-  events       Event[]
-  notes        Note[]
-  documents    Document[]
-  templates    EmailTemplate[]
-  licenses     License[]
-  activities   Activity[]
-  emails       EmailLog[]
+  users            User[]
+  members          Member[]
+  transactions     Transaction[]
+  events           Event[]
+  notes            Note[]
+  documents        Document[]
+  invoices         Invoice[]       @relation("IssuedBy")
+  receivedInvoices Invoice[]       @relation("ReceivedBy")
+  contacts         Contact[]
+  templates        EmailTemplate[]
+  licenses         License[]
+  activities       Activity[]
+  emails           EmailLog[]
 }
 
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  name            String
-  passwordHash    String?
-  role            Role      @default(MITGLIED)
-  isPlatformAdmin Boolean   @default(false)
-  emailNotifications Boolean @default(true)
-  clubId          String?
-  club            Club?     @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  member          Member?
-  lastLoginAt     DateTime?
-  createdAt       DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String
+  passwordHash       String?
+  role               Role      @default(MITGLIED)
+  isPlatformAdmin    Boolean   @default(false)
+  emailNotifications Boolean   @default(true)
+  clubId             String?
+  club               Club?     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  member             Member?
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
   // Multi-factor authentication
-  totpSecretEnc   String?   /// AES-256-GCM encrypted base32 secret (set while enrolling, active once totpEnabledAt is set)
-  totpEnabledAt   DateTime?
-  totpLastStep    Int?      /// last accepted 30 s step – blocks replay of a code
-  recoveryHashes  String[]  @default([])
+  totpSecretEnc      String? /// AES-256-GCM encrypted base32 secret (set while enrolling, active once totpEnabledAt is set)
+  totpEnabledAt      DateTime?
+  totpLastStep       Int? /// last accepted 30 s step – blocks replay of a code
+  recoveryHashes     String[]  @default([])
 
   sessions   Session[]
   passkeys   Passkey[]
@@ -127,18 +155,18 @@ model User {
 }
 
 model Session {
-  id        String   @id
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String   @id
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// set when a platform admin acts inside a club ("Als Verein einloggen")
   impersonatedClubId String?
   /// password accepted, second factor still outstanding
-  mfaPending Boolean  @default(false)
-  mfaAttempts Int     @default(0)
+  mfaPending         Boolean  @default(false)
+  mfaAttempts        Int      @default(0)
   /// WebAuthn challenge of the ongoing passkey ceremony
-  webauthnChallenge String?
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  webauthnChallenge  String?
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
 
   @@index([userId])
 }
@@ -155,30 +183,31 @@ model Token {
 }
 
 model Member {
-  id        String       @id @default(cuid())
-  clubId    String
-  club      Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  userId    String?      @unique
-  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  firstName String
-  lastName  String
-  email     String
-  phone     String?
-  birthday  DateTime?    @db.Date
-  street    String?
-  zip       String?
-  city      String?
-  joinedAt  DateTime?    @db.Date
-  leftAt    DateTime?    @db.Date
-  status    MemberStatus @default(AKTIV)
-  function  String?
-  fee       Decimal      @default(0) @db.Decimal(10, 2)
+  id          String       @id @default(cuid())
+  clubId      String
+  club        Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId      String?      @unique
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  birthday    DateTime?    @db.Date
+  street      String?
+  zip         String?
+  city        String?
+  joinedAt    DateTime?    @db.Date
+  leftAt      DateTime?    @db.Date
+  status      MemberStatus @default(AKTIV)
+  function    String?
+  fee         Decimal      @default(0) @db.Decimal(10, 2)
   feePaidYear Int?
-  notes     String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   transactions Transaction[]
+  invoices     Invoice[]
 
   @@unique([clubId, email])
   @@index([clubId, lastName])
@@ -199,6 +228,9 @@ model Transaction {
   feeYear     Int?
   eventId     String?  @unique
   event       Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  /// booking created when an invoice of the club was marked as paid
+  invoiceId   String?  @unique
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
 
   @@unique([memberId, feeYear])
@@ -268,43 +300,44 @@ model EmailLog {
 }
 
 model LicensePlan {
-  id             String   @id @default(cuid())
-  name           String   @unique
+  id             String           @id @default(cuid())
+  name           String           @unique
   description    String?
   maxUsers       Int?
   maxMembers     Int?
-  durationMonths Int?     @default(12)
-  modules        Module[] @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
-  active         Boolean  @default(true)
+  durationMonths Int?             @default(12)
+  modules        Module[]         @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
+  active         Boolean          @default(true)
   // public price list on the landing page
-  priceCents     Int?     /// per year, gross; null = "auf Anfrage"
-  publicListed   Boolean  @default(false)
-  highlighted    Boolean  @default(false)
-  sortOrder      Int      @default(0)
+  priceCents     Int? /// per year, gross; null = "auf Anfrage"
+  publicListed   Boolean          @default(false)
+  highlighted    Boolean          @default(false)
+  sortOrder      Int              @default(0)
   requests       ContactRequest[]
-  createdAt      DateTime @default(now())
+  createdAt      DateTime         @default(now())
   licenses       License[]
 }
 
 model License {
-  id         String        @id @default(cuid())
-  key        String        @unique
-  name       String
-  planId     String?
-  plan       LicensePlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
+  id            String         @id @default(cuid())
+  key           String         @unique
+  name          String
+  planId        String?
+  plan          LicensePlan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
   /// days-before-expiry reminders already sent for the current validUntil
-  remindersSent Int[]      @default([])
-  events     LicenseEvent[]
-  status     LicenseStatus @default(ACTIVE)
-  maxUsers   Int?
-  maxMembers Int?
-  validFrom  DateTime?     @db.Date
-  validUntil DateTime?     @db.Date
-  notes      String?
-  clubId     String?
-  club       Club?         @relation(fields: [clubId], references: [id], onDelete: SetNull)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  remindersSent Int[]          @default([])
+  invoices      Invoice[]
+  events        LicenseEvent[]
+  status        LicenseStatus  @default(ACTIVE)
+  maxUsers      Int?
+  maxMembers    Int?
+  validFrom     DateTime?      @db.Date
+  validUntil    DateTime?      @db.Date
+  notes         String?
+  clubId        String?
+  club          Club?          @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model LicenseEvent {
@@ -343,40 +376,50 @@ model Activity {
 }
 
 model Passkey {
-  id           String    @id /// credential ID (base64url)
-  userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  publicKey    Bytes
-  counter      Int       @default(0)
-  transports   String[]  @default([])
-  rpId         String    /// host the passkey was created on (club subdomain or admin host)
-  name         String
-  createdAt    DateTime  @default(now())
-  lastUsedAt   DateTime?
+  id         String    @id /// credential ID (base64url)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicKey  Bytes
+  counter    Int       @default(0)
+  transports String[]  @default([])
+  rpId       String /// host the passkey was created on (club subdomain or admin host)
+  name       String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
 
   @@index([userId])
 }
 
-/** Operator details for imprint, privacy policy and terms – edited in the platform admin panel. */
+/**
+ * Operator details for imprint, privacy policy and terms – edited in the platform admin panel.
+ */
 model PlatformSettings {
-  id              String   @id @default("default")
-  operatorName    String?
-  legalForm       String?  /// e.g. Einzelunternehmen, GmbH
-  street          String?
-  zipCity         String?
-  country         String?  @default("Österreich")
-  email           String?
-  phone           String?
-  vatId           String?  /// UID-Nummer
-  companyRegister String?  /// Firmenbuchnummer und -gericht
-  businessPurpose String?  /// Unternehmensgegenstand
-  authority       String?  /// Gewerbebehörde
-  chamber         String?  /// Kammer / Berufsrecht
-  representative  String?  /// Geschäftsführung / vertretungsbefugt
-  hostingProvider String?  /// name and location of the server provider
-  mailProvider    String?
-  contactEmail    String?  /// receives contact requests
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default("default")
+  operatorName     String?
+  legalForm        String? /// e.g. Einzelunternehmen, GmbH
+  street           String?
+  zipCity          String?
+  country          String?  @default("Österreich")
+  email            String?
+  phone            String?
+  vatId            String? /// UID-Nummer
+  companyRegister  String? /// Firmenbuchnummer und -gericht
+  businessPurpose  String? /// Unternehmensgegenstand
+  authority        String? /// Gewerbebehörde
+  chamber          String? /// Kammer / Berufsrecht
+  representative   String? /// Geschäftsführung / vertretungsbefugt
+  hostingProvider  String? /// name and location of the server provider
+  mailProvider     String?
+  // invoicing of the platform
+  taxMode          TaxMode  @default(KLEINUNTERNEHMER)
+  invoicePrefix    String   @default("RE")
+  paymentTermsDays Int      @default(14)
+  iban             String?
+  bic              String?
+  bankName         String?
+  invoiceFooter    String?
+  contactEmail     String? /// receives contact requests
+  updatedAt        DateTime @updatedAt
 }
 
 model ContactRequest {
@@ -391,4 +434,91 @@ model ContactRequest {
   plan      LicensePlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
   handledAt DateTime?
   createdAt DateTime     @default(now())
+}
+
+/**
+ * Address book of a club for invoices to third parties (sponsors, municipalities, companies).
+ */
+model Contact {
+  id        String    @id @default(cuid())
+  clubId    String
+  club      Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name      String
+  address   String? /// multi-line postal address
+  email     String?
+  vatId     String?
+  notes     String?
+  createdAt DateTime  @default(now())
+  invoices  Invoice[]
+
+  @@index([clubId, name])
+}
+
+/// Invoice of the platform (issuerClubId = null) or of a club. Issued invoices are immutable:
+/// number, issuer and recipient are frozen; corrections only via a cancellation invoice.
+model Invoice {
+  id                 String        @id @default(cuid())
+  issuerClubId       String?
+  issuerClub         Club?         @relation("IssuedBy", fields: [issuerClubId], references: [id], onDelete: Cascade)
+  kind               InvoiceKind   @default(INVOICE)
+  status             InvoiceStatus @default(DRAFT)
+  number             String? /// assigned when issued
+  issueDate          DateTime?     @db.Date
+  servicePeriod      String? /// Leistungsdatum/-zeitraum as text
+  dueDate            DateTime?     @db.Date
+  taxMode            TaxMode
+  /// frozen at issue: issuer name, address, UID, bank, register data
+  issuerSnapshot     Json?
+  recipientClubId    String?
+  recipientClub      Club?         @relation("ReceivedBy", fields: [recipientClubId], references: [id], onDelete: SetNull)
+  recipientContactId String?
+  recipientContact   Contact?      @relation(fields: [recipientContactId], references: [id], onDelete: SetNull)
+  recipientMemberId  String?
+  recipientMember    Member?       @relation(fields: [recipientMemberId], references: [id], onDelete: SetNull)
+  recipientName      String
+  recipientAddress   String?
+  recipientEmail     String?
+  recipientVatId     String?
+  intro              String?
+  notes              String?
+  netCents           Int           @default(0)
+  taxCents           Int           @default(0)
+  grossCents         Int           @default(0)
+  licenseId          String?
+  license            License?      @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+  cancelsId          String?       @unique
+  cancels            Invoice?      @relation("Cancellation", fields: [cancelsId], references: [id], onDelete: SetNull)
+  cancelledBy        Invoice?      @relation("Cancellation")
+  sentAt             DateTime?
+  remindedAt         DateTime?
+  paidAt             DateTime?     @db.Date
+  booking            Transaction?
+  items              InvoiceItem[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([issuerClubId, number])
+  @@index([issuerClubId, status])
+  @@index([recipientClubId])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position    Int
+  description String
+  quantity    Decimal @db.Decimal(10, 3)
+  unit        String? /// Stück, Stunden, Pauschale …
+  unitCents   Int /// net unit price in cents (negative on cancellations)
+  taxRate     Int     @default(0)
+}
+
+/// Gap-free numbering per issuer and year ("platform" or the club id).
+model InvoiceCounter {
+  issuerKey String
+  year      Int
+  last      Int    @default(0)
+
+  @@id([issuerKey, year])
 }

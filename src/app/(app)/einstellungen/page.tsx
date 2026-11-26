@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { requireClubUser } from "@/lib/auth";
 import { can, ROLE_LABELS } from "@/lib/permissions";
 import { activeLicense } from "@/lib/license";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, formatEur } from "@/lib/format";
+import { InvoiceStatus } from "@/components/invoices/invoice-views";
 import { clubUrl } from "@/lib/hosts";
 import { Badge, Dl, PageHeader, Panel } from "@/components/ui/misc";
 import { ActionButton } from "@/components/ui/confirm-form";
@@ -30,6 +31,9 @@ export default async function SettingsPage() {
       : [],
     activeLicense(club.id),
   ]);
+  const platformInvoices = can(user.role, "finance:read")
+    ? await db.invoice.findMany({ where: { issuerClubId: null, recipientClubId: club.id, status: { not: "DRAFT" } }, orderBy: { issueDate: "desc" }, take: 24 })
+    : [];
 
   return (
     <>
@@ -120,6 +124,24 @@ export default async function SettingsPage() {
             />
           </Panel>
         )}
+        <Panel title="Rechnungen der Plattform">
+          {platformInvoices.length === 0 ? (
+            <p className="text-muted text-sm">Noch keine Rechnungen.</p>
+          ) : (
+            <ul className="divide-line divide-y text-sm">
+              {platformInvoices.map((i) => (
+                <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <a href={`/api/rechnungen/${i.id}`} target="_blank" className="text-loden font-medium hover:underline">
+                    {i.number}
+                  </a>
+                  <span className="text-muted">{formatDate(i.issueDate)}</span>
+                  <span>{formatEur(i.grossCents / 100)}</span>
+                  <InvoiceStatus invoice={i} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
         <Panel title="Lizenz und Links">
           <Dl
             items={[
