@@ -92,6 +92,8 @@ Vereine (Admin und Kassier, Modul Finanzen) und der Super-Admin stellen Rechnung
 - **Nummern:** Präfix-Jahr-Laufnummer, je Aussteller und Jahr lückenlos. Das Präfix ist einstellbar.
 - **Umsatzsteuer:** je Aussteller unter *Rechnungen → Einstellungen*: Kleinunternehmer (§ 6 Abs. 1 Z 27 UStG), steuerpflichtig mit Steuersätzen je Position und UID oder nicht steuerbar (typisch für Vereine). Welche Variante zutrifft, mit der Steuerberatung klären.
 - **Zahlung:** IBAN/BIC und Verwendungszweck stehen auf der Rechnung, dazu ein SEPA-QR-Code (EPC) für Banking-Apps. Bezahlte Vereinsrechnungen landen als Einnahme „Rechnungen“ im Kassabuch.
+- **Beitragsrechnungen (Soll-Rechnungen):** *Rechnungen → Beitragsrechnungen* schreibt den Jahresbeitrag vor, für alle offenen Mitglieder auf einmal oder einzeln, wahlweise als Entwurf, ausgestellt oder gleich per E-Mail. Wird die Rechnung bezahlt, gilt der Beitrag als bezahlt und wird nur einmal gebucht; „Als bezahlt buchen“ beim Mitglied schließt die offene Rechnung mit.
+- **Abrechnung (Super-Admin):** Der Menüpunkt *Abrechnung* zeigt alle Lizenzen, deren aktuelle Laufzeit noch nicht verrechnet ist (unbefristete Lizenzen: das laufende Kalenderjahr), und erzeugt die Rechnungen per Knopf, einzeln oder gesammelt. Test-, gesperrte und abgelaufene Lizenzen werden nicht verrechnet.
 - **Abo-Rechnungen der Plattform:** Beim Erzeugen oder Verlängern einer Lizenz aus einem Paket entsteht automatisch ein Rechnungsentwurf an den Verein. Der Super-Admin prüft und stellt aus. Vor der ersten Rechnung unter *Plattform → Rechnungen → Einstellungen* Bankverbindung und Steuerstatus eintragen; die Anschrift kommt aus *Rechtliches*. Vereine sehen ihre Rechnungen unter *Einstellungen → Rechnungen der Plattform*.
 
 ## Betrieb mit Docker

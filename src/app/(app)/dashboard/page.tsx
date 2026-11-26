@@ -21,6 +21,7 @@ const ACTIONS: Record<string, string> = {
   member_deleted: "hat ein Mitglied gelöscht",
   members_imported: "hat Mitglieder importiert",
   fee_toggled: "hat einen Beitrag verbucht",
+  fee_invoices_created: "hat Beitragsrechnungen erstellt",
   transaction_created: "hat eine Buchung erfasst",
   transaction_updated: "hat eine Buchung geändert",
   transaction_deleted: "hat eine Buchung gelöscht",

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookUser, Plus, Settings } from "lucide-react";
+import { BookUser, HandCoins, Plus, Settings } from "lucide-react";
 import type { InvoiceStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { staff } from "@/lib/guard";
@@ -37,8 +37,14 @@ export default async function ClubInvoicesPage({ searchParams }: { searchParams:
         title="Rechnungen"
         description={`Rechnungen des Vereins an Sponsoren, Gemeinden, Firmen oder Mitglieder. ${open._count} offen (${formatEur((open._sum.grossCents ?? 0) / 100)}). Bezahlte Rechnungen landen automatisch im Kassabuch.`}
         actions={
-          canWrite && (
-            <>
+          <>
+            {user.club.modules.includes("MITGLIEDER") && (
+              <LinkButton href="/rechnungen/beitraege" variant="secondary">
+                <HandCoins className="size-4" /> Beitragsrechnungen
+              </LinkButton>
+            )}
+            {canWrite && (
+              <>
               <LinkButton href="/rechnungen/kontakte" variant="secondary">
                 <BookUser className="size-4" /> Adressbuch
               </LinkButton>
@@ -50,8 +56,9 @@ export default async function ClubInvoicesPage({ searchParams }: { searchParams:
               <LinkButton href="/rechnungen/neu">
                 <Plus className="size-4" /> Rechnung schreiben
               </LinkButton>
-            </>
-          )
+              </>
+            )}
+          </>
         }
       />
       <div className="mb-4 flex flex-wrap gap-1 text-sm">

@@ -16,6 +16,7 @@ import { issueToken } from "@/lib/tokens";
 import { clubUrl } from "@/lib/hosts";
 import { mailBrand } from "@/lib/branding";
 import { viennaDay, viennaYear } from "@/lib/format";
+import { bookFeePayment, markPaid, unmarkPaid } from "@/lib/invoices";
 import { memberSchema } from "./schema";
 
 function isUniqueViolation(e: unknown) {
@@ -88,35 +89,25 @@ export async function toggleFee(formData: FormData) {
     const member = await db.member.findFirst({ where: { id, clubId: user.clubId } });
     if (!member) return;
     const year = viennaYear();
+    const issuer = { kind: "club" as const, club: user.club };
     if (member.feePaidYear === year) {
+      // paid via a fee invoice: reopen the invoice, which also reverts the fee
+      const booking = await db.transaction.findFirst({
+        where: { clubId: user.clubId, memberId: id, feeYear: year, invoice: { status: "PAID" } },
+        select: { invoiceId: true },
+      });
+      if (booking?.invoiceId) await unmarkPaid(issuer, booking.invoiceId);
       await db.$transaction([
         db.member.update({ where: { id }, data: { feePaidYear: null } }),
         db.transaction.deleteMany({ where: { clubId: user.clubId, memberId: id, feeYear: year } }),
       ]);
       await flash(`Beitrag ${year} für ${member.firstName} ${member.lastName} wieder auf offen gesetzt.`);
     } else {
-      await db.$transaction([
-        db.member.update({ where: { id }, data: { feePaidYear: year } }),
-        ...(Number(member.fee) > 0
-          ? [
-              db.transaction.upsert({
-                where: { memberId_feeYear: { memberId: id, feeYear: year } },
-                update: {},
-                create: {
-                  clubId: user.clubId,
-                  memberId: id,
-                  feeYear: year,
-                  type: "EINNAHME",
-                  category: "Mitgliedsbeitrag",
-                  amount: member.fee,
-                  date: viennaDay(),
-                  description: `Beitrag ${year} – ${member.firstName} ${member.lastName}`,
-                },
-              }),
-            ]
-          : []),
-      ]);
-      await flash(`Beitrag ${year} verbucht.`);
+      // an open fee invoice is settled together with the fee
+      const invoice = await db.invoice.findFirst({ where: { issuerClubId: user.clubId, recipientMemberId: id, feeYear: year, kind: "INVOICE", status: "ISSUED" } });
+      if (invoice) await markPaid(issuer, invoice.id, viennaDay());
+      else await db.$transaction((tx) => bookFeePayment(tx, user.clubId, id, year, Math.round(Number(member.fee) * 100), viennaDay(), null));
+      await flash(invoice ? `Beitrag ${year} verbucht, Rechnung ${invoice.number} als bezahlt markiert.` : `Beitrag ${year} verbucht.`);
     }
     await logActivity({ clubId: user.clubId, userId: user.id, action: "fee_toggled", detail: `${member.firstName} ${member.lastName}` });
   });

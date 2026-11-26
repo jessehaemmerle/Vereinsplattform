@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   BadgeEuro,
+  Calculator,
   Building2,
   CalendarDays,
   FileText,
@@ -43,6 +44,7 @@ export function ClubShell({ user, children }: { user: CurrentUser; children: Rea
     add(true, { href: "/admin", label: "Vereine", icon: <Building2 /> });
     add(true, { href: "/admin/lizenzen", label: "Lizenzen", icon: <KeyRound /> });
     add(true, { href: "/admin/pakete", label: "Pakete", icon: <Package /> });
+    add(true, { href: "/admin/abrechnung", label: "Abrechnung", icon: <Calculator /> });
     add(true, { href: "/admin/rechnungen", label: "Rechnungen", icon: <Receipt /> });
     add(true, { href: "/admin/anfragen", label: "Anfragen", icon: <Inbox /> });
     add(true, { href: "/admin/rechtliches", label: "Rechtliches", icon: <Scale /> });
