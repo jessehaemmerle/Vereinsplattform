@@ -12,7 +12,9 @@ import { parseMemberCsv } from "@/lib/member-csv";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
 import { fillPlaceholders, sendMail } from "@/lib/mail";
-import { issueToken, appUrl } from "@/lib/tokens";
+import { issueToken } from "@/lib/tokens";
+import { clubUrl } from "@/lib/hosts";
+import { mailBrand } from "@/lib/branding";
 import { viennaDay, viennaYear } from "@/lib/format";
 import { memberSchema } from "./schema";
 
@@ -180,8 +182,8 @@ export async function inviteMember(formData: FormData) {
     await sendMail({
       to: member.email,
       subject: `Einladung in den Mitgliederbereich des ${member.club.name}`,
-      text: `Hallo ${member.firstName},\n\ndu kannst ab sofort den Mitgliederbereich des ${member.club.name} nutzen. Lege über diesen Link dein Passwort fest:\n${appUrl(`/passwort/${token}`)}\n\nDer Link ist drei Tage gültig.`,
-      replyTo: member.club.email,
+      text: `Hallo ${member.firstName},\n\ndu kannst ab sofort den Mitgliederbereich des ${member.club.name} nutzen. Lege über diesen Link dein Passwort fest:\n${clubUrl(member.club.slug, `/passwort/${token}`)}\n\nDer Link ist drei Tage gültig.`,
+      brand: mailBrand(member.club),
     });
     await flash(`Einladung an ${member.email} gesendet.`);
   });
@@ -200,6 +202,7 @@ export async function messageMember(memberId: string, _: FormState, formData: Fo
       to: member.email,
       subject: fillPlaceholders(parsed.data.subject, values),
       text: fillPlaceholders(parsed.data.body, values),
+      brand: mailBrand(user.club),
       replyTo: user.club.email ?? user.email,
     });
     await db.emailLog.create({ data: { clubId: user.clubId, subject: parsed.data.subject, recipients: 1 } });

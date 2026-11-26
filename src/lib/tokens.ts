@@ -28,8 +28,3 @@ export async function findValidToken(token: string) {
   if (!row || row.usedAt || row.expiresAt < new Date()) return null;
   return row;
 }
-
-export function appUrl(path: string) {
-  const base = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  return `${base}${path}`;
-}

@@ -30,19 +30,47 @@ Mandantenfähige Vereinsverwaltung: Mitglieder, Beiträge, Kassabuch, Termine, D
 
 Ohne gültige Lizenz ist ein Verein schreibgeschützt; Limits der Lizenz werden beim Anlegen und Importieren geprüft.
 
+## Mandanten und White Label
+
+Jeder Verein hat eine eigene Subdomain und ein eigenes Erscheinungsbild:
+
+| Adresse | Inhalt |
+|---|---|
+| `<BASE_DOMAIN>` | Startseite: Verein über seine Adresse finden (keine öffentliche Vereinsliste) |
+| `admin.<BASE_DOMAIN>` | Super-Admin-Panel: Vereine, Lizenzen, Pakete |
+| `<verein>.<BASE_DOMAIN>` | Anmeldung, Vereinsverwaltung und Mitgliederbereich des Vereins |
+
+- **Getrennte Sitzungen:** Ein Login gilt nur auf der eigenen Subdomain. Zugangsdaten eines Vereins funktionieren bei keinem anderen Verein, und das Super-Admin-Panel gibt es nur auf `admin.`.
+- **Erscheinungsbild** (*Einstellungen → Erscheinungsbild*, Vereins-Admin):
+  - Haupt- und Akzentfarbe mit Live-Vorschau. Zu helle Farben werden automatisch auf lesbaren Kontrast (WCAG AA) abgedunkelt, der Dunkelmodus wird abgeleitet.
+  - Schrift aus fünf geprüften Schriften.
+  - Logo hell und dunkel, Browser-Symbol.
+  - Anmeldeseite mit Überschrift, Text und Hintergrundbild.
+  - E-Mails mit Absendername, Logo, Farbe und Fußzeile; PDF-Berichte mit Briefkopf.
+  - Ein dezentes „powered by Vereinsplattform“ bleibt sichtbar.
+- **Subdomain ändern** kann nur der Super-Admin. Die alte Adresse leitet 90 Tage weiter.
+
+### Super-Admin-Panel
+
+- **Pakete** (z. B. Basis/Plus/Premium): Limits für Mitglieder und Zugänge, Laufzeit, enthaltene Module.
+- **Lizenzen:** aus Paket erzeugen oder individuell anlegen, mit einem Klick verlängern (ab dem bisherigen Ende, bei abgelaufenen ab heute). Ein Verlauf protokolliert jede Änderung.
+- **Ablauf-Erinnerungen:** 30, 7 und 1 Tag vor Ablauf an die Vereins-Admins und die Super-Admins. Ein Job im App-Container läuft alle 6 h und verschickt jede Erinnerung nur einmal. Abschalten mit `LICENSE_REMINDERS=off`.
+- **Als Verein einloggen:** Einmal-Link auf die Vereins-Subdomain, Sitzung 1 h. Ein rotes Banner zeigt den Modus an, Beginn und alle Aktionen stehen im Aktivitätsprotokoll des Vereins. „Zurück zur Plattform“ beendet die Sitzung.
+
 ## Betrieb mit Docker
 
 ```bash
-cp .env.example .env      # Werte anpassen – mindestens POSTGRES_PASSWORD, DEFAULT_ADMIN_*, APP_URL, DOMAIN, SMTP_*
+cp .env.example .env      # mindestens BASE_DOMAIN, POSTGRES_PASSWORD, DEFAULT_ADMIN_*, SMTP_* setzen
 docker compose up -d --build
 ```
 
-- Caddy übernimmt Port 80/443. Mit `DOMAIN=verein.example.at` (DNS zeigt auf den Server) holt Caddy automatisch ein Let's-Encrypt-Zertifikat. Mit `DOMAIN=localhost` gibt es ein lokales, selbstsigniertes Zertifikat.
-- `APP_URL` muss die öffentliche Adresse sein (z. B. `https://verein.example.at`) – sie steht in Einladungslinks und im Kalender-Abo; bei `https://` werden Session-Cookies als `Secure` gesetzt.
-- Datenbank-Migrationen laufen beim Start des App-Containers automatisch.
-- Beim Start wird der Plattform-Admin aus `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` (mind. 12 Zeichen) angelegt bzw. sein Passwort aktualisiert.
-- Daten liegen in den Volumes `db_data` (PostgreSQL) und `uploads` (Dokumente, Logos) – beide sichern.
-- E-Mails testen ohne echten Mailserver: `docker compose --profile mailtest up -d` und `SMTP_HOST=mailpit`, `SMTP_PORT=1025`; Postfach unter http://localhost:8025.
+**DNS:** zwei Einträge auf den Server, `<BASE_DOMAIN>` und `*.<BASE_DOMAIN>` (Wildcard). Zugang zur DNS-API ist nicht nötig. Caddy holt beim ersten Aufruf je Subdomain ein Let's-Encrypt-Zertifikat (On-Demand-TLS) und fragt vorher die App (`/api/tls-check`). Zertifikate gibt es also nur für die Startseite, `admin.` und existierende Vereine.
+
+- Migrationen laufen beim Start des App-Containers automatisch.
+- Der Super-Admin aus `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` (mind. 12 Zeichen) wird beim Start angelegt bzw. aktualisiert. Er meldet sich auf `admin.<BASE_DOMAIN>` an.
+- Der App-Container hat keinen eigenen offenen Port. Er ist nur über Caddy erreichbar, das den `Host`/`X-Forwarded-Host` setzt, aus dem die App den Verein bestimmt. Den Port 3000 deshalb nie direkt veröffentlichen.
+- Daten liegen in den Volumes `db_data` (PostgreSQL) und `uploads` (Dokumente, Logos, Bilder). Beide sichern.
+- E-Mails ohne echten Mailserver testen: `docker compose --profile mailtest up -d` mit `SMTP_HOST=mailpit` und `SMTP_PORT=1025`; das Postfach liegt unter http://localhost:8025.
 
 Backup-Beispiel:
 
@@ -53,9 +81,9 @@ docker run --rm -v vereinsplattform_uploads:/data -v "$PWD":/backup alpine tar c
 
 ### Erste Schritte
 
-1. Als Plattform-Admin anmelden → **Plattform → Lizenzen → Lizenz erstellen**.
-2. **Vereine → Verein anlegen**, Vereins-Admin eintragen und Lizenz zuweisen. Der Vereins-Admin bekommt einen Link und legt sein Passwort fest.
-3. Der Vereins-Admin importiert die Mitgliederliste (Vorlage unter *Mitglieder → Importieren*), lädt weitere Vorstandsmitglieder unter *Einstellungen* ein und verteilt den Link zur Zugangsanforderung an die Mitglieder.
+1. Auf `admin.<BASE_DOMAIN>` anmelden → **Pakete** anlegen.
+2. **Vereine → Verein anlegen:** Name, Subdomain, Vereins-Admin und „Neue Lizenz aus Paket“. Der Vereins-Admin bekommt eine E-Mail mit der Vereinsadresse und einem Link zum Festlegen des Passworts.
+3. Der Vereins-Admin gestaltet unter *Einstellungen → Erscheinungsbild* Farben und Logo, importiert die Mitglieder und verteilt den Link `<verein>.<BASE_DOMAIN>/registrieren` an die Mitglieder.
 
 ## Entwicklung
 
@@ -69,13 +97,19 @@ npm run db:seed           # Demo-Verein „Musikverein Grünbach“
 npm run dev
 ```
 
-Demo-Zugänge nach dem Seed (Passwort `demo-passwort-123`): `obfrau@demo.at` (Admin), `kassier@demo.at` (Kassier), `mitglied@demo.at` (Mitglied).
+Lokal ist `BASE_DOMAIN=localhost:3000`. Browser lösen `*.localhost` ohne DNS auf:
+
+- http://admin.localhost:3000: Super-Admin (`DEFAULT_ADMIN_*` aus `.env`)
+- http://musikverein-gruenbach.localhost:3000: `obfrau@demo.at` (Admin), `kassier@demo.at`, `mitglied@demo.at`
+- http://sportunion-tal.localhost:3000: `obmann@demo.at` (zweiter Verein mit anderem Erscheinungsbild)
+
+Passwort jeweils `demo-passwort-123`.
 
 | Befehl | Zweck |
 |---|---|
 | `npm run lint` / `npm run typecheck` | ESLint, TypeScript |
 | `npm test` | Unit-Tests (Vitest) |
-| `npm run test:e2e` | End-to-End-Tests (Playwright) gegen eine laufende App mit Seed-Daten; `E2E_BASE_URL` zum Umstellen |
+| `npm run test:e2e` | End-to-End-Tests (Playwright) gegen eine laufende App mit Seed-Daten; `E2E_BASE_DOMAIN`/`E2E_PROTOCOL` zum Umstellen |
 | `npm run db:migrate` | neue Migration aus Schemaänderungen erzeugen |
 
 ### Aufbau

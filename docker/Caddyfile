@@ -1,4 +1,15 @@
-{$DOMAIN:localhost} {
+{
+	# Certificates are issued per subdomain when first requested, but only for hosts the app confirms
+	# (root, admin and existing clubs) – so only a wildcard DNS record is needed, no DNS API access.
+	on_demand_tls {
+		ask http://app:3000/api/tls-check
+	}
+}
+
+{$BASE_DOMAIN}, *.{$BASE_DOMAIN} {
+	tls {
+		on_demand
+	}
 	encode zstd gzip
 	request_body {
 		max_size 30MB
@@ -7,5 +18,8 @@
 		Strict-Transport-Security "max-age=31536000"
 		-Server
 	}
-	reverse_proxy app:3000
+	reverse_proxy app:3000 {
+		# the client address as Caddy saw it; the app trusts only this for rate limiting
+		header_up X-Real-IP {remote_host}
+	}
 }

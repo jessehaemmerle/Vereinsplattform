@@ -4,7 +4,7 @@ import { FileText } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireClubUser } from "@/lib/auth";
 import { formatDate, formatDateTime, formatEur } from "@/lib/format";
-import { appUrl } from "@/lib/tokens";
+import { clubUrl } from "@/lib/hosts";
 import { Badge, Dl, PageHeader, Panel } from "@/components/ui/misc";
 import { CopyField } from "@/components/copy-field";
 import { STATUS_LABELS } from "@/app/(app)/mitglieder/schema";
@@ -89,7 +89,7 @@ export default async function MemberAreaPage() {
               </ul>
             )}
             <p className="mt-5 mb-2 text-sm font-medium">In deinen Kalender übernehmen</p>
-            <CopyField value={appUrl(`/api/kalender/${club.calendarToken}`)} />
+            <CopyField value={clubUrl(club.slug, `/api/kalender/${club.calendarToken}`)} />
           </Panel>
         )}
         {club.modules.includes("DOKUMENTE") && (

@@ -8,8 +8,12 @@ import { guarded, writer } from "@/lib/guard";
 import { hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { formObject, fromZod, handleError, zf, type FormState } from "@/lib/form";
 import { assertUserCapacity } from "@/lib/license";
-import { deleteStoredFile, storeFile } from "@/lib/storage";
-import { issueToken, appUrl } from "@/lib/tokens";
+import { deleteStoredFile, storeImage } from "@/lib/storage";
+import { buildTheme, HEX_PATTERN } from "@/lib/color";
+import { FONT_OPTIONS, type FontKey } from "@/lib/font-options";
+import { issueToken } from "@/lib/tokens";
+import { clubUrl } from "@/lib/hosts";
+import { mailBrand } from "@/lib/branding";
 import { sendMail } from "@/lib/mail";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
@@ -45,30 +49,62 @@ export async function updateClub(_: FormState, formData: FormData): Promise<Form
   }
 }
 
-export async function uploadLogo(_: FormState, formData: FormData): Promise<FormState> {
+const IMAGE_RULES = {
+  logo: { field: "logoPath", types: ["png", "jpg"], max: 2 },
+  logoDark: { field: "logoDarkPath", types: ["png", "jpg"], max: 2 },
+  favicon: { field: "faviconPath", types: ["png", "ico"], max: 0.5 },
+  loginImage: { field: "loginImagePath", types: ["jpg", "png", "webp"], max: 5 },
+} as const;
+
+const brandingSchema = z.object({
+  primaryColor: z
+    .string()
+    .regex(HEX_PATTERN, "Farbe als #rrggbb angeben")
+    .transform((v) => v.toLowerCase()),
+  accentColor: z
+    .string()
+    .regex(HEX_PATTERN, "Farbe als #rrggbb angeben")
+    .transform((v) => v.toLowerCase()),
+  fontKey: z.enum(Object.keys(FONT_OPTIONS) as [FontKey, ...FontKey[]]),
+  loginTitle: zf.optText(120),
+  loginText: zf.optText(600),
+  emailSenderName: zf.optText(80),
+  emailFooter: zf.optText(600),
+});
+
+/** White label: colours, font, images, login page and e-mail look of the club. */
+export async function updateBranding(_: FormState, formData: FormData): Promise<FormState> {
+  const stored: string[] = [];
   try {
     const user = await writer("club:manage");
-    const file = formData.get("logo");
-    if (!(file instanceof File) || file.size === 0) return { error: "Bitte wähle ein Bild aus." };
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return { error: "Erlaubt sind PNG, JPG und WebP." };
-    if (file.size > 2 * 1024 * 1024) return { error: "Das Logo darf höchstens 2 MB groß sein." };
-    const storageName = await storeFile(file);
-    if (user.club.logoPath) await deleteStoredFile(user.club.logoPath);
-    await db.club.update({ where: { id: user.clubId }, data: { logoPath: storageName } });
+    const parsed = brandingSchema.safeParse(formObject(formData));
+    if (!parsed.success) return fromZod(parsed.error);
+
+    const files: Partial<Record<(typeof IMAGE_RULES)[keyof typeof IMAGE_RULES]["field"], string | null>> = {};
+    const obsolete: string[] = [];
+    for (const [input, rule] of Object.entries(IMAGE_RULES)) {
+      const current = user.club[rule.field];
+      const file = formData.get(input);
+      if (file instanceof File && file.size > 0) {
+        const name = await storeImage(file, [...rule.types], rule.max * 1024 * 1024);
+        stored.push(name);
+        files[rule.field] = name;
+        if (current) obsolete.push(current);
+      } else if (formData.get(`${input}Remove`) === "on" && current) {
+        files[rule.field] = null;
+        obsolete.push(current);
+      }
+    }
+    await db.club.update({ where: { id: user.clubId }, data: { ...parsed.data, ...files } });
+    await Promise.all(obsolete.map(deleteStoredFile));
+    await logActivity({ clubId: user.clubId, userId: user.id, action: "branding_updated" });
     revalidatePath("/", "layout");
-    return { ok: "Logo gespeichert." };
+    const { warnings } = buildTheme(parsed.data.primaryColor, parsed.data.accentColor);
+    return { ok: ["Erscheinungsbild gespeichert.", ...warnings].join(" ") };
   } catch (e) {
+    await Promise.all(stored.map(deleteStoredFile));
     return handleError(e);
   }
-}
-
-export async function removeLogo() {
-  await guarded(async () => {
-    const user = await writer("club:manage");
-    if (user.club.logoPath) await deleteStoredFile(user.club.logoPath);
-    await db.club.update({ where: { id: user.clubId }, data: { logoPath: null } });
-  });
-  revalidatePath("/", "layout");
 }
 
 const STAFF_ROLES = ["ADMIN", "KASSIER", "SCHRIFTFUEHRER", "VORSTAND"] as const;
@@ -95,7 +131,8 @@ export async function inviteUser(_: FormState, formData: FormData): Promise<Form
       await sendMail({
         to: email,
         subject: `Dein Zugang für ${user.club.name}`,
-        text: `Hallo ${name},\n\n${user.name} hat dir einen Zugang als ${ROLE_LABELS[role]} für ${user.club.name} eingerichtet. Lege über diesen Link dein Passwort fest:\n${appUrl(`/passwort/${token}`)}\n\nDer Link ist sieben Tage gültig.`,
+        text: `Hallo ${name},\n\n${user.name} hat dir einen Zugang als ${ROLE_LABELS[role]} für ${user.club.name} eingerichtet. Lege über diesen Link dein Passwort fest:\n${clubUrl(user.club.slug, `/passwort/${token}`)}\n\nDer Link ist sieben Tage gültig.`,
+        brand: mailBrand(user.club),
       });
     }
     await logActivity({ clubId: user.clubId, userId: user.id, action: "user_invited", detail: `${name} (${ROLE_LABELS[role]})` });

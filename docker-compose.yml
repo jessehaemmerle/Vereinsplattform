@@ -35,7 +35,7 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      DOMAIN: ${DOMAIN:-localhost}
+      BASE_DOMAIN: ${BASE_DOMAIN:?BASE_DOMAIN in .env setzen}
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

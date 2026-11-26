@@ -8,13 +8,28 @@ import { cn } from "@/lib/cn";
 
 export type NavItem = { href: string; label: string; icon: ReactNode };
 
-export function Shell({ brand, items, footer, children }: { brand: ReactNode; items: NavItem[]; footer: ReactNode; children: ReactNode }) {
+export function Shell({
+  brand,
+  items,
+  footer,
+  banner,
+  children,
+}: {
+  brand: ReactNode;
+  items: NavItem[];
+  footer: ReactNode;
+  banner?: ReactNode;
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const nav = (
     <nav className="flex flex-col gap-0.5" aria-label="Hauptnavigation">
       {items.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(item.href + "/");
+        // the most specific matching entry wins (/admin vs. /admin/lizenzen)
+        const matches = (href: string) => pathname === href || pathname.startsWith(href + "/");
+        const best = items.filter((i) => matches(i.href)).sort((a, b) => b.href.length - a.href.length)[0];
+        const active = best?.href === item.href;
         return (
           <Link
             key={item.href}
@@ -53,7 +68,10 @@ export function Shell({ brand, items, footer, children }: { brand: ReactNode; it
         <div className="flex-1 overflow-y-auto">{nav}</div>
         <div className="border-t border-white/10 pt-4">{footer}</div>
       </aside>
-      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 lg:py-12">{children}</main>
+      <div className="min-w-0">
+        {banner}
+        <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 lg:py-12">{children}</main>
+      </div>
     </div>
   );
 }

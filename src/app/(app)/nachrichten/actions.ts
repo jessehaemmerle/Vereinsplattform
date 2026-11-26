@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { guarded, writer } from "@/lib/guard";
 import { formObject, fromZod, handleError, zf, type FormState } from "@/lib/form";
 import { fillPlaceholders, sendBulk } from "@/lib/mail";
+import { mailBrand } from "@/lib/branding";
 import { formatEur } from "@/lib/format";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
@@ -30,6 +31,7 @@ export async function sendCircular(_: FormState, formData: FormData): Promise<Fo
     if (parsed.data.onlyUnpaid) Object.assign(where, { fee: { gt: 0 }, OR: [{ feePaidYear: null }, { feePaidYear: { not: year } }] });
     const members = await db.member.findMany({ where });
     if (!members.length) return { error: "Niemand entspricht der Auswahl." };
+    const brand = mailBrand(user.club);
     const result = await sendBulk(
       members.map((m) => {
         const values = { vorname: m.firstName, nachname: m.lastName, verein: user.club.name, beitrag: formatEur(m.fee), iban: user.club.iban ?? "" };
@@ -38,6 +40,7 @@ export async function sendCircular(_: FormState, formData: FormData): Promise<Fo
           subject: fillPlaceholders(parsed.data.subject, values),
           text: fillPlaceholders(parsed.data.body, values),
           replyTo: user.club.email ?? user.email,
+          brand,
         };
       }),
     );

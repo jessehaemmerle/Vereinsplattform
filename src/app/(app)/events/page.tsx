@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { staff } from "@/lib/guard";
 import { can } from "@/lib/permissions";
 import { formatEur } from "@/lib/format";
-import { appUrl } from "@/lib/tokens";
+import { clubUrl } from "@/lib/hosts";
 import { LinkButton } from "@/components/ui/button";
 import { Badge, EmptyState, PageHeader, Panel } from "@/components/ui/misc";
 import { CopyField } from "@/components/copy-field";
@@ -105,7 +105,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           <p className="text-muted mb-3 text-sm">
             Diesen Link in Google Kalender, Outlook oder Apple Kalender als Abo hinzufügen. Sichtbar sind alle Termine, die für Mitglieder freigegeben sind.
           </p>
-          <CopyField value={appUrl(`/api/kalender/${user.club.calendarToken}`)} />
+          <CopyField value={clubUrl(user.club.slug, `/api/kalender/${user.club.calendarToken}`)} />
           <p className="text-muted mt-3 flex items-center gap-2 text-sm">
             <CalendarPlus className="size-4" /> Google: „Andere Kalender“ → „Per URL“
           </p>

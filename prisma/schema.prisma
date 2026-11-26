@@ -59,6 +59,20 @@ model Club {
   iban           String?
   bankName       String?
   logoPath       String?
+  /// subdomain used before the last change; redirects until slugChangedAt + 90 days
+  previousSlug   String?  @unique
+  slugChangedAt  DateTime?
+  // White-label branding
+  primaryColor   String   @default("#2e5a44")
+  accentColor    String   @default("#a87a1f")
+  fontKey        String   @default("schibsted")
+  logoDarkPath   String?
+  faviconPath    String?
+  loginTitle     String?
+  loginText      String?
+  loginImagePath String?
+  emailSenderName String?
+  emailFooter    String?
   openingBalance Decimal  @default(0) @db.Decimal(12, 2)
   calendarToken  String   @unique @default(cuid())
   modules        Module[] @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
@@ -102,6 +116,8 @@ model Session {
   id        String   @id
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// set when a platform admin acts inside a club ("Als Verein einloggen")
+  impersonatedClubId String?
   expiresAt DateTime
   createdAt DateTime @default(now())
 
@@ -232,10 +248,28 @@ model EmailLog {
   sentAt     DateTime @default(now())
 }
 
+model LicensePlan {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  description    String?
+  maxUsers       Int?
+  maxMembers     Int?
+  durationMonths Int?     @default(12)
+  modules        Module[] @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  licenses       License[]
+}
+
 model License {
   id         String        @id @default(cuid())
   key        String        @unique
   name       String
+  planId     String?
+  plan       LicensePlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
+  /// days-before-expiry reminders already sent for the current validUntil
+  remindersSent Int[]      @default([])
+  events     LicenseEvent[]
   status     LicenseStatus @default(ACTIVE)
   maxUsers   Int?
   maxMembers Int?
@@ -246,6 +280,28 @@ model License {
   club       Club?         @relation(fields: [clubId], references: [id], onDelete: SetNull)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
+}
+
+model LicenseEvent {
+  id        String   @id @default(cuid())
+  licenseId String
+  license   License  @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  userId    String?
+  action    String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([licenseId, createdAt])
+}
+
+model ImpersonationTicket {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  adminId   String
+  clubId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 model Activity {

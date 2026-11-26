@@ -1,14 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD, CLUB, PASSWORD, browserFetch, login as doLogin } from "./helpers";
 
-// Requires the demo seed (npm run db:seed) and the default admin from .env.
-const PASSWORD = "demo-passwort-123";
+// Requires the demo seed (npm run db:seed) and the default admin from .env. Runs against the club's subdomain.
+test.use({ baseURL: CLUB });
 
-async function login(page: Page, email: string, password = PASSWORD) {
-  await page.goto("/login");
-  await page.getByLabel("E-Mail").fill(email);
-  await page.getByLabel("Passwort").fill(password);
-  await page.getByRole("button", { name: "Anmelden" }).click();
-  if (password === PASSWORD || !password.startsWith("falsch")) await page.waitForURL((url) => !url.pathname.startsWith("/login"));
+function login(page: Page, email: string, password = PASSWORD) {
+  const ok = !password.startsWith("falsch");
+  return email === ADMIN_EMAIL ? doLogin(page, ADMIN, email, password, ok) : doLogin(page, CLUB, email, password, ok);
 }
 
 test("Login mit falschem Passwort zeigt Fehler", async ({ page }) => {
@@ -42,9 +40,9 @@ test("Vereins-Admin: Mitglied anlegen, Beitrag buchen, Finanzen prüfen", async 
   await expect(page.getByText("Beitrag", { exact: false }).filter({ hasText: "Erika Testerin" }).first()).toBeVisible();
   await page.screenshot({ path: "test-results/finanzen.png", fullPage: true });
 
-  const pdf = await page.request.get(`/api/finanzen/bericht/jahresabschluss?jahr=${new Date().getFullYear()}`);
-  expect(pdf.headers()["content-type"]).toBe("application/pdf");
-  expect((await pdf.body()).subarray(0, 4).toString()).toBe("%PDF");
+  const pdf = await browserFetch(page, `/api/finanzen/bericht/jahresabschluss?jahr=${new Date().getFullYear()}`);
+  expect(pdf.type).toBe("application/pdf");
+  expect(pdf.head.slice(0, 4)).toBe("%PDF");
 
   await page.goto("/mitglieder");
   await page.screenshot({ path: "test-results/mitglieder.png", fullPage: true });
@@ -63,8 +61,8 @@ test("Termin mit Kosten erzeugt Buchung und erscheint im Kalender-Feed", async (
   await expect(page.getByText(`Kosten für Termin: ${title}`)).toBeVisible();
 
   const feedUrl = await page.goto("/events").then(() => page.getByLabel("Link").first().inputValue());
-  const ics = await page.request.get(new URL(feedUrl).pathname);
-  expect(await ics.text()).toContain(`SUMMARY:${title}`);
+  expect(feedUrl.startsWith(CLUB)).toBe(true);
+  expect((await browserFetch(page, new URL(feedUrl).pathname)).text).toContain(`SUMMARY:${title}`);
 });
 
 test("Kassier darf keine Mitglieder anlegen", async ({ page }) => {
@@ -82,19 +80,20 @@ test("Mitglied sieht nur den eigenen Bereich", async ({ page }) => {
   await page.screenshot({ path: "test-results/mein-bereich.png", fullPage: true });
   await page.goto("/finanzen");
   await expect(page).toHaveURL(/mein-bereich/);
-  expect((await page.request.get("/api/mitglieder/export")).status()).toBe(403);
+  expect((await browserFetch(page, "/api/mitglieder/export")).status).toBe(403);
 });
 
 test("Plattform-Admin legt Lizenz an", async ({ page }) => {
-  await login(page, process.env.DEFAULT_ADMIN_EMAIL ?? "admin@example.com", process.env.DEFAULT_ADMIN_PASSWORD ?? "admin-passwort-123");
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
   await expect(page).toHaveURL(/admin/);
-  await page.goto("/admin/lizenzen/neu");
+  await page.goto(`${ADMIN}/admin/lizenzen/neu`);
   const name = `E2E ${Date.now()}`;
   await page.getByLabel("Bezeichnung").fill(name);
   await page.getByLabel("Max. Mitglieder").fill("50");
   await page.getByRole("button", { name: "Lizenz speichern" }).click();
-  await expect(page.getByRole("link", { name })).toBeVisible();
-  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name })).toBeVisible();
+  await expect(page.getByText("erstellt", { exact: true })).toBeVisible(); // history entry
+  await page.goto(`${ADMIN}/admin`);
   await page.screenshot({ path: "test-results/admin.png", fullPage: true });
 });
 

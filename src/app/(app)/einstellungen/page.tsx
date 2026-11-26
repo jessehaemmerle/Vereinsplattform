@@ -4,12 +4,14 @@ import { requireClubUser } from "@/lib/auth";
 import { can, ROLE_LABELS } from "@/lib/permissions";
 import { activeLicense } from "@/lib/license";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { appUrl } from "@/lib/tokens";
+import { clubUrl } from "@/lib/hosts";
 import { Badge, Dl, PageHeader, Panel } from "@/components/ui/misc";
 import { ActionButton } from "@/components/ui/confirm-form";
 import { CopyField } from "@/components/copy-field";
-import { ClubForm, InviteForm, LogoForm, PasswordForm, ProfileForm } from "./forms";
-import { changeRole, regenerateCalendarToken, removeLogo } from "./actions";
+import { ClubForm, InviteForm, PasswordForm, ProfileForm } from "./forms";
+import { BrandingForm } from "./branding-form";
+import { changeRole, regenerateCalendarToken } from "./actions";
+import { assetUrl } from "@/lib/branding";
 
 export const metadata = { title: "Einstellungen" };
 
@@ -74,17 +76,25 @@ export default async function SettingsPage() {
           </Panel>
         )}
         {manage && (
-          <Panel title="Logo">
-            {club.logoPath && (
-              <div className="mb-4 flex items-center gap-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/logo/${club.id}`} alt="Aktuelles Logo" className="border-line size-16 rounded border bg-white object-contain p-1" />
-                <ActionButton action={removeLogo} variant="ghost" confirm="Logo entfernen?">
-                  Entfernen
-                </ActionButton>
-              </div>
-            )}
-            <LogoForm />
+          <Panel title="Erscheinungsbild" className="lg:col-span-2">
+            <BrandingForm
+              branding={{
+                name: club.name,
+                primaryColor: club.primaryColor,
+                accentColor: club.accentColor,
+                fontKey: club.fontKey,
+                loginTitle: club.loginTitle ?? "",
+                loginText: club.loginText ?? "",
+                emailSenderName: club.emailSenderName ?? "",
+                emailFooter: club.emailFooter ?? "",
+                images: {
+                  logo: assetUrl(club, "logo"),
+                  logoDark: assetUrl(club, "logo-dunkel"),
+                  favicon: assetUrl(club, "favicon"),
+                  loginImage: assetUrl(club, "login-bild"),
+                },
+              }}
+            />
           </Panel>
         )}
         <Panel title="Lizenz und Links">
@@ -105,11 +115,11 @@ export default async function SettingsPage() {
             ]}
           />
           <p className="mt-5 mb-2 text-sm font-medium">Link für Mitglieder zur Zugangsanforderung</p>
-          <CopyField value={appUrl(`/registrieren?verein=${club.slug}`)} />
+          <CopyField value={clubUrl(club.slug, "/registrieren")} />
           {club.modules.includes("EVENTS") && (
             <>
               <p className="mt-5 mb-2 text-sm font-medium">Kalender-Abo</p>
-              <CopyField value={appUrl(`/api/kalender/${club.calendarToken}`)} />
+              <CopyField value={clubUrl(club.slug, `/api/kalender/${club.calendarToken}`)} />
               {manage && (
                 <div className="mt-2">
                   <ActionButton action={regenerateCalendarToken} variant="ghost" confirm="Neuen Link erstellen? Bestehende Abos funktionieren dann nicht mehr.">
