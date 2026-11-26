@@ -13,6 +13,9 @@ export const metadata = { title: "Übersicht" };
 
 const ACTIONS: Record<string, string> = {
   login: "hat sich angemeldet",
+  branding_updated: "hat das Erscheinungsbild geändert",
+  impersonation_started: "hat sich als Plattform-Admin angemeldet",
+  slug_changed: "hat die Adresse des Vereins geändert",
   member_created: "hat ein Mitglied angelegt",
   member_updated: "hat ein Mitglied geändert",
   member_deleted: "hat ein Mitglied gelöscht",
@@ -81,10 +84,12 @@ export default async function DashboardPage() {
     thisYear.filter((t) => t.type === "EINNAHME"),
     0,
   );
-  const expense = -balance(
-    thisYear.filter((t) => t.type === "AUSGABE"),
-    0,
-  );
+  const expense = Math.abs(
+    balance(
+      thisYear.filter((t) => t.type === "AUSGABE"),
+      0,
+    ),
+  ); // abs avoids "-€ 0,00"
   const bdays = upcomingBirthdays(birthdays);
 
   return (

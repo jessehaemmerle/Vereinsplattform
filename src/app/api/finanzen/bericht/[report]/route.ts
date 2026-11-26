@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 import { apiUser, forbidden } from "@/lib/api-auth";
 import { formatDate, formatDateTime, formatEur, toNumber } from "@/lib/format";
 import { categorySums, signedCents, TX_LABELS, yearSummaries } from "@/lib/finance";
-import { renderReport, type Section } from "@/lib/pdf";
+import { renderReport, type PdfBrand, type Section } from "@/lib/pdf";
+import { buildTheme } from "@/lib/color";
+import { readStoredFile, sniffImage } from "@/lib/storage";
 
 const txColumns = [
   { header: "Datum", width: 64 },
@@ -26,6 +28,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ report: str
   const opening =
     s?.opening ?? (toNumber(user.club.openingBalance) * 100 + all.filter((t) => t.date.getUTCFullYear() < year).reduce((a, t) => a + signedCents(t), 0)) / 100;
   const subtitle = `${user.club.name} · erstellt am ${formatDateTime(new Date())}`;
+  const logoBytes = user.club.logoPath ? await readStoredFile(user.club.logoPath).catch(() => null) : null;
+  const logoType = logoBytes ? sniffImage(logoBytes) : null;
+  const brand: PdfBrand = {
+    name: user.club.name,
+    color: buildTheme(user.club.primaryColor, user.club.accentColor).light["--loden"],
+    logo: logoBytes && (logoType === "png" || logoType === "jpg") ? { bytes: new Uint8Array(logoBytes), type: logoType } : null,
+  };
   const txRow = (t: (typeof all)[number]) => [
     formatDate(t.date),
     TX_LABELS[t.type],
@@ -56,6 +65,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ report: str
     case "jahresabschluss":
       filename = `jahresabschluss-${year}.pdf`;
       pdf = await renderReport({
+        brand,
         title: `Jahresabschluss ${year}`,
         subtitle,
         summary,
@@ -66,6 +76,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ report: str
       filename = `buchungsjournal-${year}.pdf`;
       let running = Math.round(opening * 100);
       pdf = await renderReport({
+        brand,
         title: `Buchungsjournal ${year}`,
         subtitle,
         summary: [["Anfangsbestand", formatEur(opening)]],
@@ -83,11 +94,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ report: str
     }
     case "kategorien":
       filename = `kategorien-${year}.pdf`;
-      pdf = await renderReport({ title: `Summen nach Kategorie ${year}`, subtitle, summary, sections: [catSection()] });
+      pdf = await renderReport({ brand, title: `Summen nach Kategorie ${year}`, subtitle, summary, sections: [catSection()] });
       break;
     case "jahressaldo":
       filename = "jahressalden.pdf";
       pdf = await renderReport({
+        brand,
         title: "Jahressalden",
         subtitle,
         sections: [

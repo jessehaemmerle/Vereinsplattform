@@ -22,13 +22,40 @@ function truncate(text: string, font: PDFFont, size: number, width: number) {
   return t + "…";
 }
 
-export async function renderReport(opts: { title: string; subtitle: string; summary?: [string, string][]; sections: Section[] }) {
+export type PdfBrand = { name: string; color: string; logo?: { bytes: Uint8Array; type: "png" | "jpg" } | null };
+
+function hexToRgb(hex: string) {
+  const m = hex.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  return m ? rgb(parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255) : ACCENT;
+}
+
+export async function renderReport(opts: { title: string; subtitle: string; summary?: [string, string][]; sections: Section[]; brand?: PdfBrand }) {
   const doc = await PDFDocument.create();
   doc.setTitle(opts.title);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const accent = opts.brand ? hexToRgb(opts.brand.color) : ACCENT;
   let page: PDFPage = doc.addPage(A4);
   let y = A4[1] - MARGIN;
+
+  // letterhead: club logo top right, colour bar
+  if (opts.brand) {
+    page.drawRectangle({ x: 0, y: A4[1] - 8, width: A4[0], height: 8, color: accent });
+    if (opts.brand.logo) {
+      try {
+        const img = opts.brand.logo.type === "png" ? await doc.embedPng(opts.brand.logo.bytes) : await doc.embedJpg(opts.brand.logo.bytes);
+        const scale = Math.min(110 / img.width, 44 / img.height);
+        page.drawImage(img, {
+          x: A4[0] - MARGIN - img.width * scale,
+          y: A4[1] - MARGIN - img.height * scale + 6,
+          width: img.width * scale,
+          height: img.height * scale,
+        });
+      } catch {
+        // a broken logo must never break the report
+      }
+    }
+  }
 
   const newPage = () => {
     page = doc.addPage(A4);
@@ -55,7 +82,7 @@ export async function renderReport(opts: { title: string; subtitle: string; summ
   for (const section of opts.sections) {
     ensure(60);
     if (section.title) {
-      page.drawText(safe(section.title), { x: MARGIN, y, size: 13, font: bold, color: ACCENT });
+      page.drawText(safe(section.title), { x: MARGIN, y, size: 13, font: bold, color: accent });
       y -= 20;
     }
     const drawRow = (cells: string[], f: PDFFont, size: number) => {
@@ -74,7 +101,7 @@ export async function renderReport(opts: { title: string; subtitle: string; summ
         9,
       );
       y -= 5;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: A4[0] - MARGIN, y }, thickness: 0.8, color: ACCENT });
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: A4[0] - MARGIN, y }, thickness: 0.8, color: accent });
       y -= 13;
     };
     drawHeader();
@@ -103,6 +130,7 @@ export async function renderReport(opts: { title: string; subtitle: string; summ
   const pages = doc.getPages();
   pages.forEach((p, i) => {
     const label = `Seite ${i + 1} von ${pages.length}`;
+    p.drawText("powered by Vereinsplattform", { x: MARGIN, y: 24, size: 7, font, color: MUTED });
     p.drawText(label, { x: A4[0] - MARGIN - font.widthOfTextAtSize(label, 8), y: 24, size: 8, font, color: MUTED });
   });
   return doc.save();

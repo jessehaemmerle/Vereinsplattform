@@ -8,8 +8,11 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { Badge, Dl, PageHeader, Panel } from "@/components/ui/misc";
 import { ActionButton } from "@/components/ui/confirm-form";
 import { Button, LinkButton } from "@/components/ui/button";
-import { ModulesForm } from "../../forms";
-import { deleteClub, resendAdminInvite, updateModules } from "../../actions";
+import { LogIn } from "lucide-react";
+import { baseDomain, clubUrl } from "@/lib/hosts";
+import { buildTheme } from "@/lib/color";
+import { ModulesForm, SlugForm } from "../../forms";
+import { changeSlug, createLicenseForPlan, deleteClub, resendAdminInvite, startImpersonation, updateModules } from "../../actions";
 
 export default async function ClubAdminPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePlatformAdmin();
@@ -23,20 +26,63 @@ export default async function ClubAdminPage({ params }: { params: Promise<{ id: 
     },
   });
   if (!club) notFound();
+  const plans = await db.licensePlan.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   const activity = await db.activity.findMany({ where: { clubId: id }, orderBy: { createdAt: "desc" }, take: 20, include: { user: true } });
 
   return (
     <>
       <PageHeader
         title={club.name}
-        description={`Angelegt am ${formatDate(club.createdAt)}`}
+        description={
+          <a href={clubUrl(club.slug)} target="_blank" rel="noreferrer" className="hover:text-loden hover:underline">
+            {club.slug}.{baseDomain()}
+          </a>
+        }
         actions={
-          <LinkButton href="/admin" variant="ghost">
-            Zur Übersicht
-          </LinkButton>
+          <>
+            <LinkButton href="/admin" variant="ghost">
+              Zur Übersicht
+            </LinkButton>
+            <ActionButton
+              action={startImpersonation}
+              fields={{ clubId: club.id }}
+              variant="primary"
+              size="md"
+              confirm={`Als Vereins-Admin im ${club.name} anmelden? Die Sitzung dauert eine Stunde und wird im Protokoll des Vereins vermerkt.`}
+            >
+              <LogIn className="size-4" /> Als Verein einloggen
+            </ActionButton>
+          </>
         }
       />
       <div className="grid gap-6 lg:grid-cols-2">
+        <Panel title="Adresse">
+          <SlugForm action={changeSlug.bind(null, club.id)} slug={club.slug} baseDomain={baseDomain()} />
+          {club.previousSlug && club.slugChangedAt && (
+            <p className="text-muted mt-4 text-sm">
+              Die frühere Adresse {club.previousSlug}.{baseDomain()} leitet bis {formatDate(new Date(club.slugChangedAt.getTime() + 90 * 86_400_000))} weiter.
+            </p>
+          )}
+        </Panel>
+        <Panel title="Erscheinungsbild">
+          <div className="flex items-center gap-4">
+            <span
+              className="size-10 rounded"
+              style={{ background: buildTheme(club.primaryColor, club.accentColor).light["--loden"] }}
+              aria-label="Hauptfarbe"
+            />
+            <span className="size-10 rounded" style={{ background: club.accentColor }} aria-label="Akzentfarbe" />
+            <div className="text-sm">
+              <p>
+                {club.primaryColor} · {club.accentColor}
+              </p>
+              <p className="text-muted">
+                Logo {club.logoPath ? "vorhanden" : "fehlt"} · Schrift {club.fontKey}
+              </p>
+            </div>
+          </div>
+          <p className="text-muted mt-4 text-sm">Der Verein gestaltet das selbst unter Einstellungen → Erscheinungsbild.</p>
+        </Panel>
         <Panel title="Kennzahlen">
           <Dl
             items={[
@@ -68,6 +114,21 @@ export default async function ClubAdminPage({ params }: { params: Promise<{ id: 
                 </li>
               ))}
             </ul>
+          )}
+          {plans.length > 0 && (
+            <form action={createLicenseForPlan} className="border-line mt-5 flex flex-wrap gap-2 border-t pt-4">
+              <input type="hidden" name="clubId" value={club.id} />
+              <select name="planId" aria-label="Paket" className="border-line bg-surface h-8 rounded-md border px-2 text-sm">
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <Button size="sm" variant="secondary">
+                Neue Lizenz aus Paket
+              </Button>
+            </form>
           )}
         </Panel>
         <Panel title="Vorstands-Zugänge">

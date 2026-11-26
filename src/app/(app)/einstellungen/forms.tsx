@@ -1,7 +1,7 @@
 "use client";
 
 import { ActionForm, Checkbox, FormGrid, Input, Select, SubmitButton, Textarea } from "@/components/ui/form";
-import { changePassword, inviteUser, updateClub, updateProfile, uploadLogo } from "./actions";
+import { changePassword, inviteUser, updateClub, updateProfile } from "./actions";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/permissions";
 
 export function ClubForm({
@@ -28,22 +28,6 @@ export function ClubForm({
         />
       </FormGrid>
       <SubmitButton>Vereinsdaten speichern</SubmitButton>
-    </ActionForm>
-  );
-}
-
-export function LogoForm() {
-  return (
-    <ActionForm action={uploadLogo} resetOnOk>
-      <input
-        type="file"
-        name="logo"
-        accept="image/png,image/jpeg,image/webp"
-        required
-        aria-label="Logo"
-        className="file:bg-loden-soft file:text-loden block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:px-3 file:py-2"
-      />
-      <SubmitButton pendingText="Wird hochgeladen …">Logo hochladen</SubmitButton>
     </ActionForm>
   );
 }

@@ -6,7 +6,7 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    baseURL: process.env.E2E_BASE_URL ?? "http://musikverein-gruenbach.localhost:3000",
     trace: "retain-on-failure",
     locale: "de-AT",
     timezoneId: "Europe/Vienna",

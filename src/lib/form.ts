@@ -24,7 +24,7 @@ export function formObject(formData: FormData) {
 }
 
 export function handleError(error: unknown): FormState {
-  if (error instanceof LicenseError) return { error: error.message };
+  if (error instanceof LicenseError || (error instanceof Error && error.name === "UploadError")) return { error: error.message };
   if (isRedirect(error)) throw error;
   console.error(error);
   return { error: "Das hat nicht geklappt. Bitte versuche es erneut." };

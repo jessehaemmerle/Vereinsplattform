@@ -6,15 +6,49 @@ const db = new PrismaClient();
 
 async function main() {
   const password = await bcrypt.hash("demo-passwort-123", 12);
-  const existing = await db.club.findUnique({ where: { slug: "musikverein-gruenbach" } });
-  if (existing) await db.club.delete({ where: { id: existing.id } });
+  await db.club.deleteMany({ where: { OR: [{ slug: "musikverein-gruenbach" }, { name: "Musikverein Grünbach" }] } });
   await db.license.deleteMany({ where: { key: "VP-DEMO-DEMO-DEMO-DEMO" } });
   await db.user.deleteMany({ where: { email: { in: ["obfrau@demo.at", "kassier@demo.at", "mitglied@demo.at"] } } });
+
+  const plans = [
+    {
+      name: "Basis",
+      description: "Kleine Vereine",
+      maxMembers: 100,
+      maxUsers: 3,
+      durationMonths: 12,
+      modules: ["MITGLIEDER", "FINANZEN", "EVENTS", "DOKUMENTE"] as const,
+    },
+    {
+      name: "Plus",
+      description: "Alle Module",
+      maxMembers: 300,
+      maxUsers: 10,
+      durationMonths: 12,
+      modules: ["MITGLIEDER", "FINANZEN", "EVENTS", "NOTIZEN", "DOKUMENTE", "KOMMUNIKATION"] as const,
+    },
+    {
+      name: "Premium",
+      description: "Unbegrenzt",
+      maxMembers: null,
+      maxUsers: null,
+      durationMonths: 12,
+      modules: ["MITGLIEDER", "FINANZEN", "EVENTS", "NOTIZEN", "DOKUMENTE", "KOMMUNIKATION"] as const,
+    },
+  ];
+  for (const p of plans) await db.licensePlan.upsert({ where: { name: p.name }, update: {}, create: { ...p, modules: [...p.modules] } });
+  const plus = await db.licensePlan.findUniqueOrThrow({ where: { name: "Plus" } });
 
   const club = await db.club.create({
     data: {
       name: "Musikverein Grünbach",
       slug: "musikverein-gruenbach",
+      primaryColor: "#7a1f2b",
+      accentColor: "#b8860b",
+      fontKey: "literata",
+      loginTitle: "Willkommen beim Musikverein Grünbach",
+      loginText: "Proben, Auftritte und Beiträge – alles an einem Ort.",
+      emailFooter: "Musikverein Grünbach · Hauptplatz 1 · 4264 Grünbach",
       email: "obfrau@demo.at",
       address: "Hauptplatz 1, 4264 Grünbach",
       iban: "AT611904300234573201",
@@ -22,7 +56,39 @@ async function main() {
       openingBalance: 1250,
     },
   });
-  await db.license.create({ data: { key: "VP-DEMO-DEMO-DEMO-DEMO", name: "Demo", status: "TRIAL", maxMembers: 200, maxUsers: 10, clubId: club.id } });
+  const until = new Date(Date.now() + 20 * 86_400_000);
+  const license = await db.license.create({
+    data: {
+      key: "VP-DEMO-DEMO-DEMO-DEMO",
+      name: "Plus – Musikverein Grünbach",
+      planId: plus.id,
+      status: "ACTIVE",
+      maxMembers: 300,
+      maxUsers: 10,
+      clubId: club.id,
+      validUntil: new Date(until.toISOString().slice(0, 10)),
+    },
+  });
+  await db.licenseEvent.create({ data: { licenseId: license.id, action: "erstellt", detail: "Demo-Daten" } });
+
+  // second club to demonstrate tenant isolation and a different look
+  await db.club.deleteMany({ where: { OR: [{ slug: "sportunion-tal" }, { name: "Sportunion Tal" }, { previousSlug: "sportunion-tal" }] } });
+  await db.user.deleteMany({ where: { email: "obmann@demo.at" } });
+  const second = await db.club.create({
+    data: {
+      name: "Sportunion Tal",
+      slug: "sportunion-tal",
+      primaryColor: "#0b5cad",
+      accentColor: "#e07a00",
+      fontKey: "lexend",
+      users: { create: { email: "obmann@demo.at", name: "Otto Obmann", passwordHash: password, role: "ADMIN" } },
+    },
+  });
+  await db.license.deleteMany({ where: { key: "VP-DEMO-SPORT-UNIO-NTAL" } });
+  await db.license.create({
+    data: { key: "VP-DEMO-SPORT-UNIO-NTAL", name: "Basis – Sportunion Tal", status: "TRIAL", maxMembers: 100, maxUsers: 3, clubId: second.id },
+  });
+  await db.member.create({ data: { clubId: second.id, firstName: "Sarah", lastName: "Sprinter", email: "sarah@demo.at", fee: 60 } });
   await db.user.createMany({
     data: [
       { email: "obfrau@demo.at", name: "Maria Huber", passwordHash: password, role: "ADMIN", clubId: club.id },
@@ -166,7 +232,9 @@ async function main() {
       body: "Hallo {{vorname}},\n\nbitte denk an deinen Mitgliedsbeitrag von {{beitrag}}.\nIBAN: {{iban}}\n\nDanke und liebe Grüße\nDer Vorstand",
     },
   });
-  console.log("Demo-Verein angelegt. Logins (Passwort demo-passwort-123): obfrau@demo.at, kassier@demo.at, mitglied@demo.at");
+  console.log(
+    "Demo-Vereine angelegt (Passwort demo-passwort-123):\n  musikverein-gruenbach: obfrau@demo.at, kassier@demo.at, mitglied@demo.at\n  sportunion-tal: obmann@demo.at",
+  );
 }
 
 main().finally(() => db.$disconnect());

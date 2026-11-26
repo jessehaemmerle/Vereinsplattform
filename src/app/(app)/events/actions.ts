@@ -10,6 +10,7 @@ import { fromDateTimeInput, formatDateTime, viennaDay } from "@/lib/format";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
 import { fillPlaceholders, sendBulk } from "@/lib/mail";
+import { mailBrand } from "@/lib/branding";
 
 const dt = (label: string, required: boolean) =>
   z.preprocess(
@@ -98,6 +99,7 @@ export async function inviteToEvent(eventId: string, _: FormState, formData: For
     const members = await db.member.findMany({ where: { clubId: user.clubId, status: { in: parsed.data.statuses } } });
     if (!members.length) return { error: "In den gewählten Gruppen gibt es keine Mitglieder." };
     const extra = { termin: event.title, datum: formatDateTime(event.startsAt), ort: event.location ?? "" };
+    const brand = mailBrand(user.club);
     const result = await sendBulk(
       members.map((m) => {
         const values = { vorname: m.firstName, nachname: m.lastName, verein: user.club.name, ...extra };
@@ -106,6 +108,7 @@ export async function inviteToEvent(eventId: string, _: FormState, formData: For
           subject: fillPlaceholders(parsed.data.subject, values),
           text: fillPlaceholders(parsed.data.body, values),
           replyTo: user.club.email ?? user.email,
+          brand,
         };
       }),
     );

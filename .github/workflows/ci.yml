@@ -19,7 +19,7 @@ jobs:
         options: --health-cmd pg_isready --health-interval 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://verein:verein@localhost:5432/verein
-      APP_URL: http://localhost:3000
+      BASE_DOMAIN: localhost:3000
       UPLOAD_DIR: ./data/uploads
       DEFAULT_ADMIN_EMAIL: admin@example.com
       DEFAULT_ADMIN_PASSWORD: admin-passwort-123

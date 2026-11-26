@@ -59,7 +59,7 @@
   --color-ok-soft: var(--ok-soft);
   --color-rail: var(--rail);
   --color-rail-ink: var(--rail-ink);
-  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-brand, var(--font-schibsted)), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
