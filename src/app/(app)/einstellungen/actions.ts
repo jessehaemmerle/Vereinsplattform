@@ -18,6 +18,7 @@ import { sendMail } from "@/lib/mail";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
 import { ROLE_LABELS } from "@/lib/permissions";
+import { resetMfa } from "@/lib/mfa-reset";
 
 const clubSchema = z.object({
   name: zf.text("Vereinsname", 100),
@@ -196,6 +197,42 @@ export async function regenerateCalendarToken() {
     const user = await writer("club:manage");
     await db.club.update({ where: { id: user.clubId }, data: { calendarToken: crypto.randomUUID().replace(/-/g, "") } });
     await flash("Neuer Kalender-Link erstellt. Der alte funktioniert nicht mehr.");
+  });
+  revalidatePath("/einstellungen");
+}
+
+export async function updateMfaPolicy(_: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const user = await writer("club:manage");
+    const policy = z.enum(["OPTIONAL", "BOARD", "ALL"]).safeParse(formData.get("mfaPolicy"));
+    if (!policy.success) return { error: "Ungültige Auswahl." };
+    await db.club.update({ where: { id: user.clubId }, data: { mfaPolicy: policy.data } });
+    await logActivity({ clubId: user.clubId, userId: user.id, action: "settings_updated", detail: `Zwei-Faktor-Pflicht: ${policy.data}` });
+    revalidatePath("/", "layout");
+    return {
+      ok:
+        policy.data === "OPTIONAL"
+          ? "Zwei-Faktor-Anmeldung ist freiwillig."
+          : "Gespeichert. Betroffene Zugänge werden beim nächsten Seitenaufruf zur Einrichtung aufgefordert.",
+    };
+  } catch (e) {
+    return handleError(e);
+  }
+}
+
+/** Club admin resets the second factor of another login of the same club (lost phone). */
+export async function resetUserMfa(formData: FormData) {
+  await guarded(async () => {
+    const user = await writer("club:manage");
+    const targetId = String(formData.get("id"));
+    if (targetId === user.id) {
+      await flash("Deinen eigenen zweiten Faktor verwaltest du unter „Sicherheit“.", "error");
+      return;
+    }
+    const target = await db.user.findFirst({ where: { id: targetId, clubId: user.clubId, isPlatformAdmin: false } });
+    if (!target) return;
+    await resetMfa(target.id, user);
+    await flash(`Zwei-Faktor-Anmeldung von ${target.name} zurückgesetzt. Die Person wurde per E-Mail informiert.`);
   });
   revalidatePath("/einstellungen");
 }

@@ -38,3 +38,32 @@ export async function brandColor(page: Page) {
 }
 
 export { expect };
+
+import { existsSync, readFileSync } from "node:fs";
+import { base32Decode, currentStep, hotp } from "../src/lib/totp";
+
+export const ADMIN_STATE = "e2e/.auth/admin.json";
+
+/** Sets up TOTP on the /sicherheit page and returns the secret. */
+export async function enrollTotp(page: Page) {
+  await page.getByRole("button", { name: "Authenticator-App einrichten" }).click();
+  await page.getByText("Schlüssel manuell eingeben").click();
+  const secret = (await page.locator("details code").textContent())!.replace(/\s/g, "");
+  await page.getByLabel("Code aus der App").fill(totpCode(secret));
+  await page.getByRole("button", { name: "Bestätigen und aktivieren" }).click();
+  await page.getByText("Authenticator-App eingerichtet.").waitFor();
+  await page.getByRole("list", { name: "Wiederherstellungscodes" }).waitFor();
+  return secret;
+}
+
+/** Code for the current step plus `offset` (a code can only be used once, so the next login uses the next step). */
+export function totpCode(secret: string, offset = 0) {
+  return hotp(base32Decode(secret), currentStep() + offset);
+}
+
+/** Re-uses the admin session created (with MFA) in global setup. */
+export async function useAdminSession(page: Page) {
+  if (!existsSync(ADMIN_STATE)) throw new Error("Admin-Sitzung fehlt – globalSetup lief nicht");
+  const state = JSON.parse(readFileSync(ADMIN_STATE, "utf8"));
+  await page.context().addCookies(state.cookies);
+}

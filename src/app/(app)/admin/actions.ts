@@ -19,6 +19,7 @@ import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
 import { deleteStoredFile } from "@/lib/storage";
 import { clearTenantCache } from "@/lib/tenant-cache";
+import { resetMfa } from "@/lib/mfa-reset";
 
 const MODULES = ["MITGLIEDER", "FINANZEN", "EVENTS", "NOTIZEN", "DOKUMENTE", "KOMMUNIKATION"] as const;
 const SLUG_GRACE_DAYS = 90;
@@ -298,4 +299,15 @@ export async function deleteLicense(formData: FormData) {
   await flash("Lizenz gelöscht.");
   revalidatePath("/admin");
   redirect("/admin/lizenzen");
+}
+
+/** Platform admin resets the second factor of a club login (lost phone). */
+export async function resetClubUserMfa(formData: FormData) {
+  const admin = await requirePlatformAdmin();
+  const target = await db.user.findFirst({ where: { id: String(formData.get("userId")), isPlatformAdmin: false } });
+  if (target) {
+    await resetMfa(target.id, admin);
+    await flash(`Zwei-Faktor-Anmeldung von ${target.name} zurückgesetzt. Die Person wurde per E-Mail informiert.`);
+  }
+  redirect(`/admin/vereine/${target?.clubId ?? ""}`);
 }

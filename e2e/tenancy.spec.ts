@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD, CLUB, OTHER_CLUB, ROOT, brandColor, browserFetch, expect, login } from "./helpers";
+import { ADMIN, CLUB, OTHER_CLUB, ROOT, brandColor, browserFetch, expect, login, useAdminSession } from "./helpers";
 
 // Multi-tenancy, white label and the super-admin panel. Requires the demo seed.
 
@@ -66,7 +66,7 @@ test("Vereins-Admin ändert Farben und Schrift, alle sehen es sofort", async ({ 
 });
 
 test("Super-Admin loggt sich als Verein ein und kehrt zurück", async ({ page }) => {
-  await login(page, ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await useAdminSession(page);
   await page.goto(`${ADMIN}/admin`);
   await page.getByRole("link", { name: "Sportunion Tal" }).click();
   page.once("dialog", (d) => d.accept());
@@ -82,7 +82,7 @@ test("Super-Admin loggt sich als Verein ein und kehrt zurück", async ({ page })
 });
 
 test("Paket, Lizenz aus Paket, Verlängerung mit Verlauf", async ({ page }) => {
-  await login(page, ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await useAdminSession(page);
   const name = `Test-Paket ${Date.now()}`;
   await page.goto(`${ADMIN}/admin/pakete/neu`);
   await page.getByLabel("Name").fill(name);
@@ -104,7 +104,7 @@ test("Paket, Lizenz aus Paket, Verlängerung mit Verlauf", async ({ page }) => {
 });
 
 test("Neue Subdomain: alte Adresse leitet weiter", async ({ page }) => {
-  await login(page, ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await useAdminSession(page);
   await page.goto(`${ADMIN}/admin`);
   await page.getByRole("link", { name: "Sportunion Tal" }).click();
   await page.waitForURL(/\/admin\/vereine\/[^/]+$/);

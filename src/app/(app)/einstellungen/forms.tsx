@@ -1,7 +1,7 @@
 "use client";
 
 import { ActionForm, Checkbox, FormGrid, Input, Select, SubmitButton, Textarea } from "@/components/ui/form";
-import { changePassword, inviteUser, updateClub, updateProfile } from "./actions";
+import { changePassword, inviteUser, updateClub, updateMfaPolicy, updateProfile } from "./actions";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/permissions";
 
 export function ClubForm({
@@ -65,6 +65,25 @@ export function PasswordForm() {
         <Input label="Wiederholen" name="confirm" type="password" autoComplete="new-password" required />
       </FormGrid>
       <SubmitButton>Passwort ändern</SubmitButton>
+    </ActionForm>
+  );
+}
+
+export function MfaPolicyForm({ policy }: { policy: string }) {
+  return (
+    <ActionForm action={updateMfaPolicy}>
+      <Select
+        label="Wer muss einen zweiten Faktor (App oder Passkey) verwenden?"
+        name="mfaPolicy"
+        defaultValue={policy}
+        options={[
+          { value: "OPTIONAL", label: "Niemand – jede Person entscheidet selbst" },
+          { value: "BOARD", label: "Alle Vorstandszugänge (empfohlen)" },
+          { value: "ALL", label: "Alle, auch Mitglieder" },
+        ]}
+        hint="Wer noch keinen zweiten Faktor hat, wird bei der nächsten Seite zur Einrichtung aufgefordert."
+      />
+      <SubmitButton>Speichern</SubmitButton>
     </ActionForm>
   );
 }

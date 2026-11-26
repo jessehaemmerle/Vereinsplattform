@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD, expect, login } from "./helpers";
+import { ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD, enrollTotp, expect, login } from "./helpers";
 
 // Full onboarding against a running docker compose stack with mailpit, e.g.:
 //   E2E_PROTOCOL=https E2E_BASE_DOMAIN=localhost MAILPIT_URL=http://localhost:8025 npx playwright test onboarding
@@ -24,7 +24,10 @@ test("Super-Admin legt Verein mit Subdomain an, Vereins-Admin startet auf seiner
   const stamp = Date.now();
   const slug = `club${stamp}`;
   const adminMail = `obmann${stamp}@verein.at`;
+  // fresh stack: the platform admin must set up MFA first (or confirm it, if a previous run did)
   await login(page, ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD);
+  if (page.url().endsWith("/sicherheit")) await enrollTotp(page);
+  else if (page.url().includes("/login/mfa")) test.skip(true, "Admin hat bereits MFA aus einem früheren Lauf – Stack neu aufsetzen");
 
   await page.goto(`${ADMIN}/admin/pakete/neu`);
   await page.getByLabel("Name").fill(`Paket ${stamp}`);

@@ -16,6 +16,9 @@ import { getTenant } from "@/lib/tenant";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
 
+/** Same-site path only: no "//host", no backslash tricks, no whitespace. */
+const SAFE_PATH = /^\/(?![\/\\])[^\\\s]*$/;
+
 async function clientIp() {
   const h = await headers();
   // X-Real-IP is set by Caddy from the TCP peer; the last X-Forwarded-For entry is the one added by our own proxy
@@ -39,16 +42,21 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
   if (!rateLimit(limitKey, 8) || !rateLimit(`login-mail:${email}`, 30, 60 * 60_000)) {
     return { error: "Zu viele Anmeldeversuche. Bitte warte 15 Minuten." };
   }
-  const user = await db.user.findUnique({ where: { email }, include: { member: true } });
+  const user = await db.user.findUnique({ where: { email }, include: { member: true, _count: { select: { passkeys: true } } } });
   const valid = await verifyPassword(password, user?.passwordHash ?? null);
   // same message for "wrong password" and "account of another club" – no information about other tenants
   if (!user || !valid || !(await belongsHere(user))) return { error: "E-Mail oder Passwort stimmen nicht." };
   if (user.role === "MITGLIED" && user.member?.status === "AUSGETRETEN") return { error: "Dieser Mitgliedszugang ist nicht mehr aktiv." };
   resetRateLimit(limitKey); // only failed attempts count
+  const next = formData.get("next");
+  const target = typeof next === "string" && SAFE_PATH.test(next) ? next : homeFor(user);
+  if (user.totpEnabledAt || user._count.passkeys > 0) {
+    await createSession(user.id, { mfaPending: true });
+    redirect(`/login/mfa?next=${encodeURIComponent(target)}`);
+  }
   await createSession(user.id);
   await logActivity({ clubId: user.clubId, userId: user.id, action: "login" });
-  const next = formData.get("next");
-  redirect(typeof next === "string" && /^\/(?![\/\\])[^\\\s]*$/.test(next) ? next : homeFor(user));
+  redirect(target);
 }
 
 export async function logout() {
@@ -93,8 +101,14 @@ export async function setPassword(_: FormState, formData: FormData): Promise<For
     db.token.update({ where: { id: token.id }, data: { usedAt: new Date() } }),
     db.session.deleteMany({ where: { userId: token.userId } }),
   ]);
+  await flash("Passwort gespeichert.");
+  // a password reset must not bypass the second factor
+  const passkeys = await db.passkey.count({ where: { userId: token.userId } });
+  if (token.user.totpEnabledAt || passkeys > 0) {
+    await createSession(token.userId, { mfaPending: true });
+    redirect(`/login/mfa?next=${encodeURIComponent(homeFor(token.user))}`);
+  }
   await createSession(token.userId);
-  await flash("Passwort gespeichert. Willkommen!");
   redirect(homeFor(token.user));
 }
 

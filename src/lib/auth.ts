@@ -3,7 +3,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import bcrypt from "bcryptjs";
-import type { Role } from "@prisma/client";
+import type { MfaPolicy, Role } from "@prisma/client";
 import { db } from "@/lib/db";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { can, type Permission } from "@/lib/permissions";
@@ -27,19 +27,27 @@ export async function verifyPassword(password: string, hash: string | null) {
   return bcrypt.compare(password, hash);
 }
 
-export async function createSession(userId: string, opts: { impersonatedClubId?: string; hours?: number } = {}) {
+const MFA_PENDING_MINUTES = 10;
+
+function setCookie(jar: Awaited<ReturnType<typeof cookies>>, token: string, expiresAt: Date) {
+  jar.set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: protocol() === "https", path: "/", expires: expiresAt });
+}
+
+export async function createSession(userId: string, opts: { impersonatedClubId?: string; hours?: number; mfaPending?: boolean } = {}) {
   const token = randomToken();
-  const expiresAt = new Date(Date.now() + (opts.hours ? opts.hours * 3_600_000 : SESSION_DAYS * 86_400_000));
-  await db.session.create({ data: { id: sha256(token), userId, expiresAt, impersonatedClubId: opts.impersonatedClubId ?? null } });
-  if (!opts.impersonatedClubId) await db.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
-  const jar = await cookies();
-  jar.set(COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: protocol() === "https",
-    path: "/",
-    expires: expiresAt,
+  const ms = opts.mfaPending ? MFA_PENDING_MINUTES * 60_000 : opts.hours ? opts.hours * 3_600_000 : SESSION_DAYS * 86_400_000;
+  const expiresAt = new Date(Date.now() + ms);
+  await db.session.create({
+    data: { id: sha256(token), userId, expiresAt, impersonatedClubId: opts.impersonatedClubId ?? null, mfaPending: !!opts.mfaPending },
   });
+  if (!opts.impersonatedClubId && !opts.mfaPending) await db.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
+  setCookie(await cookies(), token, expiresAt);
+}
+
+/** Second factor confirmed: the pending session becomes a full one (new token, so a leaked pending cookie is useless). */
+export async function completeMfa(sessionId: string, userId: string) {
+  await db.session.delete({ where: { id: sessionId } });
+  await createSession(userId);
 }
 
 export async function destroySession() {
@@ -49,41 +57,78 @@ export async function destroySession() {
   jar.delete(COOKIE);
 }
 
-export const getCurrentUser = cache(async () => {
+/** Session of this request with its user, already checked against the host (tenant). */
+const loadSession = cache(async () => {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
   const session = await db.session.findUnique({
     where: { id: sha256(token) },
-    include: { user: { include: { club: true, member: true } } },
+    include: { user: { include: { club: true, member: true, _count: { select: { passkeys: true } } } } },
   });
   if (!session || session.expiresAt < new Date()) return null;
   const tenant = await getTenant();
+  const base = session.user;
+  const mfaEnabled = !!base.totpEnabledAt || base._count.passkeys > 0;
 
   if (session.impersonatedClubId) {
-    // platform admin acting as club admin – only valid on that club's host
-    if (!session.user.isPlatformAdmin || tenant.kind !== "club" || tenant.club?.id !== session.impersonatedClubId) return null;
-    return {
-      ...session.user,
+    // platform admin acting as club admin – only valid on that club's host; MFA was done on the admin host
+    if (!base.isPlatformAdmin || tenant.kind !== "club" || tenant.club?.id !== session.impersonatedClubId) return null;
+    const user = {
+      ...base,
       clubId: tenant.club.id,
       club: tenant.club,
       role: "ADMIN" as const,
       member: null,
       impersonating: { until: session.expiresAt },
+      mfaEnabled,
+      mfaSetupRequired: false,
     };
+    return { session, user };
   }
 
-  const user = { ...session.user, impersonating: null as null | { until: Date } };
-  if (tenant.kind === "admin") return user.isPlatformAdmin ? user : null;
-  if (tenant.kind === "club") return tenant.club && user.clubId === tenant.club.id ? user : null;
-  return null;
+  const valid = tenant.kind === "admin" ? base.isPlatformAdmin : tenant.kind === "club" ? !!tenant.club && base.clubId === tenant.club.id : false;
+  if (!valid) return null;
+  const user = { ...base, impersonating: null as null | { until: Date }, mfaEnabled, mfaSetupRequired: !mfaEnabled && mfaRequired(base, base.club) };
+  return { session, user };
 });
+
+/** Platform admins always; club members according to the club's policy. */
+export function mfaRequired(user: { isPlatformAdmin: boolean; role: Role }, club: { mfaPolicy: MfaPolicy } | null) {
+  if (user.isPlatformAdmin && !club) return true;
+  if (!club) return false;
+  return club.mfaPolicy === "ALL" || (club.mfaPolicy === "BOARD" && user.role !== "MITGLIED");
+}
+
+/** The signed-in user. Null while the second factor is still outstanding. */
+export const getCurrentUser = cache(async () => {
+  const loaded = await loadSession();
+  if (!loaded || loaded.session.mfaPending) return null;
+  return loaded.user;
+});
+
+/** Password accepted, waiting for the second factor (only for the /login/mfa step). */
+export async function getPendingMfa() {
+  const loaded = await loadSession();
+  return loaded?.session.mfaPending ? loaded : null;
+}
+
+/** Full session including its id (for passkey ceremonies and sensitive changes). */
+export async function getActiveSession() {
+  const loaded = await loadSession();
+  return loaded && !loaded.session.mfaPending ? loaded : null;
+}
 
 export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
-export async function requireUser() {
+/**
+ * Signed-in user. Users who must use MFA but have not set it up are sent to /sicherheit until they have –
+ * enforced here so that Server Actions cannot bypass it either.
+ */
+export async function requireUser(opts: { allowMfaSetup?: boolean } = {}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.mfaSetupRequired && !opts.allowMfaSetup) redirect("/sicherheit");
   return user;
 }
 

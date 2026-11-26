@@ -12,7 +12,7 @@ import { LogIn } from "lucide-react";
 import { baseDomain, clubUrl } from "@/lib/hosts";
 import { buildTheme } from "@/lib/color";
 import { ModulesForm, SlugForm } from "../../forms";
-import { changeSlug, createLicenseForPlan, deleteClub, resendAdminInvite, startImpersonation, updateModules } from "../../actions";
+import { changeSlug, createLicenseForPlan, deleteClub, resendAdminInvite, resetClubUserMfa, startImpersonation, updateModules } from "../../actions";
 
 export default async function ClubAdminPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePlatformAdmin();
@@ -21,7 +21,7 @@ export default async function ClubAdminPage({ params }: { params: Promise<{ id: 
     where: { id },
     include: {
       licenses: true,
-      users: { where: { role: { not: "MITGLIED" } }, orderBy: { name: "asc" } },
+      users: { where: { role: { not: "MITGLIED" } }, orderBy: { name: "asc" }, include: { _count: { select: { passkeys: true } } } },
       _count: { select: { members: true, transactions: true, events: true, documents: true } },
     },
   });
@@ -141,6 +141,16 @@ export default async function ClubAdminPage({ params }: { params: Promise<{ id: 
                     · {ROLE_LABELS[u.role]} · {u.email}
                   </span>
                 </span>
+                {(u.totpEnabledAt || u._count.passkeys > 0) && (
+                  <ActionButton
+                    action={resetClubUserMfa}
+                    fields={{ userId: u.id }}
+                    variant="ghost"
+                    confirm={`Zwei-Faktor-Anmeldung von ${u.name} zurücksetzen? Die Person wird abgemeldet und per E-Mail informiert.`}
+                  >
+                    2FA zurücksetzen
+                  </ActionButton>
+                )}
                 {!u.passwordHash && (
                   <ActionButton action={resendAdminInvite} fields={{ userId: u.id }}>
                     Einladung erneut senden

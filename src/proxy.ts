@@ -10,7 +10,7 @@ import { tenantCache, type TenantLookup } from "@/lib/tenant-cache";
  *  - platform pages only on admin.<domain>, club pages only on <club>.<domain>
  */
 const ALWAYS = /^\/(api\/health|api\/tls-check)(\/|$)/;
-const SHARED = /^\/(login|passwort|passwort-vergessen|api\/branding)(\/|$)/;
+const SHARED = /^\/(login|passwort|passwort-vergessen|sicherheit|api\/branding)(\/|$)/;
 const GRACE_MS = 90 * 86_400_000;
 
 type Lookup = TenantLookup;

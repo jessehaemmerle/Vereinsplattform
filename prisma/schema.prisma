@@ -41,6 +41,12 @@ enum TokenPurpose {
   MEMBER_ACTIVATION
 }
 
+enum MfaPolicy {
+  OPTIONAL
+  BOARD
+  ALL
+}
+
 enum Module {
   MITGLIEDER
   FINANZEN
@@ -63,6 +69,8 @@ model Club {
   previousSlug   String?  @unique
   slugChangedAt  DateTime?
   // White-label branding
+  /// who in this club must use a second factor
+  mfaPolicy      MfaPolicy @default(OPTIONAL)
   primaryColor   String   @default("#2e5a44")
   accentColor    String   @default("#a87a1f")
   fontKey        String   @default("schibsted")
@@ -103,8 +111,14 @@ model User {
   member          Member?
   lastLoginAt     DateTime?
   createdAt       DateTime  @default(now())
+  // Multi-factor authentication
+  totpSecretEnc   String?   /// AES-256-GCM encrypted base32 secret (set while enrolling, active once totpEnabledAt is set)
+  totpEnabledAt   DateTime?
+  totpLastStep    Int?      /// last accepted 30 s step – blocks replay of a code
+  recoveryHashes  String[]  @default([])
 
   sessions   Session[]
+  passkeys   Passkey[]
   tokens     Token[]
   documents  Document[]
   activities Activity[]
@@ -118,6 +132,11 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// set when a platform admin acts inside a club ("Als Verein einloggen")
   impersonatedClubId String?
+  /// password accepted, second factor still outstanding
+  mfaPending Boolean  @default(false)
+  mfaAttempts Int     @default(0)
+  /// WebAuthn challenge of the ongoing passkey ceremony
+  webauthnChallenge String?
   expiresAt DateTime
   createdAt DateTime @default(now())
 
@@ -315,4 +334,19 @@ model Activity {
   createdAt DateTime @default(now())
 
   @@index([clubId, createdAt])
+}
+
+model Passkey {
+  id           String    @id /// credential ID (base64url)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicKey    Bytes
+  counter      Int       @default(0)
+  transports   String[]  @default([])
+  rpId         String    /// host the passkey was created on (club subdomain or admin host)
+  name         String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
 }

@@ -20,6 +20,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://verein:verein@localhost:5432/verein
       BASE_DOMAIN: localhost:3000
+      APP_SECRET: ci-only-secret-0123456789-abcdefghij
       UPLOAD_DIR: ./data/uploads
       DEFAULT_ADMIN_EMAIL: admin@example.com
       DEFAULT_ADMIN_PASSWORD: admin-passwort-123

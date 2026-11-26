@@ -10,13 +10,14 @@ import { Badge, Dl, PageHeader, Panel } from "@/components/ui/misc";
 import { ActionButton } from "@/components/ui/confirm-form";
 import { STATUS_LABELS, STATUS_TONES } from "../schema";
 import { deleteMember, inviteMember, toggleFee } from "../actions";
+import { resetUserMfa } from "../../einstellungen/actions";
 
 export default async function MemberPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await staff("members:read", "MITGLIEDER");
   const { id } = await params;
   const member = await db.member.findFirst({
     where: { id, clubId: user.clubId },
-    include: { user: true, transactions: { orderBy: { date: "desc" }, take: 50 } },
+    include: { user: { include: { _count: { select: { passkeys: true } } } }, transactions: { orderBy: { date: "desc" }, take: 50 } },
   });
   if (!member) notFound();
   const year = viennaYear();
@@ -121,6 +122,18 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
               <p className="text-muted mb-4 text-sm">
                 Noch kein Zugang. Mit einer Einladung legt das Mitglied selbst ein Passwort fest und sieht dann seine Daten, Termine und freigegebene Dokumente.
               </p>
+            )}
+            {member.user && (member.user.totpEnabledAt || member.user._count.passkeys > 0) && can(user.role, "club:manage") && member.user.id !== user.id && (
+              <div className="mt-3">
+                <ActionButton
+                  action={resetUserMfa}
+                  fields={{ id: member.user.id }}
+                  variant="ghost"
+                  confirm="Zwei-Faktor-Anmeldung zurücksetzen? Die Person wird abgemeldet und per E-Mail informiert."
+                >
+                  2FA zurücksetzen
+                </ActionButton>
+              </div>
             )}
             {canWrite && !member.user?.passwordHash && member.status !== "AUSGETRETEN" && (
               <ActionButton action={inviteMember} fields={{ id: member.id }} size="md">
