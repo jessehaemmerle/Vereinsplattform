@@ -12,11 +12,19 @@ export async function ensureDefaultAdmin() {
   }
   const name = process.env.DEFAULT_ADMIN_NAME?.trim() || "Plattform-Admin";
   const existing = await db.user.findUnique({ where: { email } });
-  const passwordHash = await hashPassword(password);
   if (existing) {
-    await db.user.update({ where: { id: existing.id }, data: { isPlatformAdmin: true, name, passwordHash } });
+    // the password from .env is only a starting value; reapplying it on every start would undo changes made in the UI
+    const reset = process.env.DEFAULT_ADMIN_RESET_PASSWORD === "true";
+    await db.user.update({
+      where: { id: existing.id },
+      data: { isPlatformAdmin: true, name, ...(reset ? { passwordHash: await hashPassword(password) } : {}) },
+    });
+    if (reset) {
+      await db.session.deleteMany({ where: { userId: existing.id } });
+      console.warn(`[bootstrap] Passwort von ${email} aus DEFAULT_ADMIN_PASSWORD zurückgesetzt – DEFAULT_ADMIN_RESET_PASSWORD wieder entfernen.`);
+    }
   } else {
-    await db.user.create({ data: { email, name, passwordHash, isPlatformAdmin: true, role: "ADMIN" } });
+    await db.user.create({ data: { email, name, passwordHash: await hashPassword(password), isPlatformAdmin: true, role: "ADMIN" } });
     console.info(`[bootstrap] Standard-Admin ${email} angelegt.`);
   }
 }

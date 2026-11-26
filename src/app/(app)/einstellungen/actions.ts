@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Prisma, type Role } from "@prisma/client";
 import { db } from "@/lib/db";
 import { guarded, writer } from "@/lib/guard";
-import { hashPassword, requireUser, verifyPassword } from "@/lib/auth";
+import { getActiveSession, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { formObject, fromZod, handleError, zf, type FormState } from "@/lib/form";
 import { assertUserCapacity } from "@/lib/license";
 import { deleteStoredFile, storeImage } from "@/lib/storage";
@@ -18,6 +18,7 @@ import { sendMail } from "@/lib/mail";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
 import { ROLE_LABELS } from "@/lib/permissions";
+import { resetMfa } from "@/lib/mfa-reset";
 
 const clubSchema = z.object({
   name: zf.text("Vereinsname", 100),
@@ -169,6 +170,7 @@ export async function changeRole(formData: FormData) {
 
 export async function updateProfile(_: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
+  if (user.impersonating) return { error: "Im Vereins-Modus kann das eigene Konto nicht geändert werden." };
   const parsed = z
     .object({ name: zf.text("Name", 100), emailNotifications: zf.checkbox() })
     .safeParse({ emailNotifications: "false", ...formObject(formData) });
@@ -180,6 +182,7 @@ export async function updateProfile(_: FormState, formData: FormData): Promise<F
 
 export async function changePassword(_: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser();
+  if (user.impersonating) return { error: "Im Vereins-Modus kann das eigene Konto nicht geändert werden." };
   const parsed = z
     .object({ current: z.string().min(1, "Aktuelles Passwort fehlt"), password: zf.password(), confirm: z.string() })
     .refine((d) => d.password === d.confirm, { message: "Die Passwörter stimmen nicht überein", path: ["confirm"] })
@@ -187,15 +190,62 @@ export async function changePassword(_: FormState, formData: FormData): Promise<
   if (!parsed.success) return fromZod(parsed.error);
   if (!(await verifyPassword(parsed.data.current, user.passwordHash)))
     return { error: "Das aktuelle Passwort stimmt nicht.", fieldErrors: { current: "Falsch" } };
-  await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.password) } });
-  return { ok: "Passwort geändert." };
+  const active = await getActiveSession();
+  await db.$transaction([
+    db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.password) } }),
+    // a stolen session must not outlive the password change
+    db.session.deleteMany({ where: { userId: user.id, id: { not: active?.session.id ?? "" } } }),
+  ]);
+  await logActivity({ clubId: user.clubId, userId: user.id, action: "password_changed" });
+  return { ok: "Passwort geändert. Alle anderen Sitzungen wurden abgemeldet." };
 }
 
 export async function regenerateCalendarToken() {
   await guarded(async () => {
     const user = await writer("club:manage");
-    await db.club.update({ where: { id: user.clubId }, data: { calendarToken: crypto.randomUUID().replace(/-/g, "") } });
+    await db.club.update({ where: { id: user.clubId }, data: { calendarToken: crypto.randomUUID() } });
     await flash("Neuer Kalender-Link erstellt. Der alte funktioniert nicht mehr.");
+  });
+  revalidatePath("/einstellungen");
+}
+
+export async function updateMfaPolicy(_: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const user = await writer("club:manage");
+    const policy = z.enum(["OPTIONAL", "BOARD", "ALL"]).safeParse(formData.get("mfaPolicy"));
+    if (!policy.success) return { error: "Ungültige Auswahl." };
+    await db.club.update({ where: { id: user.clubId }, data: { mfaPolicy: policy.data } });
+    await logActivity({ clubId: user.clubId, userId: user.id, action: "settings_updated", detail: `Zwei-Faktor-Pflicht: ${policy.data}` });
+    revalidatePath("/", "layout");
+    return {
+      ok:
+        policy.data === "OPTIONAL"
+          ? "Zwei-Faktor-Anmeldung ist freiwillig."
+          : "Gespeichert. Betroffene Zugänge werden beim nächsten Seitenaufruf zur Einrichtung aufgefordert.",
+    };
+  } catch (e) {
+    return handleError(e);
+  }
+}
+
+/** Club admin resets the second factor of another login of the same club (lost phone). */
+export async function resetUserMfa(formData: FormData) {
+  await guarded(async () => {
+    const user = await writer("club:manage");
+    const targetId = String(formData.get("id"));
+    if (targetId === user.id) {
+      await flash("Deinen eigenen zweiten Faktor verwaltest du unter „Sicherheit“.", "error");
+      return;
+    }
+    const target = await db.user.findFirst({ where: { id: targetId, clubId: user.clubId, isPlatformAdmin: false } });
+    if (!target) return;
+    // admins must not be able to strip each other's second factor; that is left to the platform admin
+    if (target.role === "ADMIN") {
+      await flash("Die Zwei-Faktor-Anmeldung eines Vereins-Admins kann nur der Plattform-Betreiber zurücksetzen.", "error");
+      return;
+    }
+    await resetMfa(target.id, user);
+    await flash(`Zwei-Faktor-Anmeldung von ${target.name} zurückgesetzt. Die Person wurde per E-Mail informiert.`);
   });
   revalidatePath("/einstellungen");
 }

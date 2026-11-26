@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { readFlash } from "@/lib/flash";
 import { fontVariables } from "@/lib/fonts";
 import { getTenant } from "@/lib/tenant";
@@ -25,12 +26,13 @@ export async function generateMetadata(): Promise<Metadata> {
 const themeScript = `try{var t=localStorage.getItem("vp-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [flash, tenant] = await Promise.all([readFlash(), getTenant()]);
+  const [flash, tenant, h] = await Promise.all([readFlash(), getTenant(), headers()]);
+  const nonce = h.get("x-nonce") ?? undefined;
   const club = tenant.kind === "club" ? tenant.club : null;
   return (
     <html lang="de-AT" className={fontVariables} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
         {club && <style dangerouslySetInnerHTML={{ __html: brandCss(club) }} />}
       </head>
       <body className="min-h-dvh antialiased">

@@ -7,7 +7,7 @@ const INLINE = new Set(["application/pdf", "image/png", "image/jpeg", "image/gif
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-  if (!user?.clubId) return new Response("Nicht angemeldet", { status: 401 });
+  if (!user?.clubId || user.mfaSetupRequired) return new Response("Nicht angemeldet", { status: 401 });
   const { id } = await ctx.params;
   const doc = await db.document.findFirst({ where: { id, clubId: user.clubId } });
   const allowed = doc && (can(user.role, "docs:read") || (doc.visibleToMembers && !!user.member));

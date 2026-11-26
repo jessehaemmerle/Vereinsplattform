@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   BadgeEuro,
   Building2,
@@ -6,6 +7,7 @@ import {
   Gauge,
   KeyRound,
   Landmark,
+  Lock,
   LogOut,
   Mail,
   NotebookPen,
@@ -64,6 +66,12 @@ export function ClubShell({ user, children }: { user: CurrentUser; children: Rea
   const footer = (
     <div className="space-y-0.5">
       <p className="text-rail-ink/80 truncate px-3 pb-2 text-sm">{user.name}</p>
+      {!user.impersonating && (
+        <Link href="/sicherheit" className={footerBtn}>
+          <Lock className="size-4" />
+          Sicherheit{user.mfaSetupRequired ? " (einrichten!)" : ""}
+        </Link>
+      )}
       <ThemeToggle className={footerBtn} />
       <form action={logout}>
         <button className={footerBtn}>

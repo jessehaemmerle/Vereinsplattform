@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { clubUrl, parseHost, protocol, requestHost } from "@/lib/hosts";
+import { baseDomain, clubUrl, parseHost, protocol, requestHost } from "@/lib/hosts";
 import { tenantCache, type TenantLookup } from "@/lib/tenant-cache";
 
 /**
@@ -10,7 +10,7 @@ import { tenantCache, type TenantLookup } from "@/lib/tenant-cache";
  *  - platform pages only on admin.<domain>, club pages only on <club>.<domain>
  */
 const ALWAYS = /^\/(api\/health|api\/tls-check)(\/|$)/;
-const SHARED = /^\/(login|passwort|passwort-vergessen|api\/branding)(\/|$)/;
+const SHARED = /^\/(login|passwort|passwort-vergessen|sicherheit|api\/branding)(\/|$)/;
 const GRACE_MS = 90 * 86_400_000;
 
 type Lookup = TenantLookup;
@@ -30,8 +30,50 @@ async function lookup(slug: string): Promise<Lookup> {
   return result;
 }
 
+/**
+ * Content-Security-Policy with a fresh nonce per request (Next.js applies it to its own scripts).
+ * Styles allow 'unsafe-inline' because React style attributes cannot carry a nonce; scripts do not.
+ */
+function csp(nonce: string) {
+  const https = protocol() === "https";
+  const dev = process.env.NODE_ENV === "development";
+  const ownHosts = `${protocol()}://${baseDomain()} ${protocol()}://*.${baseDomain()}`;
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    `form-action 'self' ${ownHosts}`,
+    "frame-ancestors 'none'",
+    ...(https ? ["upgrade-insecure-requests"] : []),
+  ].join("; ");
+}
+
+function withNonce(req: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const policy = csp(nonce);
+  const headers = new Headers(req.headers);
+  headers.set("x-nonce", nonce);
+  headers.set("Content-Security-Policy", policy);
+  return { headers, policy };
+}
+
+function pass(req: NextRequest) {
+  const { headers, policy } = withNonce(req);
+  const res = NextResponse.next({ request: { headers } });
+  res.headers.set("Content-Security-Policy", policy);
+  return res;
+}
+
 function notFound(req: NextRequest) {
-  return NextResponse.rewrite(new URL("/nicht-gefunden", req.url), { status: 404 });
+  const { headers, policy } = withNonce(req);
+  const res = NextResponse.rewrite(new URL("/nicht-gefunden", req.url), { status: 404, request: { headers } });
+  res.headers.set("Content-Security-Policy", policy);
+  return res;
 }
 
 export async function proxy(req: NextRequest) {
@@ -48,15 +90,15 @@ export async function proxy(req: NextRequest) {
       if (club.redirectTo) return NextResponse.redirect(clubUrl(club.redirectTo, pathname + search), 308);
       if (!club.exists) return notFound(req);
       if (pathname.startsWith("/admin")) return notFound(req);
-      return NextResponse.next();
+      return pass(req);
     }
     case "admin": {
       if (pathname === "/") return NextResponse.redirect(here("/admin"));
-      if (pathname.startsWith("/admin") || SHARED.test(pathname) || pathname === "/nicht-gefunden") return NextResponse.next();
+      if (pathname.startsWith("/admin") || SHARED.test(pathname) || pathname === "/nicht-gefunden") return pass(req);
       return NextResponse.redirect(here("/admin"));
     }
     case "root":
-      return pathname === "/" || pathname === "/nicht-gefunden" ? NextResponse.next() : NextResponse.redirect(here("/"));
+      return pathname === "/" || pathname === "/nicht-gefunden" ? pass(req) : NextResponse.redirect(here("/"));
     default:
       return notFound(req);
   }

@@ -1,12 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD, CLUB, PASSWORD, browserFetch, login as doLogin } from "./helpers";
+import { ADMIN, CLUB, PASSWORD, browserFetch, login as doLogin, useAdminSession } from "./helpers";
 
 // Requires the demo seed (npm run db:seed) and the default admin from .env. Runs against the club's subdomain.
 test.use({ baseURL: CLUB });
 
 function login(page: Page, email: string, password = PASSWORD) {
-  const ok = !password.startsWith("falsch");
-  return email === ADMIN_EMAIL ? doLogin(page, ADMIN, email, password, ok) : doLogin(page, CLUB, email, password, ok);
+  return doLogin(page, CLUB, email, password, !password.startsWith("falsch"));
 }
 
 test("Login mit falschem Passwort zeigt Fehler", async ({ page }) => {
@@ -84,8 +83,7 @@ test("Mitglied sieht nur den eigenen Bereich", async ({ page }) => {
 });
 
 test("Plattform-Admin legt Lizenz an", async ({ page }) => {
-  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
-  await expect(page).toHaveURL(/admin/);
+  await useAdminSession(page);
   await page.goto(`${ADMIN}/admin/lizenzen/neu`);
   const name = `E2E ${Date.now()}`;
   await page.getByLabel("Bezeichnung").fill(name);

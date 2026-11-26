@@ -15,3 +15,9 @@ export function rateLimit(key: string, limit = 10, windowMs = 15 * 60_000) {
 export function resetRateLimit(key: string) {
   buckets.delete(key);
 }
+
+/** True while the key is over its limit, without counting another hit. */
+export function isLimited(key: string, limit: number) {
+  const bucket = buckets.get(key);
+  return !!bucket && bucket.resetAt > Date.now() && bucket.count >= limit;
+}

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { User } from "@prisma/client";
 import { db } from "@/lib/db";
-import { createSession, destroySession, getCurrentUser, hashPassword, homeFor, verifyPassword } from "@/lib/auth";
+import { createSession, destroySession, getCurrentUser, hashPassword, homeFor, usablePasskeys, verifyPassword } from "@/lib/auth";
 import { fromZod, zf, type FormState } from "@/lib/form";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 import { findValidToken, issueToken } from "@/lib/tokens";
@@ -15,6 +15,9 @@ import { adminUrl, clubUrl } from "@/lib/hosts";
 import { getTenant } from "@/lib/tenant";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
+
+/** Same-site path only: no "//host", no backslash tricks, no whitespace. */
+const SAFE_PATH = /^\/(?![\/\\])[^\\\s]*$/;
 
 async function clientIp() {
   const h = await headers();
@@ -45,10 +48,15 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
   if (!user || !valid || !(await belongsHere(user))) return { error: "E-Mail oder Passwort stimmen nicht." };
   if (user.role === "MITGLIED" && user.member?.status === "AUSGETRETEN") return { error: "Dieser Mitgliedszugang ist nicht mehr aktiv." };
   resetRateLimit(limitKey); // only failed attempts count
+  const next = formData.get("next");
+  const target = typeof next === "string" && SAFE_PATH.test(next) ? next : homeFor(user);
+  if (user.totpEnabledAt || (await usablePasskeys(user.id)) > 0) {
+    await createSession(user.id, { mfaPending: true });
+    redirect(`/login/mfa?next=${encodeURIComponent(target)}`);
+  }
   await createSession(user.id);
   await logActivity({ clubId: user.clubId, userId: user.id, action: "login" });
-  const next = formData.get("next");
-  redirect(typeof next === "string" && /^\/(?![\/\\])[^\\\s]*$/.test(next) ? next : homeFor(user));
+  redirect(target);
 }
 
 export async function logout() {
@@ -93,8 +101,13 @@ export async function setPassword(_: FormState, formData: FormData): Promise<For
     db.token.update({ where: { id: token.id }, data: { usedAt: new Date() } }),
     db.session.deleteMany({ where: { userId: token.userId } }),
   ]);
+  await flash("Passwort gespeichert.");
+  // a password reset must not bypass the second factor
+  if (token.user.totpEnabledAt || (await usablePasskeys(token.userId)) > 0) {
+    await createSession(token.userId, { mfaPending: true });
+    redirect(`/login/mfa?next=${encodeURIComponent(homeFor(token.user))}`);
+  }
   await createSession(token.userId);
-  await flash("Passwort gespeichert. Willkommen!");
   redirect(homeFor(token.user));
 }
 

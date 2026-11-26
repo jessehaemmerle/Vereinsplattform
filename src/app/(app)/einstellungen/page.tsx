@@ -8,9 +8,9 @@ import { clubUrl } from "@/lib/hosts";
 import { Badge, Dl, PageHeader, Panel } from "@/components/ui/misc";
 import { ActionButton } from "@/components/ui/confirm-form";
 import { CopyField } from "@/components/copy-field";
-import { ClubForm, InviteForm, PasswordForm, ProfileForm } from "./forms";
+import { ClubForm, InviteForm, MfaPolicyForm, PasswordForm, ProfileForm } from "./forms";
 import { BrandingForm } from "./branding-form";
-import { changeRole, regenerateCalendarToken } from "./actions";
+import { changeRole, regenerateCalendarToken, resetUserMfa } from "./actions";
 import { assetUrl } from "@/lib/branding";
 
 export const metadata = { title: "Einstellungen" };
@@ -21,7 +21,13 @@ export default async function SettingsPage() {
   const manage = can(user.role, "club:manage");
   const club = user.club;
   const [staff, license] = await Promise.all([
-    manage ? db.user.findMany({ where: { clubId: club.id, role: { not: "MITGLIED" } }, orderBy: { name: "asc" } }) : [],
+    manage
+      ? db.user.findMany({
+          where: { clubId: club.id, role: { not: "MITGLIED" } },
+          orderBy: { name: "asc" },
+          include: { _count: { select: { passkeys: true } } },
+        })
+      : [],
     activeLicense(club.id),
   ]);
 
@@ -45,6 +51,19 @@ export default async function SettingsPage() {
                     </p>
                     <p className="text-muted text-sm">
                       {s.email} · {s.passwordHash ? (s.lastLoginAt ? `zuletzt ${formatDateTime(s.lastLoginAt)}` : "noch nie angemeldet") : "Einladung offen"}
+                    </p>
+                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                      {s.totpEnabledAt || s._count.passkeys ? <Badge tone="ok">2FA aktiv</Badge> : <Badge>ohne 2FA</Badge>}
+                      {s.id !== user.id && s.role !== "ADMIN" && (s.totpEnabledAt || s._count.passkeys > 0) && (
+                        <ActionButton
+                          action={resetUserMfa}
+                          fields={{ id: s.id }}
+                          variant="ghost"
+                          confirm={`Zwei-Faktor-Anmeldung von ${s.name} zurücksetzen? Die Person wird abgemeldet und per E-Mail informiert.`}
+                        >
+                          2FA zurücksetzen
+                        </ActionButton>
+                      )}
                     </p>
                   </div>
                   {s.id === user.id ? (
@@ -71,6 +90,10 @@ export default async function SettingsPage() {
                 </li>
               ))}
             </ul>
+            <h3 className="mb-3 font-medium">Zwei-Faktor-Anmeldung</h3>
+            <div className="mb-8">
+              <MfaPolicyForm policy={club.mfaPolicy} />
+            </div>
             <h3 className="mb-3 font-medium">Neuen Zugang einrichten</h3>
             <InviteForm />
           </Panel>
