@@ -6,7 +6,8 @@ import { ClubCreateForm } from "../../forms";
 
 export const metadata = { title: "Verein anlegen" };
 
-export default async function NewClubPage() {
+export default async function NewClubPage({ searchParams }: { searchParams: Promise<{ name?: string; adminName?: string; adminEmail?: string }> }) {
+  const defaults = await searchParams;
   await requirePlatformAdmin();
   const [plans, licenses] = await Promise.all([
     db.licensePlan.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
@@ -19,7 +20,7 @@ export default async function NewClubPage() {
   return (
     <>
       <PageHeader title="Verein anlegen" />
-      <ClubCreateForm licenseOptions={options} baseDomain={baseDomain()} />
+      <ClubCreateForm licenseOptions={options} baseDomain={baseDomain()} defaults={defaults} />
     </>
   );
 }

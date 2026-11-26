@@ -30,6 +30,23 @@ Mandantenfähige Vereinsverwaltung: Mitglieder, Beiträge, Kassabuch, Termine, D
 
 Ohne gültige Lizenz ist ein Verein schreibgeschützt; Limits der Lizenz werden beim Anlegen und Importieren geprüft.
 
+## Startseite und Rechtliches
+
+Auf der Hauptdomain (`<BASE_DOMAIN>`) läuft die Startseite mit:
+
+- Funktionen und echten Screenshots aus der App
+- Preisliste: Pakete mit Haken „In der Preisliste anzeigen“, Preis pro Jahr und optionaler Empfehlung
+- Anfrageformular und Vereinssuche
+
+Das Formular arbeitet ohne Cookies und ohne fremde Captchas: verstecktes Feld, signierter Zeitstempel und Rate-Limit. Anfragen landen per Mail und unter *Plattform → Anfragen*; mit „Verein anlegen“ wird das Anlegeformular vorausgefüllt.
+
+Rechtliche Seiten: `/impressum`, `/datenschutz`, `/nutzungsbedingungen`, `/auftragsverarbeitung` (AVV nach Art. 28 DSGVO).
+
+- Die Betreiberangaben werden unter *Plattform → Rechtliches* gepflegt; bis die Pflichtangaben ausgefüllt sind, zeigen die Seiten markierte Platzhalter.
+- Die Texte sind Vorlagen nach österreichischem Recht und **ersetzen keine Rechtsberatung**. Vor dem Livegang prüfen lassen.
+- Was die Texte zusagen, muss der Betrieb auch einhalten, vor allem regelmäßige Backups und die Löschung 30 Tage nach Vertragsende.
+- Die Screenshots der Startseite erzeugt `npx tsx scripts/landing-screenshots.ts` aus den Demo-Daten neu.
+
 ## Mandanten und White Label
 
 Jeder Verein hat eine eigene Subdomain und ein eigenes Erscheinungsbild:

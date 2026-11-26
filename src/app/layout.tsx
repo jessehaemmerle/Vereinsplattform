@@ -6,12 +6,13 @@ import { getTenant } from "@/lib/tenant";
 import { assetUrl, brandCss } from "@/lib/branding";
 import { FlashToast } from "@/components/flash";
 import "./globals.css";
+import { platformName } from "@/lib/platform";
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await getTenant();
   const club = tenant.kind === "club" ? tenant.club : null;
   if (!club) {
-    const name = tenant.kind === "admin" ? "Plattform-Verwaltung" : "Vereinsplattform";
+    const name = tenant.kind === "admin" ? "Plattform-Verwaltung" : platformName();
     return { title: { default: name, template: `%s · ${name}` }, description: "Mitglieder, Finanzen, Termine und Dokumente deines Vereins an einem Ort." };
   }
   const icon = assetUrl(club, "favicon") ?? assetUrl(club, "logo");

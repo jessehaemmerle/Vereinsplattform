@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { LinkButton } from "@/components/ui/button";
 import { Badge, EmptyState, PageHeader, Table, Td } from "@/components/ui/misc";
-import { MODULE_LABELS } from "../forms";
+import { MODULE_LABELS } from "@/lib/modules";
 
 export const metadata = { title: "Pakete" };
 

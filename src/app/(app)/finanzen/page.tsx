@@ -25,7 +25,8 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const all = await db.transaction.findMany({ where: { clubId: user.clubId }, select: { type: true, amount: true, date: true, category: true } });
   const years = [...new Set([viennaYear(), ...all.map((t) => t.date.getUTCFullYear())])].sort((a, b) => b - a);
-  const year = Number(sp.jahr) || years[0];
+  // default to the current year – future bookings (e.g. costs of a planned event) must not hide this year's books
+  const year = Number(sp.jahr) || viennaYear();
 
   const where: Prisma.TransactionWhereInput = { clubId: user.clubId, date: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } };
   if (sp.typ === "EINNAHME" || sp.typ === "AUSGABE") where.type = sp.typ;

@@ -42,6 +42,10 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
           durationMonths: plan.durationMonths?.toString() ?? "",
           modules: plan.modules,
           active: plan.active,
+          price: plan.priceCents == null ? "" : (plan.priceCents / 100).toFixed(2).replace(".", ","),
+          publicListed: plan.publicListed,
+          highlighted: plan.highlighted,
+          sortOrder: String(plan.sortOrder),
         }}
       />
     </>

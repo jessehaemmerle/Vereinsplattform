@@ -37,7 +37,7 @@ test("Unbekannte Subdomain zeigt 404, Startseite führt zum Verein", async ({ pa
   expect(res?.status()).toBe(404);
   await page.goto(ROOT);
   await page.getByLabel("Adresse deines Vereins").fill("sportunion-tal");
-  await page.getByRole("button", { name: "Weiter" }).click();
+  await page.getByRole("button", { name: "Zur Anmeldung" }).click();
   await expect(page).toHaveURL(`${OTHER_CLUB}/login`);
 });
 

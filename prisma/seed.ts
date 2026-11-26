@@ -6,6 +6,12 @@ const db = new PrismaClient();
 
 async function main() {
   const password = await bcrypt.hash("demo-passwort-123", 12);
+  const year = new Date().getFullYear();
+  const soon = (days: number, hour: number) => {
+    const d = new Date(Date.now() + days * 86_400_000);
+    d.setUTCHours(hour - 2, 0, 0, 0);
+    return d;
+  };
   await db.club.deleteMany({ where: { OR: [{ slug: "musikverein-gruenbach" }, { name: "Musikverein Grünbach" }] } });
   await db.license.deleteMany({ where: { key: "VP-DEMO-DEMO-DEMO-DEMO" } });
   await db.user.deleteMany({ where: { email: { in: ["obfrau@demo.at", "kassier@demo.at", "mitglied@demo.at"] } } });
@@ -13,7 +19,11 @@ async function main() {
   const plans = [
     {
       name: "Basis",
-      description: "Kleine Vereine",
+      description: "Für kleine Vereine",
+      priceCents: 9900,
+      publicListed: true,
+      highlighted: false,
+      sortOrder: 1,
       maxMembers: 100,
       maxUsers: 3,
       durationMonths: 12,
@@ -21,7 +31,11 @@ async function main() {
     },
     {
       name: "Plus",
-      description: "Alle Module",
+      description: "Alle Module, auch Rundschreiben",
+      priceCents: 19900,
+      publicListed: true,
+      highlighted: true,
+      sortOrder: 2,
       maxMembers: 300,
       maxUsers: 10,
       durationMonths: 12,
@@ -29,14 +43,19 @@ async function main() {
     },
     {
       name: "Premium",
-      description: "Unbegrenzt",
+      description: "Für Dachverbände und große Vereine",
+      priceCents: null,
+      publicListed: true,
+      highlighted: false,
+      sortOrder: 3,
       maxMembers: null,
       maxUsers: null,
       durationMonths: 12,
       modules: ["MITGLIEDER", "FINANZEN", "EVENTS", "NOTIZEN", "DOKUMENTE", "KOMMUNIKATION"] as const,
     },
   ];
-  for (const p of plans) await db.licensePlan.upsert({ where: { name: p.name }, update: {}, create: { ...p, modules: [...p.modules] } });
+  for (const p of plans)
+    await db.licensePlan.upsert({ where: { name: p.name }, update: { ...p, modules: [...p.modules] }, create: { ...p, modules: [...p.modules] } });
   const plus = await db.licensePlan.findUniqueOrThrow({ where: { name: "Plus" } });
 
   const club = await db.club.create({
@@ -88,7 +107,68 @@ async function main() {
   await db.license.create({
     data: { key: "VP-DEMO-SPORT-UNIO-NTAL", name: "Basis – Sportunion Tal", status: "TRIAL", maxMembers: 100, maxUsers: 3, clubId: second.id },
   });
-  await db.member.create({ data: { clubId: second.id, firstName: "Sarah", lastName: "Sprinter", email: "sarah@demo.at", fee: 60 } });
+  const athletes = [
+    ["Sarah", "Sprinter", "Leichtathletik"],
+    ["Jonas", "Huber", "Fußball"],
+    ["Mira", "Kogler", "Turnen"],
+    ["Felix", "Brandl", "Fußball"],
+    ["Emma", "Riegler", "Volleyball"],
+    ["Paul", "Eder", "Tischtennis"],
+    ["Lea", "Mayr", "Turnen"],
+    ["Tobias", "Wimmer", "Fußball"],
+  ] as const;
+  for (const [i, [first, last, section]] of athletes.entries()) {
+    const fee = i % 4 === 0 ? 0 : 60;
+    const paid = i % 3 !== 1 && fee > 0;
+    const m = await db.member.create({
+      data: {
+        clubId: second.id,
+        firstName: first,
+        lastName: last,
+        email: `${first}.${last}@demo.at`.toLowerCase(),
+        function: section,
+        fee,
+        feePaidYear: paid ? year : null,
+        birthday: new Date(Date.UTC(1995 + i, (new Date().getMonth() + i + 1) % 12, 3 + i)),
+        joinedAt: new Date(Date.UTC(2015 + i, 8, 1)),
+      },
+    });
+    if (paid)
+      await db.transaction.create({
+        data: {
+          clubId: second.id,
+          memberId: m.id,
+          feeYear: year,
+          type: "EINNAHME",
+          category: "Mitgliedsbeitrag",
+          amount: fee,
+          date: new Date(Date.UTC(year, 2, 1 + i)),
+          description: `Beitrag ${year} – ${first} ${last}`,
+        },
+      });
+  }
+  await db.club.update({ where: { id: second.id }, data: { openingBalance: 3420 } });
+  await db.transaction.createMany({
+    data: [
+      {
+        clubId: second.id,
+        type: "EINNAHME",
+        category: "Sponsoring",
+        amount: 1200,
+        date: new Date(Date.UTC(year, 1, 12)),
+        description: "Trikotsponsor Autohaus Tal",
+      },
+      { clubId: second.id, type: "AUSGABE", category: "Material", amount: 645.8, date: new Date(Date.UTC(year, 3, 8)), description: "Bälle und Netze" },
+      { clubId: second.id, type: "EINNAHME", category: "Veranstaltung", amount: 1980, date: new Date(Date.UTC(year, 5, 22)), description: "Sommerturnier" },
+    ],
+  });
+  await db.event.createMany({
+    data: [
+      { clubId: second.id, title: "Training U12", location: "Sportplatz Tal", startsAt: soon(2, 17) },
+      { clubId: second.id, title: "Heimspiel gegen SV Berg", location: "Sportplatz Tal", startsAt: soon(6, 15) },
+      { clubId: second.id, title: "Weihnachtsfeier", location: "Vereinsheim", startsAt: soon(24, 18) },
+    ],
+  });
   await db.user.createMany({
     data: [
       { email: "obfrau@demo.at", name: "Maria Huber", passwordHash: password, role: "ADMIN", clubId: club.id },
@@ -108,7 +188,6 @@ async function main() {
     ["Julia", "Steiner", "Saxophon", 25],
     ["Thomas", "Berger", "Schlagwerk", 40],
   ] as const;
-  const year = new Date().getFullYear();
   for (const [i, [first, last, fn, fee]] of people.entries()) {
     const email = i === 4 ? "mitglied@demo.at" : i < 2 ? (i === 0 ? "obfrau@demo.at" : "kassier@demo.at") : `${first}.${last}@demo.at`.toLowerCase();
     const paid = i % 3 !== 0 && fee > 0;
@@ -183,11 +262,6 @@ async function main() {
       { clubId: club.id, type: "AUSGABE", category: "Miete", amount: 600, date: new Date(Date.UTC(year - 1, 11, 1)), description: "Probelokal 2. Halbjahr" },
     ],
   });
-  const soon = (days: number, hour: number) => {
-    const d = new Date(Date.now() + days * 86_400_000);
-    d.setUTCHours(hour - 2, 0, 0, 0);
-    return d;
-  };
   const concert = await db.event.create({
     data: {
       clubId: club.id,
