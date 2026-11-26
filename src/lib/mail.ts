@@ -53,6 +53,43 @@ export async function sendMail(mail: Mail) {
   });
 }
 
+/**
+ * Sends and reports failure instead of throwing – for mails that follow a change already saved
+ * (a broken mail server must not make a successful action look failed).
+ */
+export async function trySendMail(mail: Mail): Promise<boolean> {
+  try {
+    await sendMail(mail);
+    return true;
+  } catch (error) {
+    console.error(`[mail] Versand an ${mail.to} fehlgeschlagen`, error);
+    return false;
+  }
+}
+
+/** Plain-language reason for a mail server error (shown to platform admins when testing the setup). */
+export function describeMailError(error: unknown) {
+  const e = error as { code?: string; responseCode?: number; message?: string };
+  // nodemailer often wraps the network error as ESOCKET and keeps the original code only in the message
+  const has = (code: string) => e.code === code || (e.message ?? "").includes(code);
+  if (has("ECONNREFUSED")) return "Der Mailserver lehnt die Verbindung ab – stimmen SMTP_HOST und SMTP_PORT?";
+  if (has("ENOTFOUND") || has("EAI_AGAIN") || e.code === "EDNS") return "Der Mailserver wurde nicht gefunden – SMTP_HOST prüfen.";
+  if (has("ETIMEDOUT") || e.code === "ESOCKET") return "Keine Antwort vom Mailserver – Port, SMTP_SECURE oder Firewall prüfen.";
+  if (e.code === "EAUTH" || e.responseCode === 535) return "Anmeldung am Mailserver fehlgeschlagen – SMTP_USER und SMTP_PASSWORD prüfen.";
+  if (e.responseCode === 550 || e.responseCode === 553) return "Der Mailserver akzeptiert die Absenderadresse nicht – SMTP_FROM prüfen.";
+  return e.message ?? String(error);
+}
+
+export async function verifyMailSetup() {
+  if (!mailConfigured()) return { ok: false, message: "SMTP_HOST ist nicht gesetzt – E-Mails werden nur ins Server-Log geschrieben." };
+  try {
+    await getTransporter().verify();
+    return { ok: true, message: "Verbindung zum Mailserver funktioniert." };
+  } catch (error) {
+    return { ok: false, message: describeMailError(error) };
+  }
+}
+
 /** Sends one mail per recipient so addresses are never disclosed to each other. */
 export async function sendBulk(mails: Mail[]) {
   let failed = 0;

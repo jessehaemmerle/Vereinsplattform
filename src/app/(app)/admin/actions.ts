@@ -13,7 +13,7 @@ import { slugify } from "@/lib/format";
 import { clubUrl, isValidSlug } from "@/lib/hosts";
 import { issueToken } from "@/lib/tokens";
 import { randomToken, sha256 } from "@/lib/crypto";
-import { sendMail } from "@/lib/mail";
+import { describeMailError, sendMail, trySendMail, verifyMailSetup } from "@/lib/mail";
 import { mailBrand } from "@/lib/branding";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
@@ -51,6 +51,7 @@ const slugField = z
 
 export async function createClub(_: FormState, formData: FormData): Promise<FormState> {
   let clubId = "";
+  let mailSent = true;
   try {
     const admin = await requirePlatformAdmin();
     const parsed = z
@@ -69,21 +70,24 @@ export async function createClub(_: FormState, formData: FormData): Promise<Form
     const slug = parsed.data.slug ?? (await suggestSlug(name));
     if (await slugTaken(slug)) return { error: "Diese Subdomain ist bereits vergeben.", fieldErrors: { slug: "Bereits vergeben" } };
 
-    const club = await db.club.create({
-      data: { name, slug, email: adminEmail, users: { create: { name: adminName, email: adminEmail, role: "ADMIN" } } },
-      include: { users: true },
+    const plan = license?.startsWith("plan:") ? await db.licensePlan.findUnique({ where: { id: license.slice(5) } }) : null;
+    // club, first admin and license: all or nothing
+    const club = await db.$transaction(async (tx) => {
+      const created = await tx.club.create({
+        data: { name, slug, email: adminEmail, users: { create: { name: adminName, email: adminEmail, role: "ADMIN" } } },
+        include: { users: true },
+      });
+      if (license?.startsWith("license:")) {
+        await tx.license.updateMany({ where: { id: license.slice(8), clubId: null }, data: { clubId: created.id } });
+      }
+      return created;
     });
     clubId = club.id;
     clearTenantCache();
-    if (license?.startsWith("plan:")) {
-      const plan = await db.licensePlan.findUnique({ where: { id: license.slice(5) } });
-      if (plan) await createLicenseFromPlan(plan, { clubId: club.id, name: `${plan.name} – ${name}`, userId: admin.id });
-    } else if (license?.startsWith("license:")) {
-      const { count } = await db.license.updateMany({ where: { id: license.slice(8), clubId: null }, data: { clubId: club.id } });
-      if (count) await logLicense(license.slice(8), admin.id, "zugewiesen", name);
-    }
+    if (plan) await createLicenseFromPlan(plan, { clubId: club.id, name: `${plan.name} – ${name}`, userId: admin.id });
+    else if (license?.startsWith("license:")) await logLicense(license.slice(8), admin.id, "zugewiesen", name);
     const token = await issueToken(club.users[0].id, "PASSWORD_SETUP");
-    await sendMail({
+    mailSent = await trySendMail({
       to: adminEmail,
       subject: `Dein Zugang für ${name}`,
       text: `Hallo ${adminName},\n\nfür ${name} wurde ein eigener Bereich eingerichtet, du bist Vereins-Admin. Er ist erreichbar unter ${clubUrl(slug)}\n\nLege über diesen Link dein Passwort fest:\n${clubUrl(slug, `/passwort/${token}`)}\n\nDer Link ist sieben Tage gültig. Unter Einstellungen → Erscheinungsbild kannst du Farben, Logo und Schrift eures Vereins festlegen.`,
@@ -95,7 +99,12 @@ export async function createClub(_: FormState, formData: FormData): Promise<Form
       return { error: "Ein Verein mit diesem Namen existiert bereits.", fieldErrors: { name: "Bereits vergeben" } };
     return handleError(e);
   }
-  await flash("Verein angelegt, die Einladung an den Vereins-Admin ist unterwegs.");
+  await flash(
+    mailSent
+      ? "Verein angelegt, die Einladung an den Vereins-Admin ist unterwegs."
+      : "Verein angelegt. Die Einladungs-E-Mail konnte aber nicht gesendet werden – bitte unter „Rechtliches“ den Mailversand testen und danach hier „Einladung erneut senden“ wählen.",
+    mailSent ? "success" : "error",
+  );
   revalidatePath("/admin");
   redirect(`/admin/vereine/${clubId}`);
 }
@@ -137,13 +146,16 @@ export async function resendAdminInvite(formData: FormData) {
   const user = await db.user.findUnique({ where: { id: String(formData.get("userId")) }, include: { club: true } });
   if (user?.club && !user.passwordHash) {
     const token = await issueToken(user.id, "PASSWORD_SETUP");
-    await sendMail({
+    const sent = await trySendMail({
       to: user.email,
       subject: `Dein Zugang für ${user.club.name}`,
       text: `Hallo ${user.name},\n\nhier ist dein neuer Link zum Festlegen des Passworts:\n${clubUrl(user.club.slug, `/passwort/${token}`)}`,
       brand: mailBrand(user.club),
     });
-    await flash(`Einladung erneut an ${user.email} gesendet.`);
+    await flash(
+      sent ? `Einladung erneut an ${user.email} gesendet.` : `Die E-Mail konnte nicht gesendet werden – bitte den Mailversand (SMTP) prüfen.`,
+      sent ? "success" : "error",
+    );
   }
   redirect(`/admin/vereine/${user?.clubId ?? ""}`);
 }
@@ -360,4 +372,17 @@ export async function markRequestHandled(formData: FormData) {
   const req = await db.contactRequest.findUnique({ where: { id } });
   if (req) await db.contactRequest.update({ where: { id }, data: { handledAt: req.handledAt ? null : new Date() } });
   revalidatePath("/admin/anfragen");
+}
+
+/** Checks the SMTP connection and sends a test mail to the signed-in platform admin. */
+export async function sendTestMail(): Promise<FormState> {
+  const admin = await requirePlatformAdmin();
+  const check = await verifyMailSetup();
+  if (!check.ok) return { error: check.message };
+  try {
+    await sendMail({ to: admin.email, subject: "Test-E-Mail", text: `Hallo ${admin.name},\n\nder Mailversand der Plattform funktioniert.` });
+    return { ok: `Test-E-Mail an ${admin.email} gesendet. Kommt sie nicht an, Spam-Ordner und SPF/DKIM der Absenderdomain prüfen.` };
+  } catch (error) {
+    return { error: describeMailError(error) };
+  }
 }

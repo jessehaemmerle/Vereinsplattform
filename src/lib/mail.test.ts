@@ -29,3 +29,13 @@ describe("branded mail", () => {
     expect(renderHtml("x", { ...brand, color: "red;background:url(x)" })).toContain("background:#2e5a44");
   });
 });
+
+describe("describeMailError", async () => {
+  const { describeMailError } = await import("./mail");
+  it("explains common SMTP problems in plain words", () => {
+    expect(describeMailError({ code: "ESOCKET", message: "connect ECONNREFUSED 127.0.0.1:2599" })).toContain("lehnt die Verbindung ab");
+    expect(describeMailError({ code: "EDNS", message: "getaddrinfo ENOTFOUND smtp.x" })).toContain("nicht gefunden");
+    expect(describeMailError({ code: "EAUTH", responseCode: 535 })).toContain("SMTP_USER");
+    expect(describeMailError({ code: "ESOCKET", message: "Greeting never received" })).toContain("Keine Antwort");
+  });
+});

@@ -14,7 +14,7 @@ import { FONT_OPTIONS, type FontKey } from "@/lib/font-options";
 import { issueToken } from "@/lib/tokens";
 import { clubUrl } from "@/lib/hosts";
 import { mailBrand } from "@/lib/branding";
-import { sendMail } from "@/lib/mail";
+import { trySendMail } from "@/lib/mail";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
 import { ROLE_LABELS } from "@/lib/permissions";
@@ -127,9 +127,10 @@ export async function inviteUser(_: FormState, formData: FormData): Promise<Form
       : await db.user.create({ data: { name, email, role, clubId: user.clubId } });
     const member = await db.member.findFirst({ where: { clubId: user.clubId, email, userId: null } });
     if (member) await db.member.update({ where: { id: member.id }, data: { userId: target.id } });
+    let sent = true;
     if (!target.passwordHash) {
       const token = await issueToken(target.id, "PASSWORD_SETUP");
-      await sendMail({
+      sent = await trySendMail({
         to: email,
         subject: `Dein Zugang für ${user.club.name}`,
         text: `Hallo ${name},\n\n${user.name} hat dir einen Zugang als ${ROLE_LABELS[role]} für ${user.club.name} eingerichtet. Lege über diesen Link dein Passwort fest:\n${clubUrl(user.club.slug, `/passwort/${token}`)}\n\nDer Link ist sieben Tage gültig.`,
@@ -138,6 +139,11 @@ export async function inviteUser(_: FormState, formData: FormData): Promise<Form
     }
     await logActivity({ clubId: user.clubId, userId: user.id, action: "user_invited", detail: `${name} (${ROLE_LABELS[role]})` });
     revalidatePath("/einstellungen");
+    if (!sent)
+      return {
+        ok: `Zugang für ${name} angelegt.`,
+        error: "Die Einladungs-E-Mail konnte nicht gesendet werden. Bitte den Vereins-Admin der Plattform bitten, den Mailversand zu prüfen.",
+      };
     return { ok: target.passwordHash ? `${name} ist jetzt ${ROLE_LABELS[role]}.` : `Einladung an ${email} gesendet.` };
   } catch (e) {
     return handleError(e);
