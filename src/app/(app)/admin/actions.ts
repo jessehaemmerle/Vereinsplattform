@@ -183,6 +183,13 @@ export async function deleteClub(formData: FormData) {
 // ---------- License plans ----------
 
 const planSchema = z.object({
+  priceCents: z.preprocess(
+    (v) => (typeof v === "string" ? (v.trim() === "" ? null : Math.round(Number(v.replace(/\s/g, "").replace(",", ".")) * 100)) : v),
+    z.number({ error: "Preis ist keine Zahl" }).int().min(0).max(100_000_00).nullable(),
+  ),
+  publicListed: zf.checkbox(),
+  highlighted: zf.checkbox(),
+  sortOrder: zf.optInt(),
   name: zf.text("Name", 80),
   description: zf.optText(500),
   maxUsers: zf.optInt(),
@@ -194,10 +201,10 @@ const planSchema = z.object({
 export async function savePlan(id: string | null, _: FormState, formData: FormData): Promise<FormState> {
   try {
     await requirePlatformAdmin();
-    const parsed = planSchema.safeParse({ active: "false", ...formObject(formData) });
+    const parsed = planSchema.safeParse({ active: "false", publicListed: "false", highlighted: "false", ...formObject(formData) });
     if (!parsed.success) return fromZod(parsed.error);
     const modules = formData.getAll("modules").filter((m) => (MODULES as readonly string[]).includes(String(m))) as Module[];
-    const data = { ...parsed.data, modules };
+    const data = { ...parsed.data, sortOrder: parsed.data.sortOrder ?? 0, modules };
     if (id) await db.licensePlan.update({ where: { id }, data });
     else await db.licensePlan.create({ data });
   } catch (e) {
@@ -310,4 +317,47 @@ export async function resetClubUserMfa(formData: FormData) {
     await flash(`Zwei-Faktor-Anmeldung von ${target.name} zurückgesetzt. Die Person wurde per E-Mail informiert.`);
   }
   redirect(`/admin/vereine/${target?.clubId ?? ""}`);
+}
+
+const optional = (max = 300) => zf.optText(max);
+
+export async function saveLegal(_: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const admin = await requirePlatformAdmin();
+    const parsed = z
+      .object({
+        operatorName: optional(200),
+        legalForm: optional(100),
+        street: optional(200),
+        zipCity: optional(200),
+        country: optional(100),
+        email: z.preprocess((v) => (v === "" ? null : v), zf.email().nullable()),
+        phone: optional(60),
+        vatId: optional(40),
+        companyRegister: optional(200),
+        businessPurpose: optional(300),
+        authority: optional(200),
+        chamber: optional(300),
+        representative: optional(200),
+        hostingProvider: optional(300),
+        mailProvider: optional(300),
+        contactEmail: z.preprocess((v) => (v === "" ? null : v), zf.email().nullable()),
+      })
+      .safeParse(formObject(formData));
+    if (!parsed.success) return fromZod(parsed.error);
+    await db.platformSettings.upsert({ where: { id: "default" }, create: { id: "default", ...parsed.data }, update: parsed.data });
+    await logActivity({ userId: admin.id, action: "legal_updated" });
+    revalidatePath("/", "layout");
+    return { ok: "Angaben gespeichert. Impressum und Datenschutzerklärung sind aktualisiert." };
+  } catch (e) {
+    return handleError(e);
+  }
+}
+
+export async function markRequestHandled(formData: FormData) {
+  await requirePlatformAdmin();
+  const id = String(formData.get("id"));
+  const req = await db.contactRequest.findUnique({ where: { id } });
+  if (req) await db.contactRequest.update({ where: { id }, data: { handledAt: req.handledAt ? null : new Date() } });
+  revalidatePath("/admin/anfragen");
 }

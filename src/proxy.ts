@@ -11,6 +11,8 @@ import { tenantCache, type TenantLookup } from "@/lib/tenant-cache";
  */
 const ALWAYS = /^\/(api\/health|api\/tls-check)(\/|$)/;
 const SHARED = /^\/(login|passwort|passwort-vergessen|sicherheit|api\/branding)(\/|$)/;
+/** Public pages on the bare domain: landing page, legal pages and their static images. */
+const ROOT_PAGES = /^\/(|impressum|datenschutz|nutzungsbedingungen|auftragsverarbeitung|nicht-gefunden)$|^\/landing\//;
 const GRACE_MS = 90 * 86_400_000;
 
 type Lookup = TenantLookup;
@@ -98,7 +100,7 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(here("/admin"));
     }
     case "root":
-      return pathname === "/" || pathname === "/nicht-gefunden" ? pass(req) : NextResponse.redirect(here("/"));
+      return ROOT_PAGES.test(pathname) ? pass(req) : NextResponse.redirect(here("/"));
     default:
       return notFound(req);
   }

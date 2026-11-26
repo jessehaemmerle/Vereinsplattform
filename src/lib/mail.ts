@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import { platformName } from "@/lib/platform";
 
 let transporter: Transporter | null = null;
 
@@ -24,7 +25,7 @@ export type MailBrand = { name: string; senderName: string; color: string; logoU
 
 export type Mail = { to: string; subject: string; text: string; replyTo?: string | null; brand?: MailBrand | null };
 
-const PLATFORM_NAME = "Vereinsplattform";
+const PLATFORM_NAME = platformName();
 
 /** From header: the club's sender name with the platform's verified address (keeps SPF/DKIM intact). */
 export function fromHeader(brand?: MailBrand | null) {

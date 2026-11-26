@@ -7,17 +7,9 @@ import { LinkButton } from "@/components/ui/button";
 import type { FormState } from "@/lib/form";
 import { slugify } from "@/lib/format";
 import { createClub } from "./actions";
+import { MODULE_LABELS } from "@/lib/modules";
 
 type Action = (s: FormState, f: FormData) => Promise<FormState>;
-
-export const MODULE_LABELS: Record<Module, string> = {
-  MITGLIEDER: "Mitglieder",
-  FINANZEN: "Finanzen",
-  EVENTS: "Termine",
-  NOTIZEN: "Notizen",
-  DOKUMENTE: "Dokumente",
-  KOMMUNIKATION: "Nachrichten",
-};
 
 function SubdomainInput({
   defaultValue,
@@ -53,12 +45,26 @@ function SubdomainInput({
   );
 }
 
-export function ClubCreateForm({ licenseOptions, baseDomain }: { licenseOptions: { value: string; label: string }[]; baseDomain: string }) {
-  const [slug, setSlug] = useState("");
+export function ClubCreateForm({
+  licenseOptions,
+  baseDomain,
+  defaults,
+}: {
+  licenseOptions: { value: string; label: string }[];
+  baseDomain: string;
+  defaults?: { name?: string; adminName?: string; adminEmail?: string };
+}) {
+  const [slug, setSlug] = useState(defaults?.name ? slugify(defaults.name).slice(0, 36) : "");
   const [touched, setTouched] = useState(false);
   return (
     <ActionForm action={createClub} className="max-w-2xl">
-      <Input label="Vereinsname" name="name" required onChange={(e) => !touched && setSlug(slugify(e.target.value).slice(0, 36))} />
+      <Input
+        label="Vereinsname"
+        name="name"
+        required
+        defaultValue={defaults?.name}
+        onChange={(e) => !touched && setSlug(slugify(e.target.value).slice(0, 36))}
+      />
       <SubdomainInput
         baseDomain={baseDomain}
         value={slug}
@@ -71,8 +77,8 @@ export function ClubCreateForm({ licenseOptions, baseDomain }: { licenseOptions:
         <legend className="mb-1 font-semibold">Vereins-Admin</legend>
         <p className="text-muted text-sm">Bekommt eine E-Mail mit der Adresse des Vereins und einem Link zum Festlegen des Passworts.</p>
         <FormGrid>
-          <Input label="Name" name="adminName" required />
-          <Input label="E-Mail" name="adminEmail" type="email" required />
+          <Input label="Name" name="adminName" required defaultValue={defaults?.adminName} />
+          <Input label="E-Mail" name="adminEmail" type="email" required defaultValue={defaults?.adminEmail} />
         </FormGrid>
       </fieldset>
       <Select
@@ -113,7 +119,19 @@ export function ModulesForm({ action, modules }: { action: Action; modules: Modu
   );
 }
 
-type PlanData = { name: string; description: string; maxUsers: string; maxMembers: string; durationMonths: string; modules: Module[]; active: boolean };
+type PlanData = {
+  name: string;
+  description: string;
+  maxUsers: string;
+  maxMembers: string;
+  durationMonths: string;
+  modules: Module[];
+  active: boolean;
+  price: string;
+  publicListed: boolean;
+  highlighted: boolean;
+  sortOrder: string;
+};
 
 export function PlanForm({ action, plan }: { action: Action; plan?: PlanData }) {
   return (
@@ -134,6 +152,15 @@ export function PlanForm({ action, plan }: { action: Action; plan?: PlanData }) 
         </div>
       </fieldset>
       <Checkbox label="Für neue Lizenzen verfügbar" name="active" defaultChecked={plan?.active ?? true} />
+      <fieldset className="border-line space-y-4 border-t pt-5">
+        <legend className="mb-1 font-semibold">Auf der Startseite</legend>
+        <FormGrid>
+          <Input label="Preis pro Jahr (EUR, brutto)" name="priceCents" inputMode="decimal" defaultValue={plan?.price} hint="Leer = „auf Anfrage“" />
+          <Input label="Reihenfolge" name="sortOrder" type="number" min={0} defaultValue={plan?.sortOrder ?? "0"} />
+        </FormGrid>
+        <Checkbox label="In der Preisliste anzeigen" name="publicListed" defaultChecked={plan?.publicListed} />
+        <Checkbox label="Als Empfehlung hervorheben" name="highlighted" defaultChecked={plan?.highlighted} />
+      </fieldset>
       <div className="flex gap-3">
         <SubmitButton>Paket speichern</SubmitButton>
         <LinkButton href="/admin/pakete" variant="ghost">

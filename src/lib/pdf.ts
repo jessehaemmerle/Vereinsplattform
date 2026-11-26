@@ -1,5 +1,6 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { platformName } from "@/lib/platform";
 
 export type Column = { header: string; width: number; align?: "left" | "right" };
 export type Section = { title?: string; columns: Column[]; rows: string[][]; footer?: string[] };
@@ -130,7 +131,7 @@ export async function renderReport(opts: { title: string; subtitle: string; summ
   const pages = doc.getPages();
   pages.forEach((p, i) => {
     const label = `Seite ${i + 1} von ${pages.length}`;
-    p.drawText("powered by Vereinsplattform", { x: MARGIN, y: 24, size: 7, font, color: MUTED });
+    p.drawText(`powered by ${platformName()}`, { x: MARGIN, y: 24, size: 7, font, color: MUTED });
     p.drawText(label, { x: A4[0] - MARGIN - font.widthOfTextAtSize(label, 8), y: 24, size: 8, font, color: MUTED });
   });
   return doc.save();

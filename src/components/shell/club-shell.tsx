@@ -12,6 +12,8 @@ import {
   Mail,
   NotebookPen,
   Package,
+  Inbox,
+  Scale,
   Settings,
   ShieldAlert,
   Users,
@@ -24,6 +26,8 @@ import { logout } from "@/app/(auth)/actions";
 import { Shell, type NavItem } from "@/components/shell/nav";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { BrandLogo } from "@/components/brand-logo";
+import { platformName } from "@/lib/platform";
+import { rootUrl } from "@/lib/hosts";
 
 const footerBtn = "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-rail-ink/70 hover:bg-white/5 hover:text-rail-ink";
 const timeFmt = new Intl.DateTimeFormat("de-AT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Vienna" });
@@ -38,6 +42,8 @@ export function ClubShell({ user, children }: { user: CurrentUser; children: Rea
     add(true, { href: "/admin", label: "Vereine", icon: <Building2 /> });
     add(true, { href: "/admin/lizenzen", label: "Lizenzen", icon: <KeyRound /> });
     add(true, { href: "/admin/pakete", label: "Pakete", icon: <Package /> });
+    add(true, { href: "/admin/anfragen", label: "Anfragen", icon: <Inbox /> });
+    add(true, { href: "/admin/rechtliches", label: "Rechtliches", icon: <Scale /> });
   } else {
     const modules = new Set<Module>(club.modules);
     if (user.role !== "MITGLIED") {
@@ -57,7 +63,7 @@ export function ClubShell({ user, children }: { user: CurrentUser; children: Rea
     <div className="flex items-center gap-3">
       {club ? <BrandLogo club={club} className="size-9 shrink-0 rounded bg-white p-0.5" /> : <BadgeEuro className="size-7 shrink-0" />}
       <div className="min-w-0">
-        <p className="truncate text-[17px] leading-tight font-semibold">{club?.name ?? "Vereinsplattform"}</p>
+        <p className="truncate text-[17px] leading-tight font-semibold">{club?.name ?? platformName()}</p>
         <p className="text-rail-ink/60 truncate text-xs">{club ? ROLE_LABELS[user.role] : "Plattform-Verwaltung"}</p>
       </div>
     </div>
@@ -79,7 +85,15 @@ export function ClubShell({ user, children }: { user: CurrentUser; children: Rea
           {user.impersonating ? "Zurück zur Plattform" : "Abmelden"}
         </button>
       </form>
-      {club && <p className="text-rail-ink/40 px-3 pt-3 text-[11px]">powered by Vereinsplattform</p>}
+      <p className="text-rail-ink/40 flex flex-wrap gap-x-3 px-3 pt-3 text-[11px]">
+        {club && <span>powered by {platformName()}</span>}
+        <a href={rootUrl("/impressum")} className="hover:text-rail-ink">
+          Impressum
+        </a>
+        <a href={rootUrl("/datenschutz")} className="hover:text-rail-ink">
+          Datenschutz
+        </a>
+      </p>
     </div>
   );
 

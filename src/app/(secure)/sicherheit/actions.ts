@@ -11,6 +11,7 @@ import { generateRecoveryCodes, hashRecoveryCode } from "@/lib/recovery-codes";
 import { relyingParty } from "@/lib/webauthn";
 import { rateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
+import { platformName } from "@/lib/platform";
 
 export type SecurityState = { error?: string; ok?: string; codes?: string[] } | undefined;
 
@@ -46,7 +47,7 @@ export async function startTotpSetup(password: string): Promise<{ secret: string
   if (wrong) return { error: wrong };
   const secret = generateTotpSecret();
   await db.user.update({ where: { id: user.id }, data: { totpSecretEnc: seal(secret) } });
-  const issuer = user.club?.name ?? "Vereinsplattform";
+  const issuer = user.club?.name ?? platformName();
   const uri = otpauthUri(issuer, user.email, secret);
   return { secret, qr: await QRCode.toDataURL(uri, { margin: 1, width: 220 }) };
 }

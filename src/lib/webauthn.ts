@@ -2,6 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { protocol, requestHost } from "@/lib/hosts";
 import { getTenant } from "@/lib/tenant";
+import { platformName } from "@/lib/platform";
 
 /**
  * Relying party for passkeys = the host the user is on. A passkey created on a club's subdomain only works there,
@@ -14,6 +15,6 @@ export async function relyingParty() {
   return {
     rpID: host.replace(/:\d+$/, ""),
     origin: `${protocol()}://${host}`,
-    rpName: tenant.kind === "club" && tenant.club ? tenant.club.name : "Vereinsplattform",
+    rpName: tenant.kind === "club" && tenant.club ? tenant.club.name : platformName(),
   };
 }

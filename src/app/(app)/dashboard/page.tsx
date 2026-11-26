@@ -134,7 +134,7 @@ export default async function DashboardPage() {
           </p>
           {unpaid._count > 0 && (
             <Link href="/mitglieder?status=offen" className="bg-brass-soft text-brass mt-4 block rounded-md px-3 py-2 text-sm hover:underline">
-              {unpaid._count} Beiträge {year} offen ({formatEur(unpaid._sum.fee)})
+              {unpaid._count} {unpaid._count === 1 ? "Beitrag" : "Beiträge"} {year} offen ({formatEur(unpaid._sum.fee)})
             </Link>
           )}
           {license?.maxMembers && <p className="text-muted mt-3 text-xs">Lizenz: bis {license.maxMembers} Mitglieder</p>}

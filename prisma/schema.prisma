@@ -276,6 +276,12 @@ model LicensePlan {
   durationMonths Int?     @default(12)
   modules        Module[] @default([MITGLIEDER, FINANZEN, EVENTS, NOTIZEN, DOKUMENTE, KOMMUNIKATION])
   active         Boolean  @default(true)
+  // public price list on the landing page
+  priceCents     Int?     /// per year, gross; null = "auf Anfrage"
+  publicListed   Boolean  @default(false)
+  highlighted    Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  requests       ContactRequest[]
   createdAt      DateTime @default(now())
   licenses       License[]
 }
@@ -349,4 +355,40 @@ model Passkey {
   lastUsedAt   DateTime?
 
   @@index([userId])
+}
+
+/** Operator details for imprint, privacy policy and terms – edited in the platform admin panel. */
+model PlatformSettings {
+  id              String   @id @default("default")
+  operatorName    String?
+  legalForm       String?  /// e.g. Einzelunternehmen, GmbH
+  street          String?
+  zipCity         String?
+  country         String?  @default("Österreich")
+  email           String?
+  phone           String?
+  vatId           String?  /// UID-Nummer
+  companyRegister String?  /// Firmenbuchnummer und -gericht
+  businessPurpose String?  /// Unternehmensgegenstand
+  authority       String?  /// Gewerbebehörde
+  chamber         String?  /// Kammer / Berufsrecht
+  representative  String?  /// Geschäftsführung / vertretungsbefugt
+  hostingProvider String?  /// name and location of the server provider
+  mailProvider    String?
+  contactEmail    String?  /// receives contact requests
+  updatedAt       DateTime @updatedAt
+}
+
+model ContactRequest {
+  id        String       @id @default(cuid())
+  clubName  String
+  name      String
+  email     String
+  phone     String?
+  members   Int?
+  message   String?
+  planId    String?
+  plan      LicensePlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  handledAt DateTime?
+  createdAt DateTime     @default(now())
 }

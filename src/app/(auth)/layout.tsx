@@ -1,12 +1,14 @@
 import { getTenant } from "@/lib/tenant";
 import { assetUrl } from "@/lib/branding";
 import { BrandLogo } from "@/components/brand-logo";
+import { platformName } from "@/lib/platform";
+import { rootUrl } from "@/lib/hosts";
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   const tenant = await getTenant();
   const club = tenant.kind === "club" ? tenant.club : null;
   const image = club ? assetUrl(club, "login-bild") : null;
-  const title = club ? club.loginTitle || club.name : tenant.kind === "admin" ? "Plattform-Verwaltung" : "Vereinsplattform";
+  const title = club ? club.loginTitle || club.name : tenant.kind === "admin" ? "Plattform-Verwaltung" : platformName();
   const text = club
     ? club.loginText || "Mitgliederbereich und Vereinsverwaltung. Melde dich mit der E-Mail-Adresse an, die der Verein von dir hat."
     : "Vereine, Lizenzen und Pakete der Plattform verwalten.";
@@ -23,7 +25,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
         )}
         <div className="relative flex items-center gap-3">
           {club && <BrandLogo club={club} className="size-12 rounded bg-white p-1" />}
-          <span className="text-lg font-semibold">{club?.name ?? "Vereinsplattform"}</span>
+          <span className="text-lg font-semibold">{club?.name ?? platformName()}</span>
         </div>
         <div className="relative">
           <p className="max-w-md text-[40px] leading-[1.1] font-semibold tracking-[-0.02em] break-words">{title}</p>
@@ -47,7 +49,15 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           )}
           {children}
         </div>
-        <p className="text-muted/70 mt-16 text-xs">powered by Vereinsplattform</p>
+        <p className="text-muted/70 mt-16 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+          <span>powered by {platformName()}</span>
+          <a href={rootUrl("/impressum")} className="hover:text-ink">
+            Impressum
+          </a>
+          <a href={rootUrl("/datenschutz")} className="hover:text-ink">
+            Datenschutz
+          </a>
+        </p>
       </main>
     </div>
   );

@@ -17,6 +17,12 @@ services:
   app:
     build: .
     restart: unless-stopped
+    # logs are rotated by size so personal data in them does not pile up (see privacy policy)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-verein}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-verein}
