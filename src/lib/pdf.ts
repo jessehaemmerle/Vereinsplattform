@@ -11,9 +11,20 @@ const INK = rgb(0.11, 0.15, 0.13);
 const MUTED = rgb(0.42, 0.47, 0.44);
 const ACCENT = rgb(0.18, 0.35, 0.27);
 
-/** Removes characters the WinAnsi standard fonts cannot encode. */
-function safe(text: string) {
-  return text.replace(/[^\x20-\x7E -ÿ€–—„“”‚‘’…]/g, "?");
+/** Characters the standard PDF fonts (WinAnsi) lack, mapped to the closest one they have. */
+const REPLACEMENTS: Record<string, string> = {
+  "\u2212": "-", // minus sign (used for expenses)
+  "\u2010": "-",
+  "\u2011": "-",
+  "\u2012": "–",
+  "\u2009": " ",
+  "\u202f": " ",
+  "\u2007": " ",
+};
+
+/** Makes text encodable in WinAnsi: known look-alikes are substituted, anything else becomes "?". */
+export function safe(text: string) {
+  return text.replace(/[\u2212\u2010-\u2012\u2009\u202f\u2007]/g, (c) => REPLACEMENTS[c]).replace(/[^\x20-\x7E\u00A0-\u00FF€–—„“”‚‘’…]/gu, "?");
 }
 
 function truncate(text: string, font: PDFFont, size: number, width: number) {

@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ report: str
     TX_LABELS[t.type],
     t.category,
     t.description ?? "",
-    `${t.type === "AUSGABE" ? "−" : ""}${formatEur(t.amount)}`,
+    `${t.type === "AUSGABE" ? "-" : ""}${formatEur(t.amount)}`,
   ];
   const catSection = (): Section => ({
     title: "Summen nach Kategorie",
