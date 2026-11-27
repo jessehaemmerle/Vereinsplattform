@@ -82,6 +82,7 @@ Das letzte Sicherheits-Audit liegt unter [docs/security-audit.md](docs/security-
 - **Pakete** (z. B. Basis/Plus/Premium): Limits für Mitglieder und Zugänge, Laufzeit, enthaltene Module.
 - **Lizenzen:** aus Paket erzeugen oder individuell anlegen, mit einem Klick verlängern (ab dem bisherigen Ende, bei abgelaufenen ab heute). Ein Verlauf protokolliert jede Änderung.
 - **Ablauf-Erinnerungen:** 30, 7 und 1 Tag vor Ablauf an die Vereins-Admins und die Super-Admins. Ein Job im App-Container läuft alle 6 h und verschickt jede Erinnerung nur einmal. Abschalten mit `LICENSE_REMINDERS=off`.
+- **Einmal-Passwort statt Einladung:** Beim Anlegen eines Vereins wählst du, ob der erste Admin einen Einladungslink per E-Mail bekommt oder ein **Einmal-Passwort**, das in der Konsole beim Verein unter *Vorstands-Zugänge* steht (zum persönlichen Weitergeben, kein Mailversand nötig). Es gilt 7 Tage und ist nur bis zur ersten Anmeldung sichtbar; danach muss die Person ein eigenes Passwort festlegen, vorher ist nichts anderes erreichbar. Über „Einmal-Passwort erstellen“ geht das auch später für jeden Vorstands-Zugang, etwa bei vergessenem Passwort; das alte Passwort gilt dann nicht mehr. Das Passwort liegt bis zur ersten Anmeldung verschlüsselt (AES-256-GCM mit `APP_SECRET`) in der Datenbank.
 - **Als Verein einloggen:** Einmal-Link auf die Vereins-Subdomain, Sitzung 1 h. Ein rotes Banner zeigt den Modus an, Beginn und alle Aktionen stehen im Aktivitätsprotokoll des Vereins. „Zurück zur Plattform“ beendet die Sitzung.
 
 ### Rechnungen

@@ -11,6 +11,15 @@ import { MODULE_LABELS } from "@/lib/modules";
 
 type Action = (s: FormState, f: FormData) => Promise<FormState>;
 
+const ACCESS_OPTIONS = [
+  { value: "invite", label: "Einladungslink senden", hint: "Per E-Mail: Link zum Festlegen des Passworts, 7 Tage gültig." },
+  {
+    value: "oneTime",
+    label: "Einmal-Passwort",
+    hint: "Wird hier in der Konsole angezeigt und persönlich weitergegeben, keine E-Mail. Bei der ersten Anmeldung wählt der Admin ein eigenes Passwort.",
+  },
+];
+
 function SubdomainInput({
   defaultValue,
   baseDomain,
@@ -75,11 +84,31 @@ export function ClubCreateForm({
       />
       <fieldset className="border-line space-y-5 border-t pt-5">
         <legend className="mb-1 font-semibold">Vereins-Admin</legend>
-        <p className="text-muted text-sm">Bekommt eine E-Mail mit der Adresse des Vereins und einem Link zum Festlegen des Passworts.</p>
         <FormGrid>
           <Input label="Name" name="adminName" required defaultValue={defaults?.adminName} />
           <Input label="E-Mail" name="adminEmail" type="email" required defaultValue={defaults?.adminEmail} />
         </FormGrid>
+        <div role="radiogroup" aria-label="Erster Zugang" className="space-y-3">
+          {ACCESS_OPTIONS.map((o, i) => (
+            <div key={o.value} className="flex items-start gap-3">
+              <input
+                id={`access-${o.value}`}
+                type="radio"
+                name="access"
+                value={o.value}
+                defaultChecked={i === 0}
+                aria-describedby={`access-${o.value}-hint`}
+                className="mt-1 size-4 accent-[var(--loden)]"
+              />
+              <div className="text-[15px]">
+                <label htmlFor={`access-${o.value}`}>{o.label}</label>
+                <p id={`access-${o.value}-hint`} className="text-muted text-sm">
+                  {o.hint}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       </fieldset>
       <Select
         label="Lizenz"

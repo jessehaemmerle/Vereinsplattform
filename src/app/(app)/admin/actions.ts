@@ -12,6 +12,8 @@ import { createLicenseFromPlan, describeChanges, extendedUntil, logLicense } fro
 import { slugify } from "@/lib/format";
 import { clubUrl, isValidSlug } from "@/lib/hosts";
 import { issueToken } from "@/lib/tokens";
+import { assignOneTimePassword } from "@/lib/initial-password";
+import { ONE_TIME_PASSWORD_DAYS } from "@/lib/one-time-password";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { describeMailError, sendMail, trySendMail, verifyMailSetup } from "@/lib/mail";
 import { mailBrand } from "@/lib/branding";
@@ -53,6 +55,7 @@ const slugField = z
 export async function createClub(_: FormState, formData: FormData): Promise<FormState> {
   let clubId = "";
   let mailSent = true;
+  let oneTime = false;
   try {
     const admin = await requirePlatformAdmin();
     const parsed = z
@@ -62,6 +65,7 @@ export async function createClub(_: FormState, formData: FormData): Promise<Form
         adminName: zf.text("Name", 100),
         adminEmail: zf.email(),
         license: z.string().optional(),
+        access: z.enum(["invite", "oneTime"]).catch("invite"),
       })
       .safeParse(formObject(formData));
     if (!parsed.success) return fromZod(parsed.error);
@@ -87,13 +91,20 @@ export async function createClub(_: FormState, formData: FormData): Promise<Form
     clearTenantCache();
     if (plan) await createLicenseFromPlan(plan, { clubId: club.id, name: `${plan.name} – ${name}`, userId: admin.id });
     else if (license?.startsWith("license:")) await logLicense(license.slice(8), admin.id, "zugewiesen", name);
-    const token = await issueToken(club.users[0].id, "PASSWORD_SETUP");
-    mailSent = await trySendMail({
-      to: adminEmail,
-      subject: `Dein Zugang für ${name}`,
-      text: `Hallo ${adminName},\n\nfür ${name} wurde ein eigener Bereich eingerichtet, du bist Vereins-Admin. Er ist erreichbar unter ${clubUrl(slug)}\n\nLege über diesen Link dein Passwort fest:\n${clubUrl(slug, `/passwort/${token}`)}\n\nDer Link ist sieben Tage gültig. Unter Einstellungen → Erscheinungsbild kannst du Farben, Logo und Schrift eures Vereins festlegen.`,
-      brand: mailBrand(club),
-    });
+    oneTime = parsed.data.access === "oneTime";
+    if (oneTime) {
+      // no e-mail: the password is shown in the admin console and handed over personally
+      await assignOneTimePassword(club.users[0].id);
+      await logActivity({ clubId: club.id, userId: admin.id, action: "one_time_password_created", detail: adminEmail });
+    } else {
+      const token = await issueToken(club.users[0].id, "PASSWORD_SETUP");
+      mailSent = await trySendMail({
+        to: adminEmail,
+        subject: `Dein Zugang für ${name}`,
+        text: `Hallo ${adminName},\n\nfür ${name} wurde ein eigener Bereich eingerichtet, du bist Vereins-Admin. Er ist erreichbar unter ${clubUrl(slug)}\n\nLege über diesen Link dein Passwort fest:\n${clubUrl(slug, `/passwort/${token}`)}\n\nDer Link ist sieben Tage gültig. Unter Einstellungen → Erscheinungsbild kannst du Farben, Logo und Schrift eures Vereins festlegen.`,
+        brand: mailBrand(club),
+      });
+    }
     await logActivity({ userId: admin.id, action: "club_created", detail: name });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")
@@ -101,9 +112,11 @@ export async function createClub(_: FormState, formData: FormData): Promise<Form
     return handleError(e);
   }
   await flash(
-    mailSent
-      ? "Verein angelegt, die Einladung an den Vereins-Admin ist unterwegs."
-      : "Verein angelegt. Die Einladungs-E-Mail konnte aber nicht gesendet werden – bitte unter „Rechtliches“ den Mailversand testen und danach hier „Einladung erneut senden“ wählen.",
+    oneTime
+      ? "Verein angelegt. Das Einmal-Passwort für den Vereins-Admin steht unten bei den Vorstands-Zugängen."
+      : mailSent
+        ? "Verein angelegt, die Einladung an den Vereins-Admin ist unterwegs."
+        : "Verein angelegt. Die Einladungs-E-Mail konnte aber nicht gesendet werden – bitte unter „Rechtliches“ den Mailversand testen und danach hier „Einladung erneut senden“ wählen.",
     mailSent ? "success" : "error",
   );
   revalidatePath("/admin");
@@ -332,6 +345,21 @@ export async function resetClubUserMfa(formData: FormData) {
     await resetMfa(target.id, admin);
     await flash(`Zwei-Faktor-Anmeldung von ${target.name} zurückgesetzt. Die Person wurde per E-Mail informiert.`);
   }
+  redirect(`/admin/vereine/${target?.clubId ?? ""}`);
+}
+
+/** One-time password for a board account of a club, shown in the admin console (e.g. first admin, lost password). */
+export async function createOneTimePassword(formData: FormData) {
+  const admin = await requirePlatformAdmin();
+  const target = await db.user.findFirst({
+    where: { id: String(formData.get("userId")), isPlatformAdmin: false, clubId: { not: null }, role: { not: "MITGLIED" } },
+  });
+  if (target) {
+    await assignOneTimePassword(target.id);
+    await logActivity({ clubId: target.clubId, userId: admin.id, action: "one_time_password_created", detail: target.email });
+    await flash(`Einmal-Passwort für ${target.name} erstellt. Es steht bei den Vorstands-Zugängen und gilt ${ONE_TIME_PASSWORD_DAYS} Tage.`);
+  }
+  revalidatePath(`/admin/vereine/${target?.clubId ?? ""}`);
   redirect(`/admin/vereine/${target?.clubId ?? ""}`);
 }
 

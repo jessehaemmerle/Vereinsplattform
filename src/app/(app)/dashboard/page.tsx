@@ -22,6 +22,8 @@ const ACTIONS: Record<string, string> = {
   members_imported: "hat Mitglieder importiert",
   fee_toggled: "hat einen Beitrag verbucht",
   fee_invoices_created: "hat Beitragsrechnungen erstellt",
+  initial_password_changed: "hat das Einmal-Passwort durch ein eigenes ersetzt",
+  one_time_password_created: "hat ein Einmal-Passwort vergeben",
   transaction_created: "hat eine Buchung erfasst",
   transaction_updated: "hat eine Buchung geändert",
   transaction_deleted: "hat eine Buchung gelöscht",

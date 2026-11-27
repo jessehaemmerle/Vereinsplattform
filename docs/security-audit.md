@@ -93,6 +93,11 @@ Methode: Code-Review entlang der Einstiegspunkte, mechanische Prüfung aller Ser
   - GitHub Actions auf Commit-SHA pinnen.
   - Das Lizenzlimit kann bei exakt gleichzeitigen Anlagen um wenige Mitglieder überschritten werden. Das ist kein Sicherheitsrisiko.
 
+### Nachtrag · Einmal-Passwörter für Vereins-Admins
+- **Funktion:** Der Plattform-Admin kann für Vorstands-Zugänge ein Einmal-Passwort erzeugen, das in der Konsole angezeigt wird.
+- **Absicherung:** 60 Bit Zufall (12 Zeichen aus 32), Login-Rate-Limit wie gewohnt; gültig 7 Tage, danach abgelehnt. Der Klartext liegt nur bis zur ersten Anmeldung AES-256-GCM-verschlüsselt (Schlüssel aus `APP_SECRET`) vor und wird dann gelöscht. Bis zum eigenen Passwort sperrt `requireUser()` jede andere Seite und Server-Action, `apiUser()` jede API. Erzeugen beendet alle Sitzungen und entwertet offene Einladungs-/Reset-Links; das eigene Passwort darf nicht gleich dem Einmal-Passwort sein und beendet andere Sitzungen. Jeder Vorgang steht im Aktivitätsprotokoll des Vereins. Plattform-Admins und Mitglieder sind ausgenommen.
+- **Restrisiko:** Wer die Admin-Konsole einsehen kann, sieht das Passwort bis zur ersten Anmeldung – die Konsole ist nur mit MFA erreichbar.
+
 ## 3. Geprüft und unauffällig
 - **Mandantentrennung:**
   - Jede Abfrage in Server Actions und Route Handlern ist auf `clubId` des angemeldeten Benutzers eingeschränkt (Stichprobe aller ID-Parameter: Mitglieder, Buchungen, Termine, Dokumente, Notizen, Vorlagen, Benutzer).
