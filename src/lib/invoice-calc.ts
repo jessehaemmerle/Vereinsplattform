@@ -79,3 +79,17 @@ export function epcPayload(p: { name: string; iban: string | null | undefined; b
     clean(p.text, 140),
   ].join("\n");
 }
+
+/**
+ * The license period a subscription invoice bills. A license with an end date bills up to that date;
+ * an open-ended license bills calendar years (from its start if that lies within the year).
+ */
+export function licensePeriod(validFrom: Date | null, validUntil: Date | null, year: number): { start: Date | null; end: Date } {
+  if (validUntil) return { start: validFrom, end: validUntil };
+  const jan1 = new Date(Date.UTC(year, 0, 1));
+  return { start: validFrom && validFrom > jan1 ? validFrom : jan1, end: new Date(Date.UTC(year, 11, 31)) };
+}
+
+export function sameDay(a: Date | null | undefined, b: Date | null | undefined) {
+  return !!a && !!b && a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+}

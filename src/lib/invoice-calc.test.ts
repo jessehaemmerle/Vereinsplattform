@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTotals, epcPayload, formatInvoiceNumber, netFromGross, taxNote } from "./invoice-calc";
+import { computeTotals, epcPayload, formatInvoiceNumber, licensePeriod, netFromGross, sameDay, taxNote } from "./invoice-calc";
 
 describe("computeTotals", () => {
   it("sums per tax rate and adds VAT for taxable issuers", () => {
@@ -85,5 +85,22 @@ describe("issuer checks", async () => {
   it("needs a VAT id when charging VAT", () => {
     expect(missingIssuerData(club("Weg 1\n4040 Linz"), "STEUERPFLICHTIG")).toEqual(["UID-Nummer"]);
     expect(missingIssuerData(club("Weg 1\n4040 Linz", "ATU12345678"), "STEUERPFLICHTIG")).toEqual([]);
+  });
+});
+
+describe("licensePeriod", () => {
+  const d = (s: string) => new Date(`${s}T00:00:00Z`);
+  it("bills up to the end date of a limited license", () => {
+    expect(licensePeriod(d("2026-03-01"), d("2027-02-28"), 2026)).toEqual({ start: d("2026-03-01"), end: d("2027-02-28") });
+  });
+  it("bills calendar years for open-ended licenses", () => {
+    expect(licensePeriod(d("2024-05-01"), null, 2026)).toEqual({ start: d("2026-01-01"), end: d("2026-12-31") });
+    expect(licensePeriod(d("2026-05-01"), null, 2026)).toEqual({ start: d("2026-05-01"), end: d("2026-12-31") });
+    expect(licensePeriod(null, null, 2026)).toEqual({ start: d("2026-01-01"), end: d("2026-12-31") });
+  });
+  it("compares calendar days", () => {
+    expect(sameDay(d("2026-12-31"), new Date("2026-12-31T00:00:00.000Z"))).toBe(true);
+    expect(sameDay(d("2026-12-31"), d("2027-01-01"))).toBe(false);
+    expect(sameDay(null, d("2027-01-01"))).toBe(false);
   });
 });

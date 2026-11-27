@@ -7,7 +7,9 @@ import { db } from "@/lib/db";
 import { guarded, writer } from "@/lib/guard";
 import { formObject, fromZod, handleError, zf, type FormState } from "@/lib/form";
 import { billingSchema, parseInvoiceForm } from "@/lib/invoice-input";
-import { saveDraft } from "@/lib/invoices";
+import { InvoiceError, saveDraft } from "@/lib/invoices";
+import { describeRun, generateFeeInvoices, RUN_MODES } from "@/lib/billing";
+import { viennaYear } from "@/lib/format";
 import { INVOICE_OPS, runInvoiceOp } from "@/lib/invoice-ops";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
@@ -115,4 +117,26 @@ export async function saveClubBilling(_: FormState, formData: FormData): Promise
   } catch (e) {
     return handleError(e);
   }
+}
+
+/** Soll-Rechnungen: membership fee invoices for the selected members (or the single one of a row button). */
+export async function runFeeBilling(formData: FormData) {
+  const year = z.coerce.number().int().min(2000).max(2100).catch(viennaYear()).parse(formData.get("year"));
+  await guarded(async () => {
+    const { user } = await clubIssuer();
+    if (!user.club.modules.includes("MITGLIEDER")) return;
+    const mode = z.enum(RUN_MODES).catch("draft").parse(formData.get("mode"));
+    const only = String(formData.get("only") ?? "");
+    const ids = only ? [only] : formData.getAll("ids").map(String);
+    try {
+      const result = await generateFeeInvoices(user.club, year, ids, mode);
+      if (result.created) await logActivity({ clubId: user.clubId, userId: user.id, action: "fee_invoices_created", detail: `${year}: ${result.created}` });
+      await flash(describeRun(result, "Beitragsrechnungen"), result.mailFailed ? "error" : "success");
+    } catch (e) {
+      if (!(e instanceof InvoiceError)) throw e;
+      await flash(e.message, "error");
+    }
+  });
+  revalidatePath("/rechnungen");
+  redirect(`/rechnungen/beitraege?jahr=${year}`);
 }

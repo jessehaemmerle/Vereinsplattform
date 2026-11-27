@@ -7,7 +7,8 @@ import { db } from "@/lib/db";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { formObject, fromZod, handleError, type FormState } from "@/lib/form";
 import { billingSchema, parseInvoiceForm } from "@/lib/invoice-input";
-import { platformIssuer, saveDraft } from "@/lib/invoices";
+import { InvoiceError, platformIssuer, saveDraft } from "@/lib/invoices";
+import { describeRun, generateLicenseInvoices, RUN_MODES } from "@/lib/billing";
 import { INVOICE_OPS, runInvoiceOp } from "@/lib/invoice-ops";
 import { flash } from "@/lib/flash";
 
@@ -51,4 +52,22 @@ export async function savePlatformBilling(_: FormState, formData: FormData): Pro
   } catch (e) {
     return handleError(e);
   }
+}
+
+/** Billing run: subscription invoices for the selected licenses (or the single one of a row button). */
+export async function runLicenseBilling(formData: FormData) {
+  await requirePlatformAdmin();
+  const mode = z.enum(RUN_MODES).catch("draft").parse(formData.get("mode"));
+  const only = String(formData.get("only") ?? "");
+  const ids = only ? [only] : formData.getAll("ids").map(String);
+  try {
+    const result = await generateLicenseInvoices(ids, mode);
+    await flash(describeRun(result, "Rechnungen"), result.mailFailed ? "error" : "success");
+  } catch (e) {
+    if (!(e instanceof InvoiceError)) throw e;
+    await flash(e.message, "error");
+  }
+  revalidatePath("/admin/abrechnung");
+  revalidatePath("/admin/rechnungen");
+  redirect("/admin/abrechnung");
 }

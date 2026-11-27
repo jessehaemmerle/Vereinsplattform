@@ -3,7 +3,7 @@ import type { Club, Invoice, InvoiceItem, PlatformSettings, Prisma, TaxMode } fr
 import { db } from "@/lib/db";
 import { getPlatformSettings } from "@/lib/legal";
 import { platformName } from "@/lib/platform";
-import { computeTotals, formatInvoiceNumber, netFromGross } from "@/lib/invoice-calc";
+import { computeTotals, formatInvoiceNumber, licensePeriod, netFromGross } from "@/lib/invoice-calc";
 import { formatDate, viennaDay, viennaYear } from "@/lib/format";
 
 /** Issuer data as printed on the invoice; frozen into the invoice when it is issued. */
@@ -107,7 +107,9 @@ export type DraftInput = {
 };
 
 /** Creates or replaces a draft (only drafts can change). */
-export async function saveDraft(issuer: Issuer, input: DraftInput, id?: string, extra: { licenseId?: string } = {}) {
+type DraftLinks = { licenseId?: string; licensePeriodEnd?: Date; feeYear?: number };
+
+export async function saveDraft(issuer: Issuer, input: DraftInput, id?: string, extra: DraftLinks = {}) {
   const { taxMode } = issuerSettings(issuer);
   const totals = computeTotals(input.items, taxMode);
   const issuerClubId = issuer.kind === "club" ? issuer.club.id : null;
@@ -119,7 +121,7 @@ export async function saveDraft(issuer: Issuer, input: DraftInput, id?: string, 
     if (!existing) throw new InvoiceError("Nur Entwürfe können bearbeitet werden.");
     return db.invoice.update({ where: { id }, data: { ...data, items: { deleteMany: {}, create: itemRows } } });
   }
-  return db.invoice.create({ data: { ...data, issuerClubId, licenseId: extra.licenseId, items: { create: itemRows } } });
+  return db.invoice.create({ data: { ...data, issuerClubId, ...extra, items: { create: itemRows } } });
 }
 
 export class InvoiceError extends Error {
@@ -222,7 +224,9 @@ export async function markPaid(issuer: Issuer, id: string, paidOn: Date) {
   if (!invoice) throw new InvoiceError("Nur offene Rechnungen können als bezahlt markiert werden.");
   await db.$transaction(async (tx) => {
     await tx.invoice.update({ where: { id }, data: { status: "PAID", paidAt: paidOn } });
-    if (issuer.kind === "club" && invoice.grossCents !== 0) {
+    if (issuer.kind === "club" && invoice.feeYear && invoice.recipientMemberId && invoice.kind === "INVOICE") {
+      await bookFeePayment(tx, issuer.club.id, invoice.recipientMemberId, invoice.feeYear, invoice.grossCents, paidOn, id);
+    } else if (issuer.kind === "club" && invoice.grossCents !== 0) {
       await tx.transaction.create({
         data: {
           clubId: issuer.club.id,
@@ -247,7 +251,45 @@ export async function unmarkPaid(issuer: Issuer, id: string) {
   await db.$transaction([
     db.transaction.deleteMany({ where: { invoiceId: id } }),
     db.invoice.update({ where: { id }, data: { status: "ISSUED", paidAt: null } }),
+    // a paid fee invoice marked the member's fee as paid
+    ...(invoice.feeYear && invoice.recipientMemberId
+      ? [db.member.updateMany({ where: { id: invoice.recipientMemberId, feePaidYear: invoice.feeYear }, data: { feePaidYear: null } })]
+      : []),
   ]);
+}
+
+/**
+ * Books a membership fee as paid: the member's fee flag for the year plus the fee booking in the cash book.
+ * A booking that already exists (fee marked paid at the member) is linked to the invoice instead of booked twice.
+ */
+export async function bookFeePayment(
+  tx: Prisma.TransactionClient,
+  clubId: string,
+  memberId: string,
+  year: number,
+  cents: number,
+  paidOn: Date,
+  invoiceId: string | null,
+) {
+  const member = await tx.member.findFirst({ where: { id: memberId, clubId } });
+  if (!member) return;
+  if (year >= (member.feePaidYear ?? 0)) await tx.member.update({ where: { id: memberId }, data: { feePaidYear: year } });
+  if (cents <= 0) return;
+  await tx.transaction.upsert({
+    where: { memberId_feeYear: { memberId, feeYear: year } },
+    update: invoiceId ? { invoiceId } : {},
+    create: {
+      clubId,
+      memberId,
+      feeYear: year,
+      invoiceId,
+      type: "EINNAHME",
+      category: "Mitgliedsbeitrag",
+      amount: cents / 100,
+      date: paidOn,
+      description: `Beitrag ${year} – ${member.firstName} ${member.lastName}`,
+    },
+  });
 }
 
 /** Draft for a license renewal or new license from a plan with a price (platform → club). */
@@ -262,8 +304,9 @@ export async function draftForLicense(
   const issuer = await platformIssuer();
   const { taxMode } = issuerSettings(issuer);
   const rate = taxMode === "STEUERPFLICHTIG" ? 20 : 0;
-  const start = from ?? license.validFrom;
-  const period = start && license.validUntil ? `${formatDate(start)} – ${formatDate(license.validUntil)}` : null;
+  const { start: periodStart, end } = licensePeriod(license.validFrom, license.validUntil, viennaYear());
+  const start = from ?? periodStart;
+  const period = start ? `${formatDate(start)} – ${formatDate(end)}` : `bis ${formatDate(end)}`;
   return saveDraft(
     issuer,
     {
@@ -286,7 +329,7 @@ export async function draftForLicense(
       ],
     },
     undefined,
-    { licenseId: license.id },
+    { licenseId: license.id, licensePeriodEnd: end },
   );
 }
 

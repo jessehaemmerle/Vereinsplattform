@@ -486,6 +486,10 @@ model Invoice {
   grossCents         Int           @default(0)
   licenseId          String?
   license            License?      @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+  /// end of the license period this invoice bills (platform subscription invoices)
+  licensePeriodEnd   DateTime?     @db.Date
+  /// membership fee year this invoice demands (Soll-Rechnung of a club to a member)
+  feeYear            Int?
   cancelsId          String?       @unique
   cancels            Invoice?      @relation("Cancellation", fields: [cancelsId], references: [id], onDelete: SetNull)
   cancelledBy        Invoice?      @relation("Cancellation")
@@ -500,6 +504,8 @@ model Invoice {
   @@unique([issuerClubId, number])
   @@index([issuerClubId, status])
   @@index([recipientClubId])
+  @@index([licenseId])
+  @@index([recipientMemberId, feeYear])
 }
 
 model InvoiceItem {

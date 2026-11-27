@@ -61,6 +61,8 @@ export async function deleteTransaction(formData: FormData) {
       return;
     }
     await db.transaction.delete({ where: { id } });
+    // the booking of a paid invoice: the invoice is open again
+    if (tx.invoiceId) await db.invoice.updateMany({ where: { id: tx.invoiceId, status: "PAID" }, data: { status: "ISSUED", paidAt: null } });
     if (tx.memberId && tx.feeYear) {
       await db.member.updateMany({ where: { id: tx.memberId, feePaidYear: tx.feeYear }, data: { feePaidYear: null } });
     }
