@@ -12,7 +12,17 @@ import { LogIn } from "lucide-react";
 import { baseDomain, clubUrl } from "@/lib/hosts";
 import { buildTheme } from "@/lib/color";
 import { ModulesForm, SlugForm } from "../../forms";
-import { changeSlug, createLicenseForPlan, deleteClub, resendAdminInvite, resetClubUserMfa, startImpersonation, updateModules } from "../../actions";
+import {
+  changeSlug,
+  createLicenseForPlan,
+  createOneTimePassword,
+  deleteClub,
+  resendAdminInvite,
+  resetClubUserMfa,
+  startImpersonation,
+  updateModules,
+} from "../../actions";
+import { visibleOneTimePassword } from "@/lib/initial-password";
 
 export default async function ClubAdminPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePlatformAdmin();
@@ -132,32 +142,73 @@ export default async function ClubAdminPage({ params }: { params: Promise<{ id: 
           )}
         </Panel>
         <Panel title="Vorstands-Zugänge">
-          <ul className="space-y-3">
-            {club.users.map((u) => (
-              <li key={u.id} className="flex items-center justify-between gap-3">
-                <span>
-                  {u.name}{" "}
-                  <span className="text-muted text-sm">
-                    · {ROLE_LABELS[u.role]} · {u.email}
-                  </span>
-                </span>
-                {(u.totpEnabledAt || u._count.passkeys > 0) && (
-                  <ActionButton
-                    action={resetClubUserMfa}
-                    fields={{ userId: u.id }}
-                    variant="ghost"
-                    confirm={`Zwei-Faktor-Anmeldung von ${u.name} zurücksetzen? Die Person wird abgemeldet und per E-Mail informiert.`}
-                  >
-                    2FA zurücksetzen
-                  </ActionButton>
-                )}
-                {!u.passwordHash && (
-                  <ActionButton action={resendAdminInvite} fields={{ userId: u.id }}>
-                    Einladung erneut senden
-                  </ActionButton>
-                )}
-              </li>
-            ))}
+          <ul className="divide-line divide-y">
+            {club.users.map((u) => {
+              const otp = visibleOneTimePassword(u);
+              return (
+                <li key={u.id} className="space-y-2 py-3 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      {u.name}{" "}
+                      <span className="text-muted text-sm">
+                        · {ROLE_LABELS[u.role]} · {u.email}
+                      </span>
+                      {u.mustChangePassword && !otp && (
+                        <span className="ml-2">
+                          <Badge tone="warn">
+                            {u.oneTimePasswordExp && u.oneTimePasswordExp < new Date() ? "Einmal-Passwort abgelaufen" : "Passwortwechsel ausstehend"}
+                          </Badge>
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex flex-wrap gap-2">
+                      {(u.totpEnabledAt || u._count.passkeys > 0) && (
+                        <ActionButton
+                          action={resetClubUserMfa}
+                          fields={{ userId: u.id }}
+                          variant="ghost"
+                          confirm={`Zwei-Faktor-Anmeldung von ${u.name} zurücksetzen? Die Person wird abgemeldet und per E-Mail informiert.`}
+                        >
+                          2FA zurücksetzen
+                        </ActionButton>
+                      )}
+                      {!u.passwordHash && (
+                        <ActionButton action={resendAdminInvite} fields={{ userId: u.id }}>
+                          Einladung erneut senden
+                        </ActionButton>
+                      )}
+                      <ActionButton
+                        action={createOneTimePassword}
+                        fields={{ userId: u.id }}
+                        variant="ghost"
+                        confirm={
+                          u.passwordHash && !u.mustChangePassword
+                            ? `Einmal-Passwort für ${u.name} erstellen? Das bisherige Passwort gilt dann nicht mehr und die Person wird abgemeldet.`
+                            : undefined
+                        }
+                      >
+                        {otp ? "Neues Einmal-Passwort" : "Einmal-Passwort erstellen"}
+                      </ActionButton>
+                    </span>
+                  </div>
+                  {otp && (
+                    <div className="border-brass/40 bg-brass/5 rounded-md border px-4 py-3 text-sm">
+                      <p className="text-muted">Einmal-Passwort (gültig bis {formatDateTime(otp.expires)}, nur bis zur ersten Anmeldung sichtbar):</p>
+                      <p className="my-1 font-mono text-lg tracking-wider select-all" data-testid="one-time-password">
+                        {otp.password}
+                      </p>
+                      <p className="text-muted">
+                        Anmeldung unter{" "}
+                        <a href={clubUrl(club.slug, "/login")} className="text-loden underline" target="_blank" rel="noreferrer">
+                          {clubUrl(club.slug, "/login")}
+                        </a>{" "}
+                        mit {u.email}. Danach wird ein eigenes Passwort verlangt.
+                      </p>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </Panel>
         <Panel title="Module">

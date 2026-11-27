@@ -83,13 +83,21 @@ const loadSession = cache(async () => {
       impersonating: { until: session.expiresAt },
       mfaEnabled,
       mfaSetupRequired: false,
+      passwordChangeRequired: false,
     };
     return { session, user };
   }
 
   const valid = tenant.kind === "admin" ? base.isPlatformAdmin : tenant.kind === "club" ? !!tenant.club && base.clubId === tenant.club.id : false;
   if (!valid) return null;
-  const user = { ...base, impersonating: null as null | { until: Date }, mfaEnabled, mfaSetupRequired: !mfaEnabled && mfaRequired(base, base.club) };
+  const user = {
+    ...base,
+    impersonating: null as null | { until: Date },
+    mfaEnabled,
+    mfaSetupRequired: !mfaEnabled && mfaRequired(base, base.club),
+    // signed in with a one-time password from the platform: choose an own password first
+    passwordChangeRequired: base.mustChangePassword,
+  };
   return { session, user };
 });
 
@@ -132,9 +140,10 @@ export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>
  * Signed-in user. Users who must use MFA but have not set it up are sent to /sicherheit until they have –
  * enforced here so that Server Actions cannot bypass it either.
  */
-export async function requireUser(opts: { allowMfaSetup?: boolean } = {}) {
+export async function requireUser(opts: { allowMfaSetup?: boolean; allowPasswordChange?: boolean } = {}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.passwordChangeRequired && !opts.allowPasswordChange) redirect("/passwort-aendern");
   if (user.mfaSetupRequired && !opts.allowMfaSetup) redirect("/sicherheit");
   return user;
 }

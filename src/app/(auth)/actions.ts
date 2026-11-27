@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { User } from "@prisma/client";
 import { db } from "@/lib/db";
-import { createSession, destroySession, getCurrentUser, hashPassword, homeFor, usablePasskeys, verifyPassword } from "@/lib/auth";
+import { createSession, destroySession, getActiveSession, getCurrentUser, hashPassword, homeFor, requireUser, usablePasskeys, verifyPassword } from "@/lib/auth";
 import { fromZod, zf, type FormState } from "@/lib/form";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 import { findValidToken, issueToken } from "@/lib/tokens";
@@ -15,6 +15,7 @@ import { adminUrl, clubUrl } from "@/lib/hosts";
 import { getTenant } from "@/lib/tenant";
 import { logActivity } from "@/lib/activity";
 import { flash } from "@/lib/flash";
+import { oneTimePasswordExpired } from "@/lib/initial-password";
 
 /** Same-site path only: no "//host", no backslash tricks, no whitespace. */
 const SAFE_PATH = /^\/(?![\/\\])[^\\\s]*$/;
@@ -47,7 +48,10 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
   // same message for "wrong password" and "account of another club" – no information about other tenants
   if (!user || !valid || !(await belongsHere(user))) return { error: "E-Mail oder Passwort stimmen nicht." };
   if (user.role === "MITGLIED" && user.member?.status === "AUSGETRETEN") return { error: "Dieser Mitgliedszugang ist nicht mehr aktiv." };
+  if (oneTimePasswordExpired(user)) return { error: "Dieses Einmal-Passwort ist abgelaufen. Bitte beim Plattform-Betreiber ein neues anfordern." };
   resetRateLimit(limitKey); // only failed attempts count
+  // the one-time password has been used: no longer shown in the admin console
+  if (user.oneTimePasswordEnc) await db.user.update({ where: { id: user.id }, data: { oneTimePasswordEnc: null } });
   const next = formData.get("next");
   const target = typeof next === "string" && SAFE_PATH.test(next) ? next : homeFor(user);
   if (user.totpEnabledAt || (await usablePasskeys(user.id)) > 0) {
@@ -97,7 +101,10 @@ export async function setPassword(_: FormState, formData: FormData): Promise<For
   const token = await findValidToken(parsed.data.token);
   if (!token || !(await belongsHere(token.user))) return { error: "Dieser Link ist abgelaufen oder wurde schon verwendet. Fordere einen neuen an." };
   await db.$transaction([
-    db.user.update({ where: { id: token.userId }, data: { passwordHash: await hashPassword(parsed.data.password) } }),
+    db.user.update({
+      where: { id: token.userId },
+      data: { passwordHash: await hashPassword(parsed.data.password), mustChangePassword: false, oneTimePasswordEnc: null, oneTimePasswordExp: null },
+    }),
     db.token.update({ where: { id: token.id }, data: { usedAt: new Date() } }),
     db.session.deleteMany({ where: { userId: token.userId } }),
   ]);
@@ -158,4 +165,30 @@ export async function requestMemberAccess(_: FormState, formData: FormData): Pro
   }).catch((e) => console.error(e));
   await logActivity({ clubId: member.clubId, userId: user.id, action: "member_access_requested" });
   return ok;
+}
+
+/** First login with a one-time password: the person replaces it with their own. */
+export async function changeInitialPassword(_: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser({ allowPasswordChange: true, allowMfaSetup: true });
+  if (!user.passwordChangeRequired) redirect(homeFor(user));
+  const parsed = z
+    .object({ password: zf.password(), confirm: z.string() })
+    .refine((d) => d.password === d.confirm, { message: "Die Passwörter stimmen nicht überein", path: ["confirm"] })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return fromZod(parsed.error);
+  if (await verifyPassword(parsed.data.password, user.passwordHash)) {
+    return { error: "Bitte ein eigenes, neues Passwort wählen.", fieldErrors: { password: "Gleich wie das Einmal-Passwort" } };
+  }
+  const active = await getActiveSession();
+  await db.$transaction([
+    db.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await hashPassword(parsed.data.password), mustChangePassword: false, oneTimePasswordEnc: null, oneTimePasswordExp: null },
+    }),
+    // whoever else signed in with the one-time password is signed out
+    db.session.deleteMany({ where: { userId: user.id, id: { not: active?.session.id ?? "" } } }),
+  ]);
+  await logActivity({ clubId: user.clubId, userId: user.id, action: "initial_password_changed" });
+  await flash("Passwort gespeichert. Ab jetzt meldest du dich damit an.");
+  redirect(homeFor(user));
 }

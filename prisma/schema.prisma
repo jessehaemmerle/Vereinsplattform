@@ -139,6 +139,10 @@ model User {
   member             Member?
   lastLoginAt        DateTime?
   createdAt          DateTime  @default(now())
+  // One-time password set by a platform admin (shown in the admin console until first use)
+  mustChangePassword Boolean   @default(false)
+  oneTimePasswordEnc String? /// AES-256-GCM sealed plaintext, cleared on first login
+  oneTimePasswordExp DateTime? /// the one-time password is refused after this
   // Multi-factor authentication
   totpSecretEnc      String? /// AES-256-GCM encrypted base32 secret (set while enrolling, active once totpEnabledAt is set)
   totpEnabledAt      DateTime?
